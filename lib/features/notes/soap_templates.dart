@@ -265,30 +265,92 @@ T
   plan: '',
 );
 
-/// Pelvic floor — Subjective skeleton + exam under O when paste lacks S body.
+/// Pelvic floor — clinic paste; S/A/P empty.
 const soapTemplatePelvicFloor = SoapTemplate(
   id: 'pelvic_floor',
   label: 'Pelvic Floor',
-  subjective: '''Bladder:
-Bowel:
-Prolapse:
-Intercourse:''',
-  objective: '''Obs:
-External perineum:
-Sensation:
-Tone / tenderness:
-Cough / bearing down:
-Internal exam:
-  Strength:
-  Endurance:
-  Coordination:
-  PERFECT:''',
-  assessment: '''1.
-2.''',
-  plan: '''1.
-2.
-HEP:
-Follow-up:''',
+  subjective: '',
+  objective: '''Obs / posture - 
+
+Breathing pattern - 
+
+Abdominal appearance in standing -
+
+Ability to transfer load in standing - use UL to create pressure
+
+Down - 
+Left - 
+Right -
+
+
+Linea alba:
+
+Integrity - good 
+Tension -  moderate 
+
+
+DRAM Manual (head lift)l:
+
+4cm above umbilicus -
+2cm above umbilicus -
+2cm below umbilicus - 
+
+
+VE: Informed valid verbal consent gained, signed consent form
+
+EXTERNAL:
+
+Observation
+
+Skin colour - 
+Introitus held open -
+Swelling - 
+GH+PB - 
+
+
+Sensation
+
+Thighs -  
+Glutes -  
+Labia - 
+Perineum -  
+
+
+PF Contraction
+
+Perineum movement relative to ischial tuberosities - yes 
+How much does introitus closes - minimal
+External anal sphincter - elevates
+Compensatory/accessory strategies:
+Breathing - 
+Adductors - 
+Glutes - 
+Core - 
+
+
+Cough/bear down
+
+Level of descent - 
+
+
+INTERNAL: 
+
+Palpation 
+
+Superficial -  
+Deep - 
+
+
+PF PERFECT Contraction (global - levator + bulbo):
+
+P - 
+E - 
+R - 
+F -
+T 
+''',
+  assessment: '',
+  plan: '',
 );
 
 /// DRAM — blank S; O Obs…C-section; empty A; plan as given.

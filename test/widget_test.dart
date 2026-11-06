@@ -90,13 +90,12 @@ void main() {
     expect(pn.subjective, contains('\n'));
 
     final pf = soapTemplatePelvicFloor;
-    expect(pf.subjective, contains('Bladder:'));
-    expect(pf.subjective, contains('Bowel:'));
-    expect(pf.subjective, contains('Prolapse:'));
-    expect(pf.subjective, contains('Intercourse:'));
-    expect(pf.objective, contains('Obs:'));
-    expect(pf.assessment.isNotEmpty, isTrue);
-    expect(pf.plan.isNotEmpty, isTrue);
+    expect(pf.subjective, isEmpty);
+    expect(pf.objective, contains('Obs / posture'));
+    expect(pf.objective, contains('DRAM Manual (head lift)l:'));
+    expect(pf.objective, contains('PF PERFECT'));
+    expect(pf.assessment, isEmpty);
+    expect(pf.plan, isEmpty);
 
     final dram = soapTemplateDram;
     expect(dram.subjective, isEmpty);
