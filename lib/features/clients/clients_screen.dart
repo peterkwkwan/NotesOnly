@@ -322,25 +322,6 @@ class _ClientsScreenState extends State<ClientsScreen> {
                           );
                         },
                       ),
-                    if (showStrips)
-                      StreamBuilder<List<int>>(
-                        stream: db.watchPinnedClientIds(),
-                        builder: (context, pinSnap) {
-                          final pinned = clientsInIdOrder(
-                            clients,
-                            pinSnap.data ?? const [],
-                          );
-                          if (pinned.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return _ChipStrip(
-                            caption: 'PINNED',
-                            captionIcon: Icons.push_pin,
-                            clients: pinned,
-                            onTap: _openProfile,
-                          );
-                        },
-                      ),
                     const Divider(height: 1, color: PelviColors.chromeBorder),
                     if (listed.isEmpty)
                       Expanded(
@@ -387,13 +368,25 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       )
                     else
                       Expanded(
-                        child: _AlphaClientList(
-                          clients: listed,
-                          selecting: _selecting,
-                          selected: _selected,
-                          onOpen: _openProfile,
-                          onEnterSelect: _enterSelect,
-                          onToggle: _toggleSelected,
+                        child: StreamBuilder<List<int>>(
+                          stream: db.watchPinnedClientIds(),
+                          builder: (context, pinSnap) {
+                            final pinned = showStrips
+                                ? clientsInIdOrder(
+                                    clients,
+                                    pinSnap.data ?? const [],
+                                  )
+                                : const <Client>[];
+                            return _AlphaClientList(
+                              clients: listed,
+                              pinned: pinned,
+                              selecting: _selecting,
+                              selected: _selected,
+                              onOpen: _openProfile,
+                              onEnterSelect: _enterSelect,
+                              onToggle: _toggleSelected,
+                            );
+                          },
                         ),
                       ),
                   ],
@@ -410,6 +403,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
 class _AlphaClientList extends StatefulWidget {
   const _AlphaClientList({
     required this.clients,
+    required this.pinned,
     required this.selecting,
     required this.selected,
     required this.onOpen,
@@ -418,6 +412,7 @@ class _AlphaClientList extends StatefulWidget {
   });
 
   final List<Client> clients;
+  final List<Client> pinned;
   final bool selecting;
   final Set<int> selected;
   final ValueChanged<int> onOpen;
@@ -444,7 +439,8 @@ class _AlphaClientListState extends State<_AlphaClientList> {
   @override
   void didUpdateWidget(covariant _AlphaClientList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.clients, widget.clients)) {
+    if (!identical(oldWidget.clients, widget.clients) ||
+        !identical(oldWidget.pinned, widget.pinned)) {
       _rebuildGroups();
       _syncSticky();
     }
@@ -459,7 +455,10 @@ class _AlphaClientListState extends State<_AlphaClientList> {
 
   void _rebuildGroups() {
     _groups = groupClientsByLetter(widget.clients);
+    // Pinned is one leading section so stickyLetterAtOffset stays single-overlay.
     _sections = [
+      if (widget.pinned.isNotEmpty)
+        (letter: kPinnedSectionLabel, count: widget.pinned.length),
       for (final g in _groups) (letter: g.letter, count: g.clients.length),
     ];
     _sticky = '';
@@ -474,44 +473,57 @@ class _AlphaClientListState extends State<_AlphaClientList> {
     if (next != _sticky) setState(() => _sticky = next);
   }
 
+  Widget _rowFor(Client c, {required bool showDivider}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showDivider) const Divider(height: 1),
+        SizedBox(
+          height: kAlphaClientRowHeight,
+          child: _ClientRow(
+            client: c,
+            selecting: widget.selecting,
+            selected: widget.selected.contains(c.id),
+            onTap: () => widget.selecting
+                ? widget.onToggle(c.id)
+                : widget.onOpen(c.id),
+            onLongPress: () => widget.selecting
+                ? widget.onToggle(c.id)
+                : widget.onEnterSelect(c.id),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // One overlay letter from scroll index — N× pinned headers stack (B/C/J).
+    final pinnedCount = widget.pinned.isEmpty ? 0 : 1 + widget.pinned.length;
     return Stack(
       children: [
         ListView.builder(
           controller: _scroll,
-          itemCount: _groups.fold<int>(
-            0,
-            (n, g) => n + 1 + g.clients.length,
-          ),
+          itemCount: pinnedCount +
+              _groups.fold<int>(
+                0,
+                (n, g) => n + 1 + g.clients.length,
+              ),
           itemBuilder: (context, index) {
             var i = index;
+            if (widget.pinned.isNotEmpty) {
+              if (i == 0) return const _LetterBar(kPinnedSectionLabel);
+              i--;
+              if (i < widget.pinned.length) {
+                return _rowFor(widget.pinned[i], showDivider: i > 0);
+              }
+              i -= widget.pinned.length;
+            }
             for (final g in _groups) {
               if (i == 0) return _LetterBar(g.letter);
               i--;
               if (i < g.clients.length) {
-                final c = g.clients[i];
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (i > 0) const Divider(height: 1),
-                    SizedBox(
-                      height: kAlphaClientRowHeight,
-                      child: _ClientRow(
-                        client: c,
-                        selecting: widget.selecting,
-                        selected: widget.selected.contains(c.id),
-                        onTap: () => widget.selecting
-                            ? widget.onToggle(c.id)
-                            : widget.onOpen(c.id),
-                        onLongPress: () => widget.selecting
-                            ? widget.onToggle(c.id)
-                            : widget.onEnterSelect(c.id),
-                      ),
-                    ),
-                  ],
-                );
+                return _rowFor(g.clients[i], showDivider: i > 0);
               }
               i -= g.clients.length;
             }
@@ -537,6 +549,11 @@ class _LetterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pinned = letter == kPinnedSectionLabel;
+    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: PelviColors.purple700,
+          fontWeight: FontWeight.w700,
+        );
     return Material(
       color: PelviColors.surfaceMuted,
       child: SizedBox(
@@ -546,13 +563,19 @@ class _LetterBar extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
-            child: Text(
-              letter,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: PelviColors.purple700,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
+            child: pinned
+                ? Row(
+                    children: [
+                      const Icon(
+                        Icons.push_pin,
+                        size: 14,
+                        color: PelviColors.purple700,
+                      ),
+                      const SizedBox(width: PelviSpace.xs),
+                      Text(letter, style: style),
+                    ],
+                  )
+                : Text(letter, style: style),
           ),
         ),
       ),
@@ -603,11 +626,9 @@ class _ChipStrip extends StatelessWidget {
     required this.caption,
     required this.clients,
     required this.onTap,
-    this.captionIcon,
   });
 
   final String caption;
-  final IconData? captionIcon;
   final List<Client> clients;
   final ValueChanged<int> onTap;
 
@@ -624,19 +645,7 @@ class _ChipStrip extends StatelessWidget {
             PelviSpace.md,
             PelviSpace.sm,
           ),
-          child: Row(
-            children: [
-              if (captionIcon != null) ...[
-                Icon(
-                  captionIcon,
-                  size: 14,
-                  color: PelviColors.purple700,
-                ),
-                const SizedBox(width: PelviSpace.xs),
-              ],
-              Text(caption, style: text.labelMedium),
-            ],
-          ),
+          child: Text(caption, style: text.labelMedium),
         ),
         // Cap at two chip rows; height follows 1–2 runs (no empty 2nd-row gap).
         Padding(
@@ -657,14 +666,8 @@ class _ChipStrip extends StatelessWidget {
                         onPressed: () => onTap(c.id),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: PelviColors.ink,
-                          side: BorderSide(
-                            color: captionIcon != null
-                                ? PelviColors.purple400
-                                : PelviColors.border,
-                          ),
-                          backgroundColor: captionIcon != null
-                              ? PelviColors.purple50
-                              : PelviColors.surface,
+                          side: const BorderSide(color: PelviColors.border),
+                          backgroundColor: PelviColors.surface,
                           padding: const EdgeInsets.symmetric(
                             horizontal: PelviSpace.md,
                           ),

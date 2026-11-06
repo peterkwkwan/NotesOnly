@@ -75,6 +75,9 @@ const kAlphaLetterHeaderHeight = 28.0;
 const kAlphaClientRowHeight = 80.0;
 const kAlphaClientDividerHeight = 1.0;
 
+/// Leading phone-book section above A–Z (sticky overlay uses this label).
+const kPinnedSectionLabel = 'Pinned';
+
 /// Current A–Z sticky letter for [offset] — one letter, never a stacked set.
 String stickyLetterAtOffset(
   List<({String letter, int count})> sections,

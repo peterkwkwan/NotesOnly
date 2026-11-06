@@ -709,6 +709,20 @@ void main() {
     expect(stickyLetterAtOffset(sections, cEnd + 50), 'J');
   });
 
+  test('stickyLetterAtOffset treats Pinned as one leading section', () {
+    const sections = [
+      (letter: kPinnedSectionLabel, count: 2),
+      (letter: 'H', count: 1),
+      (letter: 'L', count: 1),
+    ];
+    final pinnedEnd = kAlphaLetterHeaderHeight +
+        2 * kAlphaClientRowHeight +
+        kAlphaClientDividerHeight;
+    expect(stickyLetterAtOffset(sections, 0), kPinnedSectionLabel);
+    expect(stickyLetterAtOffset(sections, pinnedEnd - 0.1), kPinnedSectionLabel);
+    expect(stickyLetterAtOffset(sections, pinnedEnd), 'H');
+  });
+
   test('pin clients + letter groups + deleteClient scrub', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -767,7 +781,7 @@ void main() {
     expect(await db.select(db.appointments).get(), isEmpty);
   });
 
-  testWidgets('Clients tab search, recent, pin strip, letter headers', (tester) async {
+  testWidgets('Clients tab search, recent, pinned section, letter headers', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
 
@@ -794,17 +808,19 @@ void main() {
     expect(find.text('All'), findsOneWidget);
     expect(find.textContaining('Due'), findsOneWidget);
     expect(find.text('RECENT'), findsOneWidget);
-    expect(find.text('PINNED'), findsOneWidget);
+    expect(find.text('PINNED'), findsNothing);
+    expect(find.text(kPinnedSectionLabel), findsOneWidget);
+    expect(find.byIcon(Icons.push_pin), findsOneWidget);
     // In-list A–Z letters only (one scroll sticky overlay, not N pinned headers).
     expect(find.text('H'), findsOneWidget);
     expect(find.text('L'), findsOneWidget);
-    // Chip + main list both show Ada; not three full A–Z copies.
+    // Recent chip + pinned row + A–Z row (not three full A–Z copies).
     expect(find.text('Ada Lovelace'), findsNWidgets(3));
 
     await tester.enterText(find.byType(TextField), 'hopper');
     await tester.pump();
     expect(find.text('RECENT'), findsNothing);
-    expect(find.text('PINNED'), findsNothing);
+    expect(find.text(kPinnedSectionLabel), findsNothing);
     expect(find.text('Grace Hopper'), findsOneWidget);
     expect(find.text('Ada Lovelace'), findsNothing);
 
