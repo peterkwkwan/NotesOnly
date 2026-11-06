@@ -42,7 +42,7 @@ class MoreScreen extends StatelessWidget {
     final trimmed = saved.trim();
     if (trimmed.isEmpty) {
       if (context.mounted) {
-        showPelviSnackBar(context, 'Practice name cannot be empty');
+        showPelviSnackBar(context, 'Practitioner name cannot be empty');
       }
       return;
     }
@@ -243,7 +243,7 @@ class MoreScreen extends StatelessWidget {
                 builder: (_, snap) {
                   final name = snap.data?.trim();
                   return _TappableRow(
-                    title: 'Practice name',
+                    title: 'Practitioner name',
                     subtitle:
                         (name == null || name.isEmpty) ? 'Not set' : name,
                     // Screen context — StreamBuilder row rebuilds on save.
@@ -405,7 +405,7 @@ class _PracticeNameDialogState extends State<_PracticeNameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Practice name'),
+      title: const Text('Practitioner name'),
       content: TextField(
         controller: _controller,
         autofocus: true,
