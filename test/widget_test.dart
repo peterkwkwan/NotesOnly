@@ -63,6 +63,13 @@ void main() {
     );
   });
 
+  test('formatApptWhen is weekday date · HH:mm', () {
+    expect(
+      formatApptWhen(DateTime(2026, 11, 9, 14, 0)),
+      'Mon, 9 Nov 2026 · 14:00',
+    );
+  });
+
   test('appendSoapTranscript joins with newline', () {
     expect(appendSoapTranscript('', '  pain on stairs  '), 'pain on stairs');
     expect(appendSoapTranscript('Sx: LBP', 'worse AM'), 'Sx: LBP\nworse AM');
