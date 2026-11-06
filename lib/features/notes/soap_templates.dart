@@ -35,7 +35,7 @@ const blankId = 'blank';
 
 const soapTemplateBlank = SoapTemplate(
   id: blankId,
-  label: '---BLANK---',
+  label: 'Blank',
 );
 
 /// Postnatal check — S OBGYN…Social; O Obs…PERFECT; A postnatal; P HEP/PF.

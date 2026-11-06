@@ -71,7 +71,7 @@ void main() {
 
   test('soap templates map S/O/A/P markers and preserve newlines', () {
     expect(soapTemplates.map((t) => t.label).toList(), [
-      '---BLANK---',
+      'Blank',
       'Postnatal Check',
       'Pelvic Floor',
       'DRAM',
@@ -941,13 +941,18 @@ void main() {
     expect(find.text('Peter Kwan'), findsOneWidget);
     expect(find.text('Wed, 28 Oct 2026'), findsOneWidget);
     expect(find.text('Copy last note'), findsOneWidget);
-    expect(find.text('Template'), findsOneWidget);
+    expect(find.byIcon(Icons.content_copy_outlined), findsOneWidget);
+    expect(find.text('Blank'), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_drop_down), findsOneWidget);
+    expect(find.byTooltip('Choose template'), findsOneWidget);
+    expect(find.text('Template'), findsNothing);
     expect(find.textContaining('Template:'), findsNothing);
     expect(find.text('Go to client profile'), findsNothing);
     expect(find.byTooltip('Client profile'), findsOneWidget);
     expect(find.byTooltip('Dictate'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
-    expect(find.byType(OutlinedButton), findsNWidgets(2));
+    expect(find.byType(OutlinedButton), findsOneWidget);
+    expect(find.byType(FilledButton), findsOneWidget);
   });
 
   testWidgets('profile appointments multi-delete mode', (tester) async {

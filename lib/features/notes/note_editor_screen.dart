@@ -388,6 +388,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             _NoteEditorHeader(
               listening: _listening,
               liveWords: _liveWords,
+              templateLabel: _template.label,
               onCopyLast: _copyLastNote,
               onPickTemplate: _pickTemplate,
             ),
@@ -436,12 +437,14 @@ class _NoteEditorHeader extends StatelessWidget {
   const _NoteEditorHeader({
     required this.listening,
     required this.liveWords,
+    required this.templateLabel,
     required this.onCopyLast,
     required this.onPickTemplate,
   });
 
   final bool listening;
   final String liveWords;
+  final String templateLabel;
   final VoidCallback onCopyLast;
   final VoidCallback onPickTemplate;
 
@@ -461,16 +464,32 @@ class _NoteEditorHeader extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: OutlinedButton(
+              child: OutlinedButton.icon(
                 onPressed: onCopyLast,
-                child: const Text('Copy last note'),
+                icon: const Icon(Icons.content_copy_outlined, size: 18),
+                label: const Text('Copy last note'),
               ),
             ),
             const SizedBox(width: PelviSpace.sm),
             Expanded(
-              child: OutlinedButton(
-                onPressed: onPickTemplate,
-                child: const Text('Template'),
+              child: Tooltip(
+                message: 'Choose template',
+                child: FilledButton(
+                  onPressed: onPickTemplate,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          templateLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Icon(Icons.arrow_drop_down, size: 20),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
