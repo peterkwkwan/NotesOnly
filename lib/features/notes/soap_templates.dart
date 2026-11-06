@@ -353,20 +353,40 @@ T
   plan: '',
 );
 
-/// DRAM — blank S; O Obs…C-section; empty A; plan as given.
+/// DRAM — empty S/A/P; O from clinic paste (dram-template-source).
 const soapTemplateDram = SoapTemplate(
   id: 'dram',
   label: 'DRAM',
   subjective: '',
-  objective: '''Obs:
-Posture / breathing:
-Abdomen / DRAM width + depth:
-C-section scar / wound:''',
+  objective: '''Obs / posture -  
+
+Breathing pattern - 
+
+Abdominal appearance in standing - 
+
+Ability to transfer load in standing - use UL to create pressure
+
+Down - 
+Left - 
+Right -
+
+
+Linea alba:
+
+Integrity -  
+Tension -  
+
+
+DRAM Manual (head lift)l:
+
+4cm above umbilicus - 
+2cm above umbilicus - 
+2cm below umbilicus - 
+
+
+C-section scar -''',
   assessment: '',
-  plan: '''Education:
-Abdominal / DRAM rehab:
-Load / activity advice:
-Follow-up:''',
+  plan: '',
 );
 
 const soapTemplates = <SoapTemplate>[

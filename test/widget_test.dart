@@ -99,10 +99,12 @@ void main() {
 
     final dram = soapTemplateDram;
     expect(dram.subjective, isEmpty);
-    expect(dram.objective, contains('Obs:'));
-    expect(dram.objective, contains('C-section'));
+    expect(dram.objective, contains('Obs / posture -'));
+    expect(dram.objective, contains('Linea alba:'));
+    expect(dram.objective, contains('DRAM Manual (head lift)l:'));
+    expect(dram.objective, contains('C-section scar -'));
     expect(dram.assessment, isEmpty);
-    expect(dram.plan.isNotEmpty, isTrue);
+    expect(dram.plan, isEmpty);
   });
 
   test('nextWholeHour rounds past the hour, keeps exact hour', () {
