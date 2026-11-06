@@ -33,33 +33,11 @@ class MoreScreen extends StatelessWidget {
     final db = AppDatabaseProvider.of(context);
     final current = (await db.getPractitionerName()) ?? '';
     if (!context.mounted) return;
-    final controller = TextEditingController(text: current);
+    // Own controller in State; dispose-on-pop hits TextField mid-exit anim.
     final saved = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Practice name'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            hintText: 'Clinic or practitioner name',
-          ),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (_) => _PracticeNameDialog(initialName: current),
     );
-    controller.dispose();
     if (saved == null) return;
     final trimmed = saved.trim();
     if (trimmed.isEmpty) {
@@ -262,12 +240,13 @@ class MoreScreen extends StatelessWidget {
             children: [
               StreamBuilder<String?>(
                 stream: db.watchPractitionerName(),
-                builder: (context, snap) {
+                builder: (_, snap) {
                   final name = snap.data?.trim();
                   return _TappableRow(
                     title: 'Practice name',
                     subtitle:
                         (name == null || name.isEmpty) ? 'Not set' : name,
+                    // Screen context — StreamBuilder row rebuilds on save.
                     onTap: () => _editPracticeName(context),
                   );
                 },
@@ -395,6 +374,57 @@ class MoreScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PracticeNameDialog extends StatefulWidget {
+  const _PracticeNameDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_PracticeNameDialog> createState() => _PracticeNameDialogState();
+}
+
+class _PracticeNameDialogState extends State<_PracticeNameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Practice name'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(
+          hintText: 'Clinic or practitioner name',
+        ),
+        onSubmitted: (v) => Navigator.pop(context, v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
