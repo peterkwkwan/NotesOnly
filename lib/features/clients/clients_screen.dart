@@ -638,15 +638,16 @@ class _ChipStrip extends StatelessWidget {
             ],
           ),
         ),
-        // Two chip rows (36) + gap; ClipRect hides anything that would need a 3rd.
+        // Cap at two chip rows; height follows 1–2 runs (no empty 2nd-row gap).
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
           child: ClipRect(
-            child: SizedBox(
-              height: 36 * 2 + PelviSpace.sm,
-              width: double.infinity,
-              child: Align(
-                alignment: Alignment.topLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxHeight: 36 * 2 + PelviSpace.sm,
+              ),
+              child: SizedBox(
+                width: double.infinity,
                 child: Wrap(
                   spacing: PelviSpace.sm,
                   runSpacing: PelviSpace.sm,
@@ -685,7 +686,7 @@ class _ChipStrip extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: PelviSpace.md),
+        const SizedBox(height: PelviSpace.sm),
       ],
     );
   }
