@@ -939,11 +939,15 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Peter Kwan'), findsOneWidget);
+    expect(find.text('Wed, 28 Oct 2026'), findsOneWidget);
     expect(find.text('Copy last note'), findsOneWidget);
+    expect(find.text('Template'), findsOneWidget);
+    expect(find.textContaining('Template:'), findsNothing);
     expect(find.text('Go to client profile'), findsNothing);
     expect(find.byTooltip('Client profile'), findsOneWidget);
     expect(find.byTooltip('Dictate'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
+    expect(find.byType(OutlinedButton), findsNWidgets(2));
   });
 
   testWidgets('profile appointments multi-delete mode', (tester) async {

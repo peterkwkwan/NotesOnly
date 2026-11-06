@@ -327,7 +327,28 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(title),
+          toolbarHeight: 64,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: text.titleLarge,
+              ),
+              Text(
+                when,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: text.labelMedium?.copyWith(
+                  color: PelviColors.inkMuted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
           actions: [
             if (_saving)
               const Padding(
@@ -365,10 +386,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           ),
           children: [
             _NoteEditorHeader(
-              when: when,
               listening: _listening,
               liveWords: _liveWords,
-              templateLabel: _template.label,
               onCopyLast: _copyLastNote,
               onPickTemplate: _pickTemplate,
             ),
@@ -415,18 +434,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
 class _NoteEditorHeader extends StatelessWidget {
   const _NoteEditorHeader({
-    required this.when,
     required this.listening,
     required this.liveWords,
-    required this.templateLabel,
     required this.onCopyLast,
     required this.onPickTemplate,
   });
 
-  final String when;
   final bool listening;
   final String liveWords;
-  final String templateLabel;
   final VoidCallback onCopyLast;
   final VoidCallback onPickTemplate;
 
@@ -436,73 +451,31 @@ class _NoteEditorHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          when,
-          style: text.labelMedium?.copyWith(
-            color: PelviColors.inkMuted,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
         if (listening) ...[
-          const SizedBox(height: PelviSpace.sm),
           Text(
             liveWords.isEmpty ? 'Listening… tap mic to stop' : liveWords,
             style: text.bodyMedium?.copyWith(color: PelviColors.pink700),
           ),
+          const SizedBox(height: PelviSpace.md),
         ],
-        const SizedBox(height: PelviSpace.md),
-        Wrap(
-          spacing: PelviSpace.lg,
-          runSpacing: PelviSpace.sm,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        Row(
           children: [
-            _HeaderLink(
-              label: 'Copy last note',
-              color: PelviColors.purple700,
-              onPressed: onCopyLast,
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onCopyLast,
+                child: const Text('Copy last note'),
+              ),
             ),
-            _HeaderLink(
-              label: 'Template: $templateLabel',
-              color: PelviColors.pink700,
-              onPressed: onPickTemplate,
+            const SizedBox(width: PelviSpace.sm),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onPickTemplate,
+                child: const Text('Template'),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: PelviSpace.md),
-        const Divider(height: 1, thickness: 1, color: PelviColors.border),
       ],
-    );
-  }
-}
-
-class _HeaderLink extends StatelessWidget {
-  const _HeaderLink({
-    required this.label,
-    required this.color,
-    required this.onPressed,
-  });
-
-  final String label;
-  final Color color;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onPressed,
-      style: TextButton.styleFrom(
-        foregroundColor: color,
-        padding: EdgeInsets.zero,
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-      ),
     );
   }
 }
