@@ -258,7 +258,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                                     ),
                                     Text(
                                       muted
-                                          ? 'Hidden from Due and notifications'
+                                          ? 'Hidden from Due and Notifications'
                                           : 'Show in Due when inactive',
                                       style: text.labelMedium,
                                     ),
