@@ -81,12 +81,12 @@ void main() {
 
     final pn = soapTemplatePostnatal;
     expect(pn.subjective, contains('OBGYN'));
-    expect(pn.subjective, contains('Social:'));
-    expect(pn.objective, contains('Obs'));
-    expect(pn.objective, contains('PERFECT'));
-    expect(pn.assessment, contains('1. Postnatal check'));
-    expect(pn.plan, contains('Home exercise'));
-    expect(pn.plan, contains('PF plan'));
+    expect(pn.subjective, contains('Coping/mood'));
+    expect(pn.objective, contains('Obs / posture'));
+    expect(pn.objective, contains('PF PERFECT'));
+    expect(pn.assessment, contains('1. Postnatal check:'));
+    expect(pn.assessment, contains('2. Home exercise program:'));
+    expect(pn.plan, isEmpty);
     expect(pn.subjective, contains('\n'));
 
     final pf = soapTemplatePelvicFloor;

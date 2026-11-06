@@ -1,8 +1,4 @@
 /// Built-in SOAP fill templates for the note editor.
-///
-/// shortcut: paste text was not available at ship time — section bodies are
-/// reconstructed from structural markers (OBGYN→Social, Obs→PERFECT, etc.);
-/// re-paste real clinic wording when available.
 
 /// One SOAP template choice (blank = no fill).
 class SoapTemplate {
@@ -38,39 +34,235 @@ const soapTemplateBlank = SoapTemplate(
   label: 'Blank',
 );
 
-/// Postnatal check — S OBGYN…Social; O Obs…PERFECT; A postnatal; P HEP/PF.
+/// Postnatal check — clinic paste; P empty.
 const soapTemplatePostnatal = SoapTemplate(
   id: 'postnatal_check',
   label: 'Postnatal Check',
-  subjective: '''OBGYN Hx:
-Parity / G:
-EDD / DOB baby:
-Delivery: SVD / instrumental / C-section
-Gestation:
-Tear / episiotomy / repair:
-Feeding: BF / bottle / mixed
-Bladder:
-Bowel:
-Prolapse sx:
-PF / incontinence:
-Pain / dyspareunia:
-Scar / wound:
-Mood / sleep:
-Social:''',
-  objective: '''Obs / posture:
-Abdomen / DRAM:
-Scar:
-PF exam:
-  External:
-  Internal:
-  PERFECT:''',
-  assessment: '''1. Postnatal check
-2.
-3.''',
-  plan: '''Home exercise:
-PF plan:
-Advice:
-Follow-up:''',
+  subjective: '''OBGYN: 
+
+ weeks PN
+
+Presenting Condition (why here today) / Patient Goals -
+
+
+
+Pregnancy History:
+
+G P
+
+Birth weight - 
+
+Sex - 
+
+Type of delivery -  
+
+Instruments -  
+
+Length of pushing stage - 
+
+Tearing/episiotomy - 
+
+Complications -
+
+Recovery journey - 
+
+
+
+Feeding:
+
+Breast/bottle - 
+Feeding/breast issues - 
+
+
+Musculoskeletal problems/pain:  
+
+Neck -
+Back - 
+Wrist - 
+LL - 
+
+
+Exercise: 
+
+Current -  
+
+Pre-pregnancy -
+
+How active during pregnancy - 
+
+Goals for exercise - 
+
+ 
+
+Pelvic Floor:
+
+Bladder/OAB: 
+
+Fluid intake - 
+Voiding frequency - 
+Leaking - 
+Activities - 
+Volume -
+Frequency - 
+Pad use ( # / volume) - 
+Urgency incontinence -  
+Triggers -
+Volume - 
+Frequency - 
+Nocturia - 
+Sensation - 
+Flow - 
+Fully empty -  
+Pre-pregnancy - 
+
+
+Bowel: 
+
+Frequency -  
+Straining -  
+Incontinence (faecal or flatus) -   
+Urgency - 
+Pre-pregnancy - 
+
+
+Prolapse: 
+
+Pain -  
+Prolapse symptoms:
+Heaviness -  
+Pressure -  
+Time of day/activity -
+Any previous/current PF exs - 
+
+
+Intercourse: 
+
+Sexually active -  
+Any difficulty/pain - 
+Entrance - 
+Deep pain - 
+Positional - 
+Incontinence - 
+Orgasm - 
+ 
+
+Menstrual status:
+
+Returned - 
+Choice of protection - 
+Contraception - 
+
+
+Lochia - finished at week 
+
+
+
+Abdomen:  
+
+Aware of any separation - 
+Having any issues -  
+Strength - 
+Aesthetic - 
+ 
+
+General health/Medical History - 
+
+Cancer Hx - 
+
+Medications -  
+
+Social History - 
+
+Coping/mood -  
+''',
+  objective: '''Obs / posture -  
+
+Breathing pattern - 
+
+Abdominal appearance in standing - 
+
+Ability to transfer load in standing - use UL to create pressure
+
+Down - 
+Left - 
+Right -
+
+
+Linea alba:
+
+Integrity -  
+Tension -  
+
+
+DRAM Manual (head lift):
+
+4cm above umbilicus - 
+2cm above umbilicus - 
+2cm below umbilicus - 
+
+
+C-section scar -
+
+
+
+VE: Informed valid verbal consent gained, signed consent form
+
+EXTERNAL:
+
+Observation
+
+Skin colour - 
+Introitus held open -
+Swelling - 
+GH+PB - 
+
+
+Sensation
+
+Thighs -  
+Glutes -  
+Labia - 
+Perineum -  
+
+
+PF Contraction
+
+Perineum movement relative to ischial tuberosities - yes 
+How much does introitus closes - minimal
+External anal sphincter - elevates
+Compensatory/accessory strategies:
+Breathing - 
+Adductors - 
+Glutes - 
+Core - 
+
+
+Cough/bear down
+
+Level of descent - 
+
+
+INTERNAL: 
+
+Palpation 
+
+Superficial -  
+Deep - 
+
+
+PF PERFECT Contraction (global - levator + bulbo):
+
+P - 
+E - 
+R - 
+F -
+T 
+''',
+  assessment: '''1. Postnatal check:
+
+2. Home exercise program:
+''',
+  plan: '',
 );
 
 /// Pelvic floor — Subjective skeleton + exam under O when paste lacks S body.
