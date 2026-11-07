@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.pelvi.pelvi_crm"
+    namespace = "com.notes.notes_only"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,7 +19,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.pelvi.pelvi_crm"
+        applicationId = "com.notes.notes_only"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

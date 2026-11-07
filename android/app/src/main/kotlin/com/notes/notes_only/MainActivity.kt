@@ -1,4 +1,4 @@
-package com.pelvi.pelvi_crm
+package com.notes.notes_only
 
 import io.flutter.embedding.android.FlutterActivity
 
