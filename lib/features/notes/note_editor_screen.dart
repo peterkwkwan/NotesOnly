@@ -338,6 +338,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: text.titleLarge,
               ),
+              const SizedBox(height: PelviSpace.xs),
               Text(
                 when,
                 maxLines: 1,
