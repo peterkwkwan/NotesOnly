@@ -75,13 +75,11 @@ class _AppShellState extends State<AppShell> {
         index: _index,
         children: _pages,
       ),
-      floatingActionButton: _CenterFab(
-        onPressed: () => showQuickAddSheet(context),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // FAB lives in the bottom bar middle slot (Figma), not floating above it.
       bottomNavigationBar: _PelviBottomBar(
         index: _index,
         onChanged: (i) => setState(() => _index = i),
+        onFab: () => showQuickAddSheet(context),
       ),
     );
   }
@@ -117,7 +115,8 @@ class _CenterFabState extends State<_CenterFab>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final reduce = MediaQuery.disableAnimationsOf(context);
+    final reduce = MediaQuery.disableAnimationsOf(context) ||
+        !TickerMode.of(context);
     if (reduce) {
       _pulse.stop();
       _pulse.value = 0;
@@ -137,18 +136,16 @@ class _CenterFabState extends State<_CenterFab>
     final fab = SizedBox(
       width: 48,
       height: 48,
-      child: FloatingActionButton(
-        onPressed: widget.onPressed,
-        elevation: 0,
-        focusElevation: 0,
-        hoverElevation: 0,
-        highlightElevation: 0,
-        backgroundColor: PelviColors.pink700,
-        foregroundColor: PelviColors.inkInverse,
-        shape: RoundedRectangleBorder(
+      child: Material(
+        color: PelviColors.pink700,
+        borderRadius: BorderRadius.circular(PelviRadius.fab),
+        child: InkWell(
+          onTap: widget.onPressed,
           borderRadius: BorderRadius.circular(PelviRadius.fab),
+          child: const Center(
+            child: Icon(Icons.add, size: 25, color: PelviColors.inkInverse),
+          ),
         ),
-        child: const Icon(Icons.add, size: 25),
       ),
     );
 
@@ -165,10 +162,12 @@ class _PelviBottomBar extends StatelessWidget {
   const _PelviBottomBar({
     required this.index,
     required this.onChanged,
+    required this.onFab,
   });
 
   final int index;
   final ValueChanged<int> onChanged;
+  final VoidCallback onFab;
 
   @override
   Widget build(BuildContext context) {
@@ -182,48 +181,45 @@ class _PelviBottomBar extends StatelessWidget {
         ),
         child: SafeArea(
           top: false,
-          child: SizedBox(
-            height: 64,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _TabItem(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 9, 16, 0),
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _TabItem(
                     icon: Icons.today_outlined,
                     selectedIcon: Icons.today,
                     label: 'Today',
                     selected: index == 0,
                     onTap: () => onChanged(0),
                   ),
-                ),
-                Expanded(
-                  child: _TabItem(
+                  _TabItem(
                     icon: Icons.calendar_month_outlined,
                     selectedIcon: Icons.calendar_month,
                     label: 'Calendar',
                     selected: index == 1,
                     onTap: () => onChanged(1),
                   ),
-                ),
-                const SizedBox(width: 56), // FAB gap
-                Expanded(
-                  child: _TabItem(
+                  _CenterFab(onPressed: onFab),
+                  _TabItem(
                     icon: Icons.people_outline,
                     selectedIcon: Icons.people,
                     label: 'Clients',
                     selected: index == 2,
                     onTap: () => onChanged(2),
                   ),
-                ),
-                Expanded(
-                  child: _TabItem(
+                  _TabItem(
                     icon: Icons.more_horiz,
                     selectedIcon: Icons.more_horiz,
                     label: 'More',
                     selected: index == 3,
                     onTap: () => onChanged(3),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -250,35 +246,43 @@ class _TabItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? PelviColors.pink700 : PelviColors.inkMuted;
-    return InkWell(
-      onTap: onTap,
-      splashColor: PelviColors.surfaceMuted,
-      highlightColor: PelviColors.surfaceMuted,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 40,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? PelviColors.pink50 : Colors.transparent,
-              borderRadius: BorderRadius.circular(PelviRadius.full),
+    return SizedBox(
+      width: 61,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: PelviColors.surfaceMuted,
+        highlightColor: PelviColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(PelviRadius.sm),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 28,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? PelviColors.pink50 : Colors.transparent,
+                borderRadius: BorderRadius.circular(PelviRadius.full),
+              ),
+              child: Icon(
+                selected ? selectedIcon : icon,
+                size: 21,
+                color: color,
+              ),
             ),
-            child: Icon(selected ? selectedIcon : icon, size: 21, color: color),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              height: 14 / 11,
-              letterSpacing: 0.2,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: color,
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                height: 14 / 11,
+                letterSpacing: 0.2,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: color,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

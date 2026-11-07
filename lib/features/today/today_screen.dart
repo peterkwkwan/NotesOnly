@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
-import '../../widgets/empty_state.dart';
-import '../appointments/appointment_agenda_row.dart';
 import '../appointments/appointment_form_screen.dart';
+import '../clients/client_format.dart';
+import '../notes/open_note.dart';
 import '../notifications/notifications_sheet.dart';
 
 class TodayScreen extends StatelessWidget {
@@ -50,44 +50,190 @@ class TodayScreen extends StatelessWidget {
               child: CircularProgressIndicator(color: PelviColors.pink700),
             );
           }
-          if (rows.isEmpty) {
-            return Column(
-              children: [
-                const Expanded(
-                  child: QuietEmptyState(
-                    title: 'Nothing on today',
-                    body:
-                        'Your agenda will show here — appointments and open SOAP drafts for the day.',
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.page,
-                    0,
-                    PelviSpace.page,
-                    PelviSpace.lg,
-                  ),
-                  child: DashedEmptyWell(
-                    message: 'No appointments scheduled for today.',
-                    ctaLabel: 'Add appointment',
-                    onCta: () => _openNewAppointment(context),
-                  ),
-                ),
-              ],
-            );
-          }
-
-          return _TodayAgendaList(rows: rows);
+          return _TodayBody(
+            rows: rows,
+            onAdd: () => _openNewAppointment(context),
+          );
         },
       ),
     );
   }
 }
 
-class _TodayAgendaList extends StatefulWidget {
-  const _TodayAgendaList({required this.rows});
+class _TodayBody extends StatelessWidget {
+  const _TodayBody({required this.rows, required this.onAdd});
 
   final List<({Appointment appointment, Client client})> rows;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = rows.length;
+    final countLabel =
+        count == 1 ? '1 appointment' : '$count appointments';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            PelviSpace.page,
+            0,
+            PelviSpace.page,
+            0,
+          ),
+          child: Row(
+            children: [
+              Text(
+                'YOUR AGENDA',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const Spacer(),
+              Text(
+                countLabel,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontSize: 12,
+                      height: 1.25,
+                      letterSpacing: 0,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: count == 0 ? 18 : 26),
+        Expanded(
+          child: count == 0
+              ? _TodayEmpty(onAdd: onAdd)
+              : _TodayAgendaList(rows: rows, onAdd: onAdd),
+        ),
+      ],
+    );
+  }
+}
+
+class _TodayEmpty extends StatelessWidget {
+  const _TodayEmpty({required this.onAdd});
+
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: PelviSpace.xl),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 290),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 86,
+                      height: 86,
+                      decoration: BoxDecoration(
+                        color: PelviColors.pink50,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.today_outlined,
+                        size: 34,
+                        color: PelviColors.pink700,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Text(
+                      'Nothing on today',
+                      textAlign: TextAlign.center,
+                      style: text.displayLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Your agenda will show here — appointments and open SOAP drafts for the day.',
+                      textAlign: TextAlign.center,
+                      style: text.bodyMedium?.copyWith(
+                        color: PelviColors.inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            PelviSpace.page,
+            0,
+            PelviSpace.page,
+            PelviSpace.lg,
+          ),
+          child: _EmptyAddPanel(onAdd: onAdd),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyAddPanel extends StatelessWidget {
+  const _EmptyAddPanel({required this.onAdd});
+
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onAdd,
+        borderRadius: BorderRadius.circular(PelviRadius.lg),
+        splashColor: PelviColors.surfaceMuted,
+        highlightColor: PelviColors.surfaceMuted,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: PelviColors.pink50,
+            borderRadius: BorderRadius.circular(PelviRadius.lg),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'No appointments scheduled for today.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: PelviColors.inkMuted,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: FilledButton.icon(
+                  onPressed: onAdd,
+                  icon: const Icon(Icons.add, size: 19),
+                  label: const Text('Add appointment'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TodayAgendaList extends StatefulWidget {
+  const _TodayAgendaList({required this.rows, required this.onAdd});
+
+  final List<({Appointment appointment, Client client})> rows;
+  final VoidCallback onAdd;
 
   @override
   State<_TodayAgendaList> createState() => _TodayAgendaListState();
@@ -131,7 +277,6 @@ class _TodayAgendaListState extends State<_TodayAgendaList> {
     );
 
     if (upcomingIndex < 0) {
-      // All past → end of list.
       if (_scroll.hasClients) {
         _scroll.jumpTo(_scroll.position.maxScrollExtent);
         _didInitialScroll = true;
@@ -140,7 +285,6 @@ class _TodayAgendaListState extends State<_TodayAgendaList> {
     }
 
     if (upcomingIndex == 0) {
-      // First item is upcoming (all future or next is first) → stay at top.
       _didInitialScroll = true;
       return;
     }
@@ -162,26 +306,247 @@ class _TodayAgendaListState extends State<_TodayAgendaList> {
       (r) => !r.appointment.startsAt.isBefore(now),
     );
 
-    return ListView.separated(
-      controller: _scroll,
-      itemCount: widget.rows.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final row = widget.rows[index];
-        final appt = row.appointment;
-        final past = appt.startsAt.isBefore(now);
-
-        Widget child = AppointmentAgendaRow(
-          appointment: appt,
-          client: row.client,
-          past: past,
-        );
-
-        if (index == upcomingIndex) {
-          child = KeyedSubtree(key: _upcomingKey, child: child);
-        }
-        return child;
-      },
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.separated(
+            controller: _scroll,
+            padding: const EdgeInsets.symmetric(horizontal: PelviSpace.page),
+            itemCount: widget.rows.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final row = widget.rows[index];
+              final past = row.appointment.startsAt.isBefore(now);
+              Widget child = _TodayAppointmentCard(
+                appointment: row.appointment,
+                client: row.client,
+                past: past,
+              );
+              if (index == upcomingIndex) {
+                child = KeyedSubtree(key: _upcomingKey, child: child);
+              }
+              return child;
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            PelviSpace.page,
+            PelviSpace.md,
+            PelviSpace.page,
+            PelviSpace.lg,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: FilledButton.icon(
+              onPressed: widget.onAdd,
+              style: FilledButton.styleFrom(
+                backgroundColor: PelviColors.pink50,
+                foregroundColor: PelviColors.pink700,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(PelviRadius.md),
+                ),
+              ),
+              icon: const Icon(Icons.add, size: 19),
+              label: const Text('Add appointment'),
+            ),
+          ),
+        ),
+      ],
     );
   }
+}
+
+class _TodayAppointmentCard extends StatelessWidget {
+  const _TodayAppointmentCard({
+    required this.appointment,
+    required this.client,
+    required this.past,
+  });
+
+  final Appointment appointment;
+  final Client client;
+  final bool past;
+
+  void _openEdit(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AppointmentFormScreen(existing: appointment),
+      ),
+    );
+  }
+
+  void _openSoap(BuildContext context) {
+    openNoteForAppointment(
+      context,
+      appointmentId: appointment.id,
+      clientId: client.id,
+      noteDate: appointment.startsAt,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final ink = past ? PelviColors.inkMuted : PelviColors.ink;
+    final decoration = past ? TextDecoration.lineThrough : TextDecoration.none;
+    final status = appointment.status;
+    final pillFg = past
+        ? PelviColors.inkMuted
+        : _statusPillForeground(status);
+    final pillBg = past
+        ? PelviColors.surfaceMuted
+        : _statusPillBackground(status);
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 49,
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                Text(
+                  formatApptTime(appointment.startsAt),
+                  style: text.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    height: 1.2,
+                    color: ink,
+                    decoration: decoration,
+                    decorationColor: ink,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: Center(
+                    child: Container(
+                      width: 1,
+                      color: PelviColors.border,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Material(
+              color: PelviColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.lg),
+                side: const BorderSide(color: PelviColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => _openEdit(context),
+                splashColor: PelviColors.surfaceMuted,
+                highlightColor: PelviColors.surfaceMuted,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        clientDisplayName(client),
+                        style: text.titleMedium?.copyWith(
+                          fontSize: 20,
+                          height: 1.2,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: -0.4,
+                          color: ink,
+                          decoration: decoration,
+                          decorationColor: ink,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: pillBg,
+                          borderRadius: BorderRadius.circular(PelviRadius.sm),
+                        ),
+                        child: Text(
+                          appointmentStatusLabel(status),
+                          style: text.labelMedium?.copyWith(
+                            fontSize: 11,
+                            height: 1.2,
+                            letterSpacing: 0,
+                            fontWeight: FontWeight.w500,
+                            color: pillFg,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 17),
+                      const Divider(height: 1),
+                      const SizedBox(height: 14),
+                      InkWell(
+                        onTap: () => _openSoap(context),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.edit_note_outlined,
+                              size: 17,
+                              color: past
+                                  ? PelviColors.inkMuted
+                                  : PelviColors.purple700,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                'Note',
+                                style: text.labelLarge?.copyWith(
+                                  fontSize: 13,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w500,
+                                  color: past
+                                      ? PelviColors.inkMuted
+                                      : PelviColors.purple700,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right,
+                              size: 16,
+                              color: past
+                                  ? PelviColors.inkMuted
+                                  : PelviColors.purple400,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Color _statusPillForeground(AppointmentStatus status) {
+  return switch (status) {
+    AppointmentStatus.scheduled => PelviColors.pink700,
+    AppointmentStatus.completed => PelviColors.pink700,
+    AppointmentStatus.cancelled => PelviColors.inkMuted,
+    AppointmentStatus.noShow => PelviColors.purple700,
+  };
+}
+
+Color _statusPillBackground(AppointmentStatus status) {
+  return switch (status) {
+    AppointmentStatus.scheduled => PelviColors.pink50,
+    AppointmentStatus.completed => PelviColors.pink50,
+    AppointmentStatus.cancelled => PelviColors.surfaceMuted,
+    AppointmentStatus.noShow => PelviColors.purple50,
+  };
 }

@@ -367,17 +367,18 @@ class NotificationBellButton extends StatelessWidget {
       tooltip: 'Notifications',
       onPressed: onPressed,
       icon: SizedBox(
-        width: 36,
-        height: 36,
+        width: 42,
+        height: 42,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
                 color: PelviColors.surfaceMuted,
                 shape: BoxShape.circle,
+                border: Border.all(color: PelviColors.border),
               ),
               child: const Icon(
                 Icons.notifications_none_outlined,
@@ -387,11 +388,11 @@ class NotificationBellButton extends StatelessWidget {
             ),
             if (dueCount > 0)
               Positioned(
-                right: 2,
-                top: 2,
+                right: 4,
+                top: 4,
                 child: Container(
-                  width: 8,
-                  height: 8,
+                  width: 7,
+                  height: 7,
                   decoration: const BoxDecoration(
                     color: PelviColors.purple700,
                     shape: BoxShape.circle,
