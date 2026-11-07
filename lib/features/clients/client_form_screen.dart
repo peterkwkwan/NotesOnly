@@ -103,11 +103,11 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
             Text.rich(
               TextSpan(
                 style: text.labelMedium,
-                children: const [
-                  TextSpan(text: 'FIRST NAME'),
+                children: [
+                  const TextSpan(text: 'FIRST NAME'),
                   TextSpan(
                     text: ' *',
-                    style: TextStyle(color: PelviColors.pink700),
+                    style: TextStyle(color: PelviColors.of(context).pink700),
                   ),
                 ],
               ),
@@ -127,11 +127,11 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
             Text.rich(
               TextSpan(
                 style: text.labelMedium,
-                children: const [
-                  TextSpan(text: 'LAST NAME'),
+                children: [
+                  const TextSpan(text: 'LAST NAME'),
                   TextSpan(
                     text: ' *',
-                    style: TextStyle(color: PelviColors.pink700),
+                    style: TextStyle(color: PelviColors.of(context).pink700),
                   ),
                 ],
               ),
@@ -198,12 +198,12 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
             FilledButton(
               onPressed: _saving ? null : _save,
               child: _saving
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: PelviColors.inkInverse,
+                        color: PelviColors.of(context).inkInverse,
                       ),
                     )
                   : Text(_isEdit ? 'Save' : 'Add client'),

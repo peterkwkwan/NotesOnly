@@ -12,8 +12,8 @@ Future<({String text, SoapSection section})?> showDictationApplySheet({
   return showModalBottomSheet<({String text, SoapSection section})>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: PelviColors.surface,
-    barrierColor: PelviColors.overlay,
+    backgroundColor: PelviColors.of(context).surface,
+    barrierColor: PelviColors.of(context).overlay,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(PelviRadius.lg)),
     ),
@@ -85,7 +85,7 @@ class _DictationApplySheetState extends State<_DictationApplySheet> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: PelviColors.border,
+                    color: PelviColors.of(context).border,
                     borderRadius: BorderRadius.circular(PelviRadius.full),
                   ),
                 ),
@@ -95,7 +95,7 @@ class _DictationApplySheetState extends State<_DictationApplySheet> {
               const SizedBox(height: PelviSpace.sm),
               Text(
                 'Edit, pick a SOAP field, then append.',
-                style: text.bodyMedium?.copyWith(color: PelviColors.inkMuted),
+                style: text.bodyMedium?.copyWith(color: PelviColors.of(context).inkMuted),
               ),
               const SizedBox(height: PelviSpace.md),
               TextField(
@@ -103,10 +103,10 @@ class _DictationApplySheetState extends State<_DictationApplySheet> {
                 minLines: 4,
                 maxLines: 8,
                 autofocus: true,
-                style: text.bodyLarge?.copyWith(color: PelviColors.ink),
-                decoration: const InputDecoration(
+                style: text.bodyLarge?.copyWith(color: PelviColors.of(context).ink),
+                decoration: InputDecoration(
                   filled: true,
-                  fillColor: PelviColors.surface,
+                  fillColor: PelviColors.of(context).surface,
                 ),
               ),
               const SizedBox(height: PelviSpace.md),
@@ -149,10 +149,10 @@ class _SectionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? PelviColors.pink50 : PelviColors.surface,
+      color: selected ? PelviColors.of(context).pink50 : PelviColors.of(context).surface,
       shape: StadiumBorder(
         side: BorderSide(
-          color: selected ? PelviColors.pink700 : PelviColors.border,
+          color: selected ? PelviColors.of(context).pink700 : PelviColors.of(context).border,
         ),
       ),
       child: InkWell(
@@ -166,7 +166,7 @@ class _SectionChip extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: selected ? PelviColors.pink700 : PelviColors.ink,
+                  color: selected ? PelviColors.of(context).pink700 : PelviColors.of(context).ink,
                   fontWeight: FontWeight.w600,
                 ),
           ),

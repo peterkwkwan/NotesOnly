@@ -46,8 +46,8 @@ class TodayScreen extends StatelessWidget {
         builder: (context, snap) {
           final rows = snap.data;
           if (rows == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: PelviColors.pink700),
+            return Center(
+              child: CircularProgressIndicator(color: PelviColors.of(context).pink700),
             );
           }
           return _TodayBody(
@@ -134,14 +134,14 @@ class _TodayEmpty extends StatelessWidget {
                       width: 86,
                       height: 86,
                       decoration: BoxDecoration(
-                        color: PelviColors.pink50,
+                        color: PelviColors.of(context).pink50,
                         borderRadius: BorderRadius.circular(30),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(
+                      child: Icon(
                         Icons.today_outlined,
                         size: 34,
-                        color: PelviColors.pink700,
+                        color: PelviColors.of(context).pink700,
                       ),
                     ),
                     const SizedBox(height: 22),
@@ -155,7 +155,7 @@ class _TodayEmpty extends StatelessWidget {
                       'Your agenda will show here — appointments and open SOAP drafts for the day.',
                       textAlign: TextAlign.center,
                       style: text.bodyMedium?.copyWith(
-                        color: PelviColors.inkMuted,
+                        color: PelviColors.of(context).inkMuted,
                       ),
                     ),
                   ],
@@ -190,13 +190,13 @@ class _EmptyAddPanel extends StatelessWidget {
       child: InkWell(
         onTap: onAdd,
         borderRadius: BorderRadius.circular(PelviRadius.lg),
-        splashColor: PelviColors.surfaceMuted,
-        highlightColor: PelviColors.surfaceMuted,
+        splashColor: PelviColors.of(context).surfaceMuted,
+        highlightColor: PelviColors.of(context).surfaceMuted,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            color: PelviColors.pink50,
+            color: PelviColors.of(context).pink50,
             borderRadius: BorderRadius.circular(PelviRadius.lg),
           ),
           child: Column(
@@ -206,7 +206,7 @@ class _EmptyAddPanel extends StatelessWidget {
                 'No appointments scheduled for today.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: PelviColors.inkMuted,
+                      color: PelviColors.of(context).inkMuted,
                       fontSize: 14,
                       height: 1.5,
                     ),
@@ -342,8 +342,8 @@ class _TodayAgendaListState extends State<_TodayAgendaList> {
             child: FilledButton.icon(
               onPressed: widget.onAdd,
               style: FilledButton.styleFrom(
-                backgroundColor: PelviColors.pink50,
-                foregroundColor: PelviColors.pink700,
+                backgroundColor: PelviColors.of(context).pink50,
+                foregroundColor: PelviColors.of(context).pink700,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(PelviRadius.md),
@@ -390,15 +390,12 @@ class _TodayAppointmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final ink = past ? PelviColors.inkMuted : PelviColors.ink;
+    final c = PelviColors.of(context);
+    final ink = past ? c.inkMuted : c.ink;
     final decoration = past ? TextDecoration.lineThrough : TextDecoration.none;
     final status = appointment.status;
-    final pillFg = past
-        ? PelviColors.inkMuted
-        : _statusPillForeground(status);
-    final pillBg = past
-        ? PelviColors.surfaceMuted
-        : _statusPillBackground(status);
+    final pillFg = past ? c.inkMuted : _statusPillForeground(status, c);
+    final pillBg = past ? c.surfaceMuted : _statusPillBackground(status, c);
 
     return IntrinsicHeight(
       child: Row(
@@ -425,7 +422,7 @@ class _TodayAppointmentCard extends StatelessWidget {
                   child: Center(
                     child: Container(
                       width: 1,
-                      color: PelviColors.border,
+                      color: PelviColors.of(context).border,
                     ),
                   ),
                 ),
@@ -435,16 +432,16 @@ class _TodayAppointmentCard extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: Material(
-              color: PelviColors.surface,
+              color: PelviColors.of(context).surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(PelviRadius.lg),
-                side: const BorderSide(color: PelviColors.border),
+                side: BorderSide(color: PelviColors.of(context).border),
               ),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
                 onTap: () => _openEdit(context),
-                splashColor: PelviColors.surfaceMuted,
-                highlightColor: PelviColors.surfaceMuted,
+                splashColor: PelviColors.of(context).surfaceMuted,
+                highlightColor: PelviColors.of(context).surfaceMuted,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -494,8 +491,8 @@ class _TodayAppointmentCard extends StatelessWidget {
                               Icons.edit_note_outlined,
                               size: 17,
                               color: past
-                                  ? PelviColors.inkMuted
-                                  : PelviColors.purple700,
+                                  ? PelviColors.of(context).inkMuted
+                                  : PelviColors.of(context).purple700,
                             ),
                             const SizedBox(width: 9),
                             Expanded(
@@ -506,8 +503,8 @@ class _TodayAppointmentCard extends StatelessWidget {
                                   height: 1.2,
                                   fontWeight: FontWeight.w500,
                                   color: past
-                                      ? PelviColors.inkMuted
-                                      : PelviColors.purple700,
+                                      ? PelviColors.of(context).inkMuted
+                                      : PelviColors.of(context).purple700,
                                 ),
                               ),
                             ),
@@ -515,8 +512,8 @@ class _TodayAppointmentCard extends StatelessWidget {
                               Icons.chevron_right,
                               size: 16,
                               color: past
-                                  ? PelviColors.inkMuted
-                                  : PelviColors.purple400,
+                                  ? PelviColors.of(context).inkMuted
+                                  : PelviColors.of(context).purple400,
                             ),
                           ],
                         ),
@@ -533,20 +530,20 @@ class _TodayAppointmentCard extends StatelessWidget {
   }
 }
 
-Color _statusPillForeground(AppointmentStatus status) {
+Color _statusPillForeground(AppointmentStatus status, PelviPalette c) {
   return switch (status) {
-    AppointmentStatus.scheduled => PelviColors.pink700,
-    AppointmentStatus.completed => PelviColors.pink700,
-    AppointmentStatus.cancelled => PelviColors.inkMuted,
-    AppointmentStatus.noShow => PelviColors.purple700,
+    AppointmentStatus.scheduled => c.pink700,
+    AppointmentStatus.completed => c.pink700,
+    AppointmentStatus.cancelled => c.inkMuted,
+    AppointmentStatus.noShow => c.purple700,
   };
 }
 
-Color _statusPillBackground(AppointmentStatus status) {
+Color _statusPillBackground(AppointmentStatus status, PelviPalette c) {
   return switch (status) {
-    AppointmentStatus.scheduled => PelviColors.pink50,
-    AppointmentStatus.completed => PelviColors.pink50,
-    AppointmentStatus.cancelled => PelviColors.surfaceMuted,
-    AppointmentStatus.noShow => PelviColors.purple50,
+    AppointmentStatus.scheduled => c.pink50,
+    AppointmentStatus.completed => c.pink50,
+    AppointmentStatus.cancelled => c.surfaceMuted,
+    AppointmentStatus.noShow => c.purple50,
   };
 }

@@ -113,12 +113,15 @@ String appointmentStatusLabel(AppointmentStatus status) {
 }
 
 /// Status word color only — light/dark pink, purple, muted.
-Color appointmentStatusColor(AppointmentStatus status) {
+Color appointmentStatusColor(
+  AppointmentStatus status, [
+  PelviPalette palette = PelviPalette.light,
+]) {
   return switch (status) {
-    AppointmentStatus.scheduled => PelviColors.pink400,
-    AppointmentStatus.completed => PelviColors.pink700,
-    AppointmentStatus.cancelled => PelviColors.inkMuted,
-    AppointmentStatus.noShow => PelviColors.purple700,
+    AppointmentStatus.scheduled => palette.pink400,
+    AppointmentStatus.completed => palette.pink700,
+    AppointmentStatus.cancelled => palette.inkMuted,
+    AppointmentStatus.noShow => palette.purple700,
   };
 }
 

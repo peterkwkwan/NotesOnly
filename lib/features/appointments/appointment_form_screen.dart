@@ -244,14 +244,14 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       child: InputDecorator(
         decoration: InputDecoration(
           errorText: errorText,
-          suffixIcon: Icon(trailing, size: 18, color: PelviColors.inkMuted),
+          suffixIcon: Icon(trailing, size: 18, color: PelviColors.of(context).inkMuted),
         ),
         child: Text(
           value.isEmpty ? hint : value,
           style: text.bodyLarge?.copyWith(
             color: value.isEmpty
-                ? PelviColors.inkMuted
-                : (valueColor ?? PelviColors.ink),
+                ? PelviColors.of(context).inkMuted
+                : (valueColor ?? PelviColors.of(context).ink),
           ),
         ),
       ),
@@ -298,7 +298,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                     return Text(
                       'Add a client first, then book a visit.',
                       style: text.bodyMedium?.copyWith(
-                        color: PelviColors.inkMuted,
+                        color: PelviColors.of(context).inkMuted,
                       ),
                     );
                   }
@@ -360,12 +360,12 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             FilledButton(
               onPressed: _saving || _clientId == null ? null : _save,
               child: _saving
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: PelviColors.inkInverse,
+                        color: PelviColors.of(context).inkInverse,
                       ),
                     )
                   : Text(_editing ? 'Save changes' : 'Save appointment'),

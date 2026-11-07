@@ -29,6 +29,7 @@ class QuietEmptyState extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 290),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
@@ -41,7 +42,7 @@ class QuietEmptyState extends StatelessWidget {
                 body,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: PelviColors.inkMuted,
+                      color: PelviColors.of(context).inkMuted,
                     ),
               ),
               if (primaryLabel != null && onPrimary != null) ...[
@@ -59,7 +60,7 @@ class QuietEmptyState extends StatelessWidget {
                 TextButton(
                   onPressed: onSecondary,
                   style: TextButton.styleFrom(
-                    foregroundColor: PelviColors.pink700,
+                    foregroundColor: PelviColors.of(context).pink700,
                   ),
                   child: Text(secondaryLabel!),
                 ),
@@ -91,7 +92,7 @@ class DashedEmptyWell extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: PelviColors.pink50,
+        color: PelviColors.of(context).pink50,
         borderRadius: BorderRadius.circular(PelviRadius.lg),
       ),
       child: Column(
@@ -101,7 +102,7 @@ class DashedEmptyWell extends StatelessWidget {
             message,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: PelviColors.inkMuted,
+                  color: PelviColors.of(context).inkMuted,
                   fontSize: 14,
                   height: 1.5,
                 ),
@@ -127,8 +128,8 @@ class DashedEmptyWell extends StatelessWidget {
       child: InkWell(
         onTap: onCta,
         borderRadius: BorderRadius.circular(PelviRadius.lg),
-        splashColor: PelviColors.surfaceMuted,
-        highlightColor: PelviColors.surfaceMuted,
+        splashColor: PelviColors.of(context).surfaceMuted,
+        highlightColor: PelviColors.of(context).surfaceMuted,
         child: well,
       ),
     );

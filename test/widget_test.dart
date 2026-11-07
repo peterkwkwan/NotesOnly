@@ -851,6 +851,19 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
+  test('dark mode setting persists via Drift prefs', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+
+    expect(await db.getDarkModeEnabled(), isFalse);
+    await db.setDarkModeEnabled(true);
+    expect(await db.getDarkModeEnabled(), isTrue);
+    expect(await db.watchDarkModeEnabled().first, isTrue);
+    await db.setDarkModeEnabled(false);
+    expect(await db.getDarkModeEnabled(), isFalse);
+  });
+
   test('settings defaults + backup JSON round-trip', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -861,6 +874,7 @@ void main() {
     expect(await db.getClinicHoursEnd(), '18:00');
     expect(await db.getTimezone(), 'Asia/Hong_Kong');
     expect(await db.getRecallNotificationsEnabled(), isTrue);
+    expect(await db.getDarkModeEnabled(), isFalse);
 
     await db.setPractitionerName('Pelvi Clinic');
     await db.setDefaultAppointmentMinutes(45);

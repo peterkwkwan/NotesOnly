@@ -95,9 +95,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       IconButton(
                         tooltip: 'Previous month',
                         onPressed: () => _shiftMonth(-1),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.chevron_left,
-                          color: PelviColors.ink,
+                          color: PelviColors.of(context).ink,
                         ),
                       ),
                       Expanded(
@@ -110,9 +110,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       IconButton(
                         tooltip: 'Next month',
                         onPressed: () => _shiftMonth(1),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.chevron_right,
-                          color: PelviColors.ink,
+                          color: PelviColors.of(context).ink,
                         ),
                       ),
                     ],
@@ -166,9 +166,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       vertical: PelviSpace.sm + 4,
                     ),
                     decoration: BoxDecoration(
-                      color: PelviColors.surfaceMuted,
+                      color: PelviColors.of(context).surfaceMuted,
                       borderRadius: BorderRadius.circular(PelviRadius.md),
-                      border: Border.all(color: PelviColors.border),
+                      border: Border.all(color: PelviColors.of(context).border),
                     ),
                     child: Text(
                       'Tap a day to see appointments',
@@ -197,7 +197,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       TextButton(
                         onPressed: _openNewAppointment,
                         style: TextButton.styleFrom(
-                          foregroundColor: PelviColors.pink700,
+                          foregroundColor: PelviColors.of(context).pink700,
                         ),
                         child: const Text('Add'),
                       ),
@@ -206,11 +206,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
               ),
               if (rows == null)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
                     child: CircularProgressIndicator(
-                      color: PelviColors.pink700,
+                      color: PelviColors.of(context).pink700,
                     ),
                   ),
                 )
@@ -302,15 +302,15 @@ class _MonthGrid extends StatelessWidget {
                           padding: const EdgeInsets.all(2),
                           child: Material(
                             color: isSelected
-                                ? PelviColors.pink50
+                                ? PelviColors.of(context).pink50
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(PelviRadius.md),
                             child: InkWell(
                               onTap: () => onSelect(day),
                               borderRadius:
                                   BorderRadius.circular(PelviRadius.md),
-                              splashColor: PelviColors.surfaceMuted,
-                              highlightColor: PelviColors.surfaceMuted,
+                              splashColor: PelviColors.of(context).surfaceMuted,
+                              highlightColor: PelviColors.of(context).surfaceMuted,
                               child: SizedBox(
                                 height: 52,
                                 child: Column(
@@ -321,12 +321,12 @@ class _MonthGrid extends StatelessWidget {
                                       style: text.labelLarge?.copyWith(
                                         fontWeight: FontWeight.w600,
                                         color: isSelected
-                                            ? PelviColors.pink700
-                                            : PelviColors.ink,
+                                            ? PelviColors.of(context).pink700
+                                            : PelviColors.of(context).ink,
                                         decoration: isToday && !isSelected
                                             ? TextDecoration.underline
                                             : TextDecoration.none,
-                                        decorationColor: PelviColors.inkMuted,
+                                        decorationColor: PelviColors.of(context).inkMuted,
                                       ),
                                     ),
                                     Text(
@@ -336,7 +336,7 @@ class _MonthGrid extends StatelessWidget {
                                         height: 1.2,
                                         fontWeight: FontWeight.w500,
                                         color: count > 0
-                                            ? PelviColors.inkMuted
+                                            ? PelviColors.of(context).inkMuted
                                             : Colors.transparent,
                                       ),
                                     ),

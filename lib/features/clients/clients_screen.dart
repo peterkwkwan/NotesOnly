@@ -86,7 +86,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: PelviColors.danger),
+            style: TextButton.styleFrom(foregroundColor: PelviColors.of(context).danger),
             child: const Text('Delete'),
           ),
         ],
@@ -142,7 +142,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                         ? null
                         : () => _togglePinSelected(pinned),
                     style: TextButton.styleFrom(
-                      foregroundColor: PelviColors.purple700,
+                      foregroundColor: PelviColors.of(context).purple700,
                     ),
                     child: Text(allPinned ? 'Unpin' : 'Pin'),
                   );
@@ -151,7 +151,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
               TextButton(
                 onPressed: n == 0 ? null : _confirmDeleteSelected,
                 style: TextButton.styleFrom(
-                  foregroundColor: PelviColors.danger,
+                  foregroundColor: PelviColors.of(context).danger,
                 ),
                 child: const Text('Delete'),
               ),
@@ -160,7 +160,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 tooltip: 'Add client',
                 onPressed: _openNew,
                 style: IconButton.styleFrom(
-                  foregroundColor: PelviColors.pink700,
+                  foregroundColor: PelviColors.of(context).pink700,
                 ),
                 icon: const Icon(Icons.person_add_outlined),
               ),
@@ -173,8 +173,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
           builder: (context, snap) {
             final clients = snap.data;
             if (clients == null) {
-              return const Center(
-                child: CircularProgressIndicator(color: PelviColors.pink700),
+              return Center(
+                child: CircularProgressIndicator(color: PelviColors.of(context).pink700),
               );
             }
             if (clients.isEmpty) {
@@ -244,31 +244,31 @@ class _ClientsScreenState extends State<ClientsScreen> {
                         textInputAction: TextInputAction.search,
                         decoration: InputDecoration(
                           hintText: 'Search name, phone, or email',
-                          prefixIcon: const Icon(
+                          prefixIcon: Icon(
                             Icons.search,
-                            color: PelviColors.inkMuted,
+                            color: PelviColors.of(context).inkMuted,
                           ),
                           filled: true,
-                          fillColor: PelviColors.surfaceMuted,
+                          fillColor: PelviColors.of(context).surfaceMuted,
                           border: OutlineInputBorder(
                             borderRadius:
                                 BorderRadius.circular(PelviRadius.md),
-                            borderSide: const BorderSide(
-                              color: PelviColors.border,
+                            borderSide: BorderSide(
+                              color: PelviColors.of(context).border,
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius:
                                 BorderRadius.circular(PelviRadius.md),
-                            borderSide: const BorderSide(
-                              color: PelviColors.border,
+                            borderSide: BorderSide(
+                              color: PelviColors.of(context).border,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius:
                                 BorderRadius.circular(PelviRadius.md),
-                            borderSide: const BorderSide(
-                              color: PelviColors.pink700,
+                            borderSide: BorderSide(
+                              color: PelviColors.of(context).pink700,
                               width: 1.5,
                             ),
                           ),
@@ -284,7 +284,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       ),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: PelviColors.surfaceMuted,
+                          color: PelviColors.of(context).surfaceMuted,
                           borderRadius:
                               BorderRadius.circular(PelviRadius.md),
                         ),
@@ -335,7 +335,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                           );
                         },
                       ),
-                    const Divider(height: 1, color: PelviColors.chromeBorder),
+                    Divider(height: 1, color: PelviColors.of(context).chromeBorder),
                     if (listed.isEmpty)
                       Expanded(
                         child: Center(
@@ -344,7 +344,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                                 ? 'No recalls due.'
                                 : 'No matches.',
                             style: text.bodyMedium?.copyWith(
-                              color: PelviColors.inkMuted,
+                              color: PelviColors.of(context).inkMuted,
                             ),
                           ),
                         ),
@@ -564,11 +564,11 @@ class _LetterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final pinned = letter == kPinnedSectionLabel;
     final style = Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: PelviColors.purple700,
+          color: PelviColors.of(context).purple700,
           fontWeight: FontWeight.w700,
         );
     return Material(
-      color: PelviColors.surfaceMuted,
+      color: PelviColors.of(context).surfaceMuted,
       child: SizedBox(
         height: kAlphaLetterHeaderHeight,
         width: double.infinity,
@@ -579,10 +579,10 @@ class _LetterBar extends StatelessWidget {
             child: pinned
                 ? Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.push_pin,
                         size: 14,
-                        color: PelviColors.purple700,
+                        color: PelviColors.of(context).purple700,
                       ),
                       const SizedBox(width: PelviSpace.xs),
                       Text(letter, style: style),
@@ -613,9 +613,9 @@ class _FilterChip extends StatelessWidget {
       onPressed: onTap,
       style: TextButton.styleFrom(
         foregroundColor:
-            selected ? PelviColors.pink700 : PelviColors.inkMuted,
+            selected ? PelviColors.of(context).pink700 : PelviColors.of(context).inkMuted,
         backgroundColor:
-            selected ? PelviColors.surface : Colors.transparent,
+            selected ? PelviColors.of(context).surface : Colors.transparent,
         padding: EdgeInsets.zero,
         minimumSize: const Size(0, 33),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -628,7 +628,7 @@ class _FilterChip extends StatelessWidget {
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
               fontSize: 13,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected ? PelviColors.pink700 : PelviColors.inkMuted,
+              color: selected ? PelviColors.of(context).pink700 : PelviColors.of(context).inkMuted,
             ),
       ),
     );
@@ -679,9 +679,9 @@ class _ChipStrip extends StatelessWidget {
                       OutlinedButton(
                         onPressed: () => onTap(c.id),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: PelviColors.ink,
-                          side: const BorderSide(color: PelviColors.border),
-                          backgroundColor: PelviColors.surface,
+                          foregroundColor: PelviColors.of(context).ink,
+                          side: BorderSide(color: PelviColors.of(context).border),
+                          backgroundColor: PelviColors.of(context).surface,
                           padding: const EdgeInsets.symmetric(
                             horizontal: PelviSpace.md,
                           ),
@@ -736,10 +736,10 @@ class _ClientRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
-      splashColor: PelviColors.surfaceMuted,
-      highlightColor: PelviColors.surfaceMuted,
+      splashColor: PelviColors.of(context).surfaceMuted,
+      highlightColor: PelviColors.of(context).surfaceMuted,
       child: ColoredBox(
-        color: selected ? PelviColors.surfaceMuted : Colors.transparent,
+        color: selected ? PelviColors.of(context).surfaceMuted : Colors.transparent,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: PelviSpace.md,
@@ -772,14 +772,14 @@ class _ClientRow extends StatelessWidget {
                         ? Icons.check_circle
                         : Icons.radio_button_unchecked,
                     color: selected
-                        ? PelviColors.pink700
-                        : PelviColors.inkMuted,
+                        ? PelviColors.of(context).pink700
+                        : PelviColors.of(context).inkMuted,
                     size: 22,
                   )
                 else
-                  const Icon(
+                  Icon(
                     Icons.chevron_right,
-                    color: PelviColors.inkMuted,
+                    color: PelviColors.of(context).inkMuted,
                     size: 20,
                   ),
               ],

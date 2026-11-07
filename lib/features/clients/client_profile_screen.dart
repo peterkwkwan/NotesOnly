@@ -105,7 +105,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: PelviColors.danger),
+            style: TextButton.styleFrom(foregroundColor: PelviColors.of(context).danger),
             child: const Text('Delete'),
           ),
         ],
@@ -130,9 +130,9 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
       builder: (context, snap) {
         final client = snap.data;
         if (snap.connectionState == ConnectionState.waiting && client == null) {
-          return const Scaffold(
+          return Scaffold(
             body: Center(
-              child: CircularProgressIndicator(color: PelviColors.pink700),
+              child: CircularProgressIndicator(color: PelviColors.of(context).pink700),
             ),
           );
         }
@@ -169,7 +169,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   TextButton(
                     onPressed: n == 0 ? null : _confirmDeleteSelected,
                     style: TextButton.styleFrom(
-                      foregroundColor: PelviColors.danger,
+                      foregroundColor: PelviColors.of(context).danger,
                     ),
                     child: const Text('Delete'),
                   ),
@@ -283,15 +283,15 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(PelviSpace.md),
                       decoration: BoxDecoration(
-                        color: PelviColors.surface,
+                        color: PelviColors.of(context).surface,
                         borderRadius: BorderRadius.circular(PelviRadius.md),
-                        border: Border.all(color: PelviColors.border),
+                        border: Border.all(color: PelviColors.of(context).border),
                       ),
                       child: Text(
                         'TBD — AI summary of past SOAP notes, '
                         'with emphasis on the latest visit.',
                         style: text.bodyMedium?.copyWith(
-                          color: PelviColors.inkMuted,
+                          color: PelviColors.of(context).inkMuted,
                         ),
                       ),
                     ),
@@ -305,7 +305,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                           child: Text(
                             client.notes!,
                             style: text.bodyMedium?.copyWith(
-                              color: PelviColors.inkMuted,
+                              color: PelviColors.of(context).inkMuted,
                             ),
                           ),
                         ),
@@ -411,19 +411,19 @@ class _PhoneLink extends StatelessWidget {
       onTap: () => _onPhoneTap(context, phone),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.phone_outlined,
             size: 18,
-            color: PelviColors.pink700,
+            color: PelviColors.of(context).pink700,
           ),
           const SizedBox(width: PelviSpace.sm),
           Expanded(
             child: Text(
               phone,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: PelviColors.pink700,
+                    color: PelviColors.of(context).pink700,
                     decoration: TextDecoration.underline,
-                    decorationColor: PelviColors.pink700,
+                    decorationColor: PelviColors.of(context).pink700,
                   ),
             ),
           ),
@@ -444,19 +444,19 @@ class _EmailLink extends StatelessWidget {
       onTap: () => _launchExternal(Uri(scheme: 'mailto', path: email)),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.email_outlined,
             size: 18,
-            color: PelviColors.inkMuted,
+            color: PelviColors.of(context).inkMuted,
           ),
           const SizedBox(width: PelviSpace.sm),
           Expanded(
             child: Text(
               email,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: PelviColors.inkMuted,
+                    color: PelviColors.of(context).inkMuted,
                     decoration: TextDecoration.underline,
-                    decorationColor: PelviColors.inkMuted,
+                    decorationColor: PelviColors.of(context).inkMuted,
                   ),
             ),
           ),
@@ -489,10 +489,10 @@ class _AppointmentRow extends StatelessWidget {
     return InkWell(
       onTap: selecting ? onToggle : onOpen,
       onLongPress: selecting ? onToggle : onLongPress,
-      splashColor: PelviColors.surfaceMuted,
-      highlightColor: PelviColors.surfaceMuted,
+      splashColor: PelviColors.of(context).surfaceMuted,
+      highlightColor: PelviColors.of(context).surfaceMuted,
       child: ColoredBox(
-        color: selected ? PelviColors.surfaceMuted : Colors.transparent,
+        color: selected ? PelviColors.of(context).surfaceMuted : Colors.transparent,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: PelviSpace.md,
@@ -526,14 +526,14 @@ class _AppointmentRow extends StatelessWidget {
                         ? Icons.check_circle
                         : Icons.radio_button_unchecked,
                     color: selected
-                        ? PelviColors.pink700
-                        : PelviColors.inkMuted,
+                        ? PelviColors.of(context).pink700
+                        : PelviColors.of(context).inkMuted,
                     size: 22,
                   )
                 else
-                  const Icon(
+                  Icon(
                     Icons.chevron_right,
-                    color: PelviColors.inkMuted,
+                    color: PelviColors.of(context).inkMuted,
                     size: 20,
                   ),
               ],

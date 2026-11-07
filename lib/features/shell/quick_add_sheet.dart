@@ -9,8 +9,8 @@ import '../notes/open_note.dart';
 Future<void> showQuickAddSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: PelviColors.surface,
-    barrierColor: PelviColors.overlay,
+    backgroundColor: PelviColors.of(context).surface,
+    barrierColor: PelviColors.of(context).overlay,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(PelviRadius.lg)),
     ),
@@ -59,7 +59,7 @@ class QuickAddSheet extends StatelessWidget {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: PelviColors.border,
+                  color: PelviColors.of(context).border,
                   borderRadius: BorderRadius.circular(PelviRadius.full),
                 ),
               ),
@@ -72,7 +72,7 @@ class QuickAddSheet extends StatelessWidget {
             const SizedBox(height: PelviSpace.xs),
             Text(
               'Start a client, appointment, or SOAP note.',
-              style: text.bodyMedium?.copyWith(color: PelviColors.inkMuted),
+              style: text.bodyMedium?.copyWith(color: PelviColors.of(context).inkMuted),
             ),
             const SizedBox(height: PelviSpace.md),
             const Divider(height: 1),
@@ -120,8 +120,8 @@ class _QuickAddRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      splashColor: PelviColors.surfaceMuted,
-      highlightColor: PelviColors.surfaceMuted,
+      splashColor: PelviColors.of(context).surfaceMuted,
+      highlightColor: PelviColors.of(context).surfaceMuted,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           vertical: PelviSpace.sm + 4,
@@ -129,7 +129,7 @@ class _QuickAddRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: PelviColors.pink700),
+            Icon(icon, size: 22, color: PelviColors.of(context).pink700),
             const SizedBox(width: PelviSpace.md),
             Expanded(
               child: Column(
@@ -146,9 +146,9 @@ class _QuickAddRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right,
-              color: PelviColors.inkMuted,
+              color: PelviColors.of(context).inkMuted,
               size: 20,
             ),
           ],

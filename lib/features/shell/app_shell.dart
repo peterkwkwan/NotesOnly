@@ -137,13 +137,13 @@ class _CenterFabState extends State<_CenterFab>
       width: 48,
       height: 48,
       child: Material(
-        color: PelviColors.pink700,
+        color: PelviColors.of(context).pink700,
         borderRadius: BorderRadius.circular(PelviRadius.fab),
         child: InkWell(
           onTap: widget.onPressed,
           borderRadius: BorderRadius.circular(PelviRadius.fab),
-          child: const Center(
-            child: Icon(Icons.add, size: 25, color: PelviColors.inkInverse),
+          child: Center(
+            child: Icon(Icons.add, size: 25, color: PelviColors.of(context).inkInverse),
           ),
         ),
       ),
@@ -172,11 +172,11 @@ class _PelviBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: PelviColors.surface,
+      color: PelviColors.of(context).surface,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(color: PelviColors.chromeBorder, width: 1),
+            top: BorderSide(color: PelviColors.of(context).chromeBorder, width: 1),
           ),
         ),
         child: SafeArea(
@@ -245,13 +245,13 @@ class _TabItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? PelviColors.pink700 : PelviColors.inkMuted;
+    final color = selected ? PelviColors.of(context).pink700 : PelviColors.of(context).inkMuted;
     return SizedBox(
       width: 61,
       child: InkWell(
         onTap: onTap,
-        splashColor: PelviColors.surfaceMuted,
-        highlightColor: PelviColors.surfaceMuted,
+        splashColor: PelviColors.of(context).surfaceMuted,
+        highlightColor: PelviColors.of(context).surfaceMuted,
         borderRadius: BorderRadius.circular(PelviRadius.sm),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -261,7 +261,7 @@ class _TabItem extends StatelessWidget {
               height: 28,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: selected ? PelviColors.pink50 : Colors.transparent,
+                color: selected ? PelviColors.of(context).pink50 : Colors.transparent,
                 borderRadius: BorderRadius.circular(PelviRadius.full),
               ),
               child: Icon(

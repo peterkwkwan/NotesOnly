@@ -38,14 +38,14 @@ class AppointmentAgendaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = past ? PelviColors.inkMuted : PelviColors.ink;
+    final ink = past ? PelviColors.of(context).inkMuted : PelviColors.of(context).ink;
     final decoration = past ? TextDecoration.lineThrough : TextDecoration.none;
     final text = Theme.of(context).textTheme;
 
     return InkWell(
       onTap: () => _openEdit(context),
-      splashColor: PelviColors.surfaceMuted,
-      highlightColor: PelviColors.surfaceMuted,
+      splashColor: PelviColors.of(context).surfaceMuted,
+      highlightColor: PelviColors.of(context).surfaceMuted,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: PelviSpace.md,
@@ -83,19 +83,19 @@ class AppointmentAgendaRow extends StatelessWidget {
                     Text.rich(
                       TextSpan(
                         style: text.labelMedium?.copyWith(
-                          color: PelviColors.inkMuted,
+                          color: PelviColors.of(context).inkMuted,
                           decoration: decoration,
-                          decorationColor: PelviColors.inkMuted,
+                          decorationColor: PelviColors.of(context).inkMuted,
                         ),
                         children: [
                           TextSpan(
                             text: appointmentStatusLabel(appointment.status),
                             style: TextStyle(
                               color: past
-                                  ? PelviColors.inkMuted
+                                  ? PelviColors.of(context).inkMuted
                                   : appointmentStatusColor(appointment.status),
                               decoration: decoration,
-                              decorationColor: PelviColors.inkMuted,
+                              decorationColor: PelviColors.of(context).inkMuted,
                             ),
                           ),
                           const TextSpan(text: ' · Note'),
@@ -110,7 +110,7 @@ class AppointmentAgendaRow extends StatelessWidget {
                 onPressed: () => _openSoap(context),
                 icon: Icon(
                   Icons.notes_outlined,
-                  color: past ? PelviColors.inkMuted : PelviColors.purple700,
+                  color: past ? PelviColors.of(context).inkMuted : PelviColors.of(context).purple700,
                   size: 20,
                 ),
                 visualDensity: VisualDensity.compact,

@@ -37,8 +37,8 @@ Future<T?> showPelviPickerSheet<T>({
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: PelviColors.surface,
-    barrierColor: PelviColors.overlay,
+    backgroundColor: PelviColors.of(context).surface,
+    barrierColor: PelviColors.of(context).overlay,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(PelviRadius.lg)),
     ),
@@ -105,7 +105,7 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: PelviColors.border,
+                  color: PelviColors.of(context).border,
                   borderRadius: BorderRadius.circular(PelviRadius.full),
                 ),
               ),
@@ -125,12 +125,12 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                   IconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: PelviColors.inkMuted),
+                    icon: Icon(Icons.close, color: PelviColors.of(context).inkMuted),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: PelviColors.chromeBorder),
+            Divider(height: 1, color: PelviColors.of(context).chromeBorder),
             if (widget.searchable) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -145,24 +145,24 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                   textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
                     hintText: widget.searchHint,
-                    prefixIcon: const Icon(
+                    prefixIcon: Icon(
                       Icons.search,
-                      color: PelviColors.inkMuted,
+                      color: PelviColors.of(context).inkMuted,
                     ),
                     filled: true,
-                    fillColor: PelviColors.surfaceMuted,
+                    fillColor: PelviColors.of(context).surfaceMuted,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(PelviRadius.md),
-                      borderSide: const BorderSide(color: PelviColors.border),
+                      borderSide: BorderSide(color: PelviColors.of(context).border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(PelviRadius.md),
-                      borderSide: const BorderSide(color: PelviColors.border),
+                      borderSide: BorderSide(color: PelviColors.of(context).border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(PelviRadius.md),
-                      borderSide: const BorderSide(
-                        color: PelviColors.pink700,
+                      borderSide: BorderSide(
+                        color: PelviColors.of(context).pink700,
                         width: 1.5,
                       ),
                     ),
@@ -176,7 +176,7 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                       child: Text(
                         _query.trim().isEmpty ? 'Nothing here yet.' : 'No matches.',
                         style: text.bodyMedium?.copyWith(
-                          color: PelviColors.inkMuted,
+                          color: PelviColors.of(context).inkMuted,
                         ),
                       ),
                     )
@@ -188,8 +188,8 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                         final isSelected = o.value == widget.selected;
                         return InkWell(
                           onTap: () => Navigator.of(context).pop(o.value),
-                          splashColor: PelviColors.surfaceMuted,
-                          highlightColor: PelviColors.surfaceMuted,
+                          splashColor: PelviColors.of(context).surfaceMuted,
+                          highlightColor: PelviColors.of(context).surfaceMuted,
                           child: Container(
                             constraints: const BoxConstraints(minHeight: 56),
                             padding: const EdgeInsets.symmetric(
@@ -198,12 +198,12 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? PelviColors.pink50
-                                  : PelviColors.surface,
+                                  ? PelviColors.of(context).pink50
+                                  : PelviColors.of(context).surface,
                               border: isSelected
-                                  ? const Border(
+                                  ? Border(
                                       bottom: BorderSide(
-                                        color: PelviColors.pink200,
+                                        color: PelviColors.of(context).pink200,
                                       ),
                                     )
                                   : null,
@@ -220,8 +220,8 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                                         style: text.labelLarge?.copyWith(
                                           color: o.labelColor ??
                                               (isSelected
-                                                  ? PelviColors.pink700
-                                                  : PelviColors.ink),
+                                                  ? PelviColors.of(context).pink700
+                                                  : PelviColors.of(context).ink),
                                         ),
                                       ),
                                       if (o.subtitle != null &&
@@ -236,9 +236,9 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                                   ),
                                 ),
                                 if (isSelected)
-                                  const Icon(
+                                  Icon(
                                     Icons.check,
-                                    color: PelviColors.pink700,
+                                    color: PelviColors.of(context).pink700,
                                     size: 20,
                                   ),
                               ],

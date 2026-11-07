@@ -300,9 +300,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: CircularProgressIndicator(color: PelviColors.pink700),
+          child: CircularProgressIndicator(color: PelviColors.of(context).pink700),
         ),
       );
     }
@@ -343,7 +343,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: text.labelMedium?.copyWith(
-                  color: PelviColors.inkMuted,
+                  color: PelviColors.of(context).inkMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -351,7 +351,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           ),
           actions: [
             if (_saving)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(horizontal: PelviSpace.page),
                 child: Center(
                   child: SizedBox(
@@ -359,7 +359,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: PelviColors.pink700,
+                      color: PelviColors.of(context).pink700,
                     ),
                   ),
                 ),
@@ -457,7 +457,7 @@ class _NoteEditorHeader extends StatelessWidget {
         if (listening) ...[
           Text(
             liveWords.isEmpty ? 'Listening… tap mic to stop' : liveWords,
-            style: text.bodyMedium?.copyWith(color: PelviColors.pink700),
+            style: text.bodyMedium?.copyWith(color: PelviColors.of(context).pink700),
           ),
           const SizedBox(height: PelviSpace.md),
         ],
@@ -523,8 +523,8 @@ class _DictationFab extends StatelessWidget {
           hoverElevation: 0,
           highlightElevation: 0,
           backgroundColor:
-              listening ? PelviColors.pink950 : PelviColors.pink700,
-          foregroundColor: PelviColors.inkInverse,
+              listening ? PelviColors.of(context).pink950 : PelviColors.of(context).pink700,
+          foregroundColor: PelviColors.of(context).inkInverse,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(PelviRadius.lg),
           ),
@@ -559,7 +559,7 @@ class _SoapField extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(icon, size: 18, color: PelviColors.purple700),
+            Icon(icon, size: 18, color: PelviColors.of(context).purple700),
             const SizedBox(width: PelviSpace.sm),
             Text(
               label.toUpperCase(),
@@ -573,10 +573,10 @@ class _SoapField extends StatelessWidget {
           minLines: 3,
           maxLines: 8,
           onChanged: onChanged,
-          style: text.bodyLarge?.copyWith(color: PelviColors.ink),
-          decoration: const InputDecoration(
+          style: text.bodyLarge?.copyWith(color: PelviColors.of(context).ink),
+          decoration: InputDecoration(
             filled: true,
-            fillColor: PelviColors.surface,
+            fillColor: PelviColors.of(context).surface,
           ),
         ),
       ],

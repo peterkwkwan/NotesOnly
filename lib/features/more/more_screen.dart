@@ -196,7 +196,7 @@ class MoreScreen extends StatelessWidget {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: PelviColors.danger,
+              backgroundColor: PelviColors.of(context).danger,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Restore'),
@@ -311,6 +311,23 @@ class MoreScreen extends StatelessWidget {
                     subtitle:
                         '${tz.replaceAll('_', ' ')} · label only (device clock)',
                     onTap: () => _editTimezone(context),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: PelviSpace.lg),
+          _SettingsBlock(
+            children: [
+              StreamBuilder<bool>(
+                stream: db.watchDarkModeEnabled(),
+                builder: (context, snap) {
+                  final on = snap.data ?? false;
+                  return _SwitchRow(
+                    title: 'Dark mode',
+                    subtitle: 'Use dark chrome across the app',
+                    value: on,
+                    onChanged: (v) => db.setDarkModeEnabled(v),
                   );
                 },
               ),
@@ -439,11 +456,12 @@ class _SettingsBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: PelviColors.surface,
+        color: c.surface,
         borderRadius: BorderRadius.circular(PelviRadius.lg),
-        border: Border.all(color: PelviColors.border),
+        border: Border.all(color: c.border),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 17),
@@ -471,8 +489,8 @@ class _TappableRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      splashColor: PelviColors.surfaceMuted,
-      highlightColor: PelviColors.surfaceMuted,
+      splashColor: PelviColors.of(context).surfaceMuted,
+      highlightColor: PelviColors.of(context).surfaceMuted,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: PelviSpace.md),
         child: Row(
@@ -489,9 +507,9 @@ class _TappableRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right,
-              color: PelviColors.inkMuted,
+              color: PelviColors.of(context).inkMuted,
               size: 20,
             ),
           ],

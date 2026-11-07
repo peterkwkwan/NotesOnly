@@ -129,6 +129,9 @@ class AppDatabase extends _$AppDatabase {
   static const defaultTimezone = 'Asia/Hong_Kong';
   static const recallNotificationsKey = 'recall_notifications_enabled';
   static const defaultRecallNotifications = '1';
+  /// `light` | `dark` — Account Settings toggle; default light.
+  static const themeModeKey = 'theme_mode';
+  static const defaultThemeMode = 'light';
   /// Comma-separated client ids with recalls muted (hidden from Due + bell).
   static const recallMutedIdsKey = 'recall_muted_client_ids';
   /// Comma-separated client ids cleared from the notifications inbox.
@@ -412,6 +415,23 @@ class AppDatabase extends _$AppDatabase {
         });
   }
 
+  Future<bool> getDarkModeEnabled() async {
+    final raw = await getSetting(themeModeKey);
+    return (raw ?? defaultThemeMode) == 'dark';
+  }
+
+  Future<void> setDarkModeEnabled(bool enabled) =>
+      setSetting(themeModeKey, enabled ? 'dark' : 'light');
+
+  Stream<bool> watchDarkModeEnabled() {
+    return (select(settings)..where((t) => t.key.equals(themeModeKey)))
+        .watch()
+        .map((rows) {
+          final raw = rows.isEmpty ? null : rows.first.value;
+          return (raw ?? defaultThemeMode) == 'dark';
+        });
+  }
+
   Stream<String?> watchPractitionerName() {
     return (select(settings)
           ..where((t) => t.key.equals(practitionerNameKey)))
@@ -442,6 +462,9 @@ class AppDatabase extends _$AppDatabase {
     }
     if (await getSetting(recallNotificationsKey) == null) {
       await setSetting(recallNotificationsKey, defaultRecallNotifications);
+    }
+    if (await getSetting(themeModeKey) == null) {
+      await setSetting(themeModeKey, defaultThemeMode);
     }
   }
 

@@ -14,8 +14,8 @@ Future<void> showNotificationsSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: PelviColors.surface,
-    barrierColor: PelviColors.overlay,
+    backgroundColor: PelviColors.of(context).surface,
+    barrierColor: PelviColors.of(context).overlay,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(PelviRadius.lg)),
     ),
@@ -37,8 +37,8 @@ Future<_RecallAction?> _showRecallActionSheet(
 }) {
   return showModalBottomSheet<_RecallAction>(
     context: context,
-    backgroundColor: PelviColors.surface,
-    barrierColor: PelviColors.overlay,
+    backgroundColor: PelviColors.of(context).surface,
+    barrierColor: PelviColors.of(context).overlay,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(PelviRadius.lg)),
     ),
@@ -61,7 +61,7 @@ Future<_RecallAction?> _showRecallActionSheet(
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: PelviColors.border,
+                    color: PelviColors.of(context).border,
                     borderRadius: BorderRadius.circular(PelviRadius.full),
                   ),
                 ),
@@ -71,7 +71,7 @@ Future<_RecallAction?> _showRecallActionSheet(
               const SizedBox(height: PelviSpace.xs),
               Text(
                 'Recall actions',
-                style: text.bodyMedium?.copyWith(color: PelviColors.inkMuted),
+                style: text.bodyMedium?.copyWith(color: PelviColors.of(context).inkMuted),
               ),
               const SizedBox(height: PelviSpace.md),
               const Divider(height: 1),
@@ -128,8 +128,8 @@ class _ActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      splashColor: PelviColors.surfaceMuted,
-      highlightColor: PelviColors.surfaceMuted,
+      splashColor: PelviColors.of(context).surfaceMuted,
+      highlightColor: PelviColors.of(context).surfaceMuted,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           vertical: PelviSpace.sm + 4,
@@ -137,7 +137,7 @@ class _ActionRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: PelviColors.pink700),
+            Icon(icon, size: 22, color: PelviColors.of(context).pink700),
             const SizedBox(width: PelviSpace.md),
             Expanded(
               child: Text(
@@ -201,7 +201,7 @@ class _NotificationsSheet extends StatelessWidget {
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: TextButton.styleFrom(
-                  foregroundColor: PelviColors.warning,
+                  foregroundColor: PelviColors.of(context).warning,
                 ),
                 child: const Text('Mute'),
               ),
@@ -242,7 +242,7 @@ class _NotificationsSheet extends StatelessWidget {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: PelviColors.border,
+                  color: PelviColors.of(context).border,
                   borderRadius: BorderRadius.circular(PelviRadius.full),
                 ),
               ),
@@ -262,21 +262,21 @@ class _NotificationsSheet extends StatelessWidget {
                   IconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: PelviColors.inkMuted),
+                    icon: Icon(Icons.close, color: PelviColors.of(context).inkMuted),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: PelviColors.chromeBorder),
+            Divider(height: 1, color: PelviColors.of(context).chromeBorder),
             Expanded(
               child: StreamBuilder<List<RecallDueEntry>>(
                 stream: db.watchRecallInboxClients(),
                 builder: (context, snap) {
                   final due = snap.data;
                   if (due == null) {
-                    return const Center(
+                    return Center(
                       child: CircularProgressIndicator(
-                        color: PelviColors.pink700,
+                        color: PelviColors.of(context).pink700,
                       ),
                     );
                   }
@@ -285,7 +285,7 @@ class _NotificationsSheet extends StatelessWidget {
                       child: Text(
                         'No recalls due.',
                         style: text.bodyMedium?.copyWith(
-                          color: PelviColors.inkMuted,
+                          color: PelviColors.of(context).inkMuted,
                         ),
                       ),
                     );
@@ -297,8 +297,8 @@ class _NotificationsSheet extends StatelessWidget {
                       final entry = due[i];
                       return InkWell(
                         onTap: () => _onRowTap(context, entry),
-                        splashColor: PelviColors.surfaceMuted,
-                        highlightColor: PelviColors.surfaceMuted,
+                        splashColor: PelviColors.of(context).surfaceMuted,
+                        highlightColor: PelviColors.of(context).surfaceMuted,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: PelviSpace.md,
@@ -328,9 +328,9 @@ class _NotificationsSheet extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.chevron_right,
-                                  color: PelviColors.inkMuted,
+                                  color: PelviColors.of(context).inkMuted,
                                   size: 20,
                                 ),
                               ],
@@ -376,14 +376,14 @@ class NotificationBellButton extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: PelviColors.surfaceMuted,
+                color: PelviColors.of(context).surfaceMuted,
                 shape: BoxShape.circle,
-                border: Border.all(color: PelviColors.border),
+                border: Border.all(color: PelviColors.of(context).border),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.notifications_none_outlined,
                 size: 20,
-                color: PelviColors.inkMuted,
+                color: PelviColors.of(context).inkMuted,
               ),
             ),
             if (dueCount > 0)
@@ -393,8 +393,8 @@ class NotificationBellButton extends StatelessWidget {
                 child: Container(
                   width: 7,
                   height: 7,
-                  decoration: const BoxDecoration(
-                    color: PelviColors.purple700,
+                  decoration: BoxDecoration(
+                    color: PelviColors.of(context).purple700,
                     shape: BoxShape.circle,
                   ),
                 ),

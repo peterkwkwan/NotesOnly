@@ -54,7 +54,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
                   'Pelvi',
                   textAlign: TextAlign.center,
                   style: text.titleLarge?.copyWith(
-                    color: PelviColors.pink700,
+                    color: PelviColors.of(context).pink700,
                   ),
                 ),
                 const SizedBox(height: PelviSpace.sm),
@@ -67,7 +67,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
                 Text(
                   'This appears in settings and exports. You can change it later.',
                   textAlign: TextAlign.center,
-                  style: text.bodyMedium?.copyWith(color: PelviColors.inkMuted),
+                  style: text.bodyMedium?.copyWith(color: PelviColors.of(context).inkMuted),
                 ),
                 const SizedBox(height: PelviSpace.xl),
                 TextFormField(
@@ -89,12 +89,12 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
                 FilledButton(
                   onPressed: _saving ? null : _continue,
                   child: _saving
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: PelviColors.inkInverse,
+                            color: PelviColors.of(context).inkInverse,
                           ),
                         )
                       : const Text('Continue'),

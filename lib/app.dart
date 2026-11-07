@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'data/database.dart';
 import 'data/database_provider.dart';
@@ -44,31 +45,55 @@ class _PelviAppState extends State<PelviApp> {
     });
   }
 
+  void _applySystemUi(bool dark) {
+    final p = dark ? PelviPalette.dark : PelviPalette.light;
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: p.canvas,
+        systemNavigationBarIconBrightness:
+            dark ? Brightness.light : Brightness.dark,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppDatabaseProvider(
       database: widget.database,
       syncEngine: widget.syncEngine,
-      child: MaterialApp(
-        title: 'Pelvi',
-        debugShowCheckedModeBanner: false,
-        theme: pelviLightTheme(),
-        home: FutureBuilder<bool>(
-          future: _needsFirstRun,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(color: PelviColors.pink700),
-                ),
-              );
-            }
-            if (snapshot.data == true) {
-              return FirstRunScreen(onComplete: _refreshGate);
-            }
-            return const AppShell();
-          },
-        ),
+      child: StreamBuilder<bool>(
+        stream: widget.database.watchDarkModeEnabled(),
+        initialData: false,
+        builder: (context, snap) {
+          final dark = snap.data ?? false;
+          _applySystemUi(dark);
+          return MaterialApp(
+            title: 'Pelvi',
+            debugShowCheckedModeBanner: false,
+            theme: pelviLightTheme(),
+            darkTheme: pelviDarkTheme(),
+            themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+            home: FutureBuilder<bool>(
+              future: _needsFirstRun,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  final c = PelviColors.of(context);
+                  return Scaffold(
+                    body: Center(
+                      child: CircularProgressIndicator(color: c.pink700),
+                    ),
+                  );
+                }
+                if (snapshot.data == true) {
+                  return FirstRunScreen(onComplete: _refreshGate);
+                }
+                return const AppShell();
+              },
+            ),
+          );
+        },
       ),
     );
   }
