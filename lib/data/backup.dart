@@ -82,7 +82,7 @@ Map<String, Object?> decodeBackupJson(String raw) {
   }
   final map = Map<String, Object?>.from(decoded);
   if (map['format'] != 'pelvi_crm_backup') {
-    throw const FormatException('Not a Pelvi backup file');
+    throw const FormatException('Not a NotesOnly backup file');
   }
   final version = map['version'];
   if (version is! int || version < 1 || version > backupFormatVersion) {

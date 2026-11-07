@@ -134,13 +134,13 @@ class MoreScreen extends StatelessWidget {
       final json = encodeBackupJson(map);
       final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-      final file = File(p.join(dir.path, 'pelvi-backup-$stamp.json'));
+      final file = File(p.join(dir.path, 'notesonly-backup-$stamp.json'));
       await file.writeAsString(json);
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path, mimeType: 'application/json')],
-          subject: 'Pelvi backup',
-          text: 'Pelvi CRM backup (clients, appointments, notes)',
+          subject: 'NotesOnly backup',
+          text: 'NotesOnly backup (clients, appointments, notes)',
         ),
       );
     } catch (e) {
@@ -156,9 +156,9 @@ class MoreScreen extends StatelessWidget {
       final csv = await buildBackupCsv(db);
       final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-      final clients = File(p.join(dir.path, 'pelvi-clients-$stamp.csv'));
-      final appts = File(p.join(dir.path, 'pelvi-appointments-$stamp.csv'));
-      final notes = File(p.join(dir.path, 'pelvi-notes-$stamp.csv'));
+      final clients = File(p.join(dir.path, 'notesonly-clients-$stamp.csv'));
+      final appts = File(p.join(dir.path, 'notesonly-appointments-$stamp.csv'));
+      final notes = File(p.join(dir.path, 'notesonly-notes-$stamp.csv'));
       await clients.writeAsString(csv.clients);
       await appts.writeAsString(csv.appointments);
       await notes.writeAsString(csv.notes);
@@ -169,8 +169,8 @@ class MoreScreen extends StatelessWidget {
             XFile(appts.path, mimeType: 'text/csv'),
             XFile(notes.path, mimeType: 'text/csv'),
           ],
-          subject: 'Pelvi CSV export',
-          text: 'Pelvi clients, appointments, and notes (CSV)',
+          subject: 'NotesOnly CSV export',
+          text: 'NotesOnly clients, appointments, and notes (CSV)',
         ),
       );
     } catch (e) {

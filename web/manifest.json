@@ -1,6 +1,6 @@
 {
-    "name": "Pelvi",
-    "short_name": "Pelvi",
+    "name": "NotesOnly",
+    "short_name": "NotesOnly",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",

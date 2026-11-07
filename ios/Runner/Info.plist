@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Pelvi Crm</string>
+	<string>NotesOnly</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,8 +46,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Pelvi uses the microphone to dictate SOAP note text.</string>
+	<string>NotesOnly uses the microphone to dictate SOAP note text.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Pelvi turns speech into editable SOAP note text.</string>
+	<string>NotesOnly turns speech into editable SOAP note text.</string>
 </dict>
 </plist>

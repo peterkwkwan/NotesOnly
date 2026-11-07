@@ -51,7 +51,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
               children: [
                 const Spacer(),
                 Text(
-                  'Pelvi',
+                  'NotesOnly',
                   textAlign: TextAlign.center,
                   style: text.titleLarge?.copyWith(
                     color: PelviColors.of(context).pink700,

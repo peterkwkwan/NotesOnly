@@ -311,7 +311,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Pelvi'), findsOneWidget);
+    expect(find.text('NotesOnly'), findsOneWidget);
     expect(find.text('What should we call your practice?'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
 
