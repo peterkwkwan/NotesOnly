@@ -44,6 +44,8 @@ List<RecallDueEntry> computeRecallDue({
   required DateTime now,
   Set<int> mutedClientIds = const {},
 }) {
+  // 0 = Never (settings sentinel): no Due / bell / local notifs.
+  if (recallDays <= 0) return const [];
   final cutoff = now.subtract(Duration(days: recallDays));
   final due = <RecallDueEntry>[];
   for (final c in clients) {

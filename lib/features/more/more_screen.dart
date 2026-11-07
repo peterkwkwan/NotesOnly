@@ -58,6 +58,7 @@ class MoreScreen extends StatelessWidget {
       title: 'Recall window',
       selected: current,
       options: [
+        const PelviPickerOption(value: 0, label: 'Never'),
         for (final d in _recallDayChoices)
           PelviPickerOption(value: d, label: '$d days'),
       ],
@@ -258,7 +259,9 @@ class MoreScreen extends StatelessWidget {
                   final days = recallSnap.data ?? 30;
                   return _TappableRow(
                     title: 'Recall window',
-                    subtitle: '$days days · clients with no visit in window',
+                    subtitle: days <= 0
+                        ? 'Never · recalls disabled'
+                        : '$days days · clients with no visit in window',
                     onTap: () => _editRecallWindow(context),
                   );
                 },

@@ -165,8 +165,9 @@ class AppDatabase extends _$AppDatabase {
     return int.tryParse(raw ?? defaultRecallDays) ?? 30;
   }
 
+  /// [days] `0` = Never (recalls off). Positive = window length.
   Future<void> setRecallDays(int days) async {
-    final clamped = days < 1 ? 1 : days;
+    final clamped = days < 0 ? 0 : days;
     await setSetting(recallDaysKey, '$clamped');
   }
 

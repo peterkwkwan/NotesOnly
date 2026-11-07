@@ -606,6 +606,21 @@ void main() {
     due = await db.getRecallDueClients(now: now);
     expect(due.map((e) => e.client.id), isNot(contains(never)));
 
+    await db.setRecallDays(0);
+    expect(await db.getRecallDays(), 0);
+    due = await db.getRecallDueClients(now: now);
+    expect(due, isEmpty);
+    expect(
+      computeRecallDue(
+        clients: await db.watchClients().first,
+        appointments: await db.select(db.appointments).get(),
+        notes: await db.select(db.notes).get(),
+        recallDays: 0,
+        now: now,
+      ),
+      isEmpty,
+    );
+
     await db.setRecallDays(7);
     expect(await db.getRecallDays(), 7);
     due = await db.getRecallDueClients(now: now);
