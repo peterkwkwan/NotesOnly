@@ -237,6 +237,8 @@ class MoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(PelviSpace.page),
         children: [
+          const _SectionLabel('Practice preferences'),
+          const SizedBox(height: PelviSpace.sm),
           _SettingsBlock(
             children: [
               StreamBuilder<String?>(
@@ -351,6 +353,8 @@ class MoreScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: PelviSpace.lg),
+          const _SectionLabel('Data & backup'),
+          const SizedBox(height: PelviSpace.sm),
           _SettingsBlock(
             children: [
               _TappableRow(
@@ -394,6 +398,20 @@ class MoreScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: Theme.of(context).textTheme.labelMedium,
     );
   }
 }
