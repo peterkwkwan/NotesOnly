@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import '../../theme/theme.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../clients/client_form_screen.dart';
-import '../notes/open_note.dart';
 
-/// FAB quick-add sheet: Client / Appointment / Note.
+/// FAB quick-add sheet: Client / Appointment.
 Future<void> showQuickAddSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
@@ -26,16 +25,6 @@ class QuickAddSheet extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => screen),
     );
-  }
-
-  void _openNote(BuildContext context) {
-    final nav = Navigator.of(context);
-    nav.pop();
-    // After sheet closes, pick client/appointment then open editor.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = nav.context;
-      if (ctx.mounted) openNoteViaPickers(ctx);
-    });
   }
 
   @override
@@ -71,7 +60,7 @@ class QuickAddSheet extends StatelessWidget {
             ),
             const SizedBox(height: PelviSpace.xs),
             Text(
-              'Start a client, appointment, or SOAP note.',
+              'Start a client or appointment.',
               style: text.bodyMedium?.copyWith(color: PelviColors.of(context).inkMuted),
             ),
             const SizedBox(height: PelviSpace.md),
@@ -88,13 +77,6 @@ class QuickAddSheet extends StatelessWidget {
               title: 'Appointment',
               subtitle: 'Book a visit on the calendar',
               onTap: () => _open(context, const AppointmentFormScreen()),
-            ),
-            const Divider(height: 1),
-            _QuickAddRow(
-              icon: Icons.notes_outlined,
-              title: 'Note',
-              subtitle: 'Start a SOAP draft',
-              onTap: () => _openNote(context),
             ),
           ],
         ),
