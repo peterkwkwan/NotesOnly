@@ -122,11 +122,10 @@ ThemeData _pelviTheme(PelviPalette p, Brightness brightness) {
       foregroundColor: p.ink,
       elevation: 0,
       scrolledUnderElevation: 0,
+      shadowColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       centerTitle: false,
       titleTextStyle: text.titleLarge,
-      shape: Border(
-        bottom: BorderSide(color: p.chromeBorder, width: 1),
-      ),
     ),
     dividerTheme: DividerThemeData(
       color: p.border,
