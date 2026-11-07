@@ -242,7 +242,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Open note'), findsNothing);
-    await tester.tap(find.textContaining('2026-10-28'));
+    expect(find.text('Client profile'), findsOneWidget);
+    expect(find.text('CLIENT SUMMARY'), findsOneWidget);
+    await tester.tap(find.text(formatApptWhen(DateTime(2026, 10, 28, 9, 30))));
     await tester.pumpAndSettle();
 
     expect(find.text('Edit appointment'), findsOneWidget);
@@ -1021,14 +1023,16 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    await tester.longPress(find.textContaining('2026-10-28'));
+    await tester.longPress(
+      find.text(formatApptWhen(DateTime(2026, 10, 28, 9, 30))),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('1 selected'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
 
-    await tester.tap(find.textContaining('2026-10-29'));
+    await tester.tap(find.text(formatApptWhen(DateTime(2026, 10, 29, 10))));
     await tester.pumpAndSettle();
     expect(find.text('2 selected'), findsOneWidget);
 

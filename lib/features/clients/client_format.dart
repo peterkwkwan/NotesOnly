@@ -6,6 +6,16 @@ import '../notes/note_format.dart';
 
 String clientDisplayName(Client c) => '${c.firstName} ${c.lastName}'.trim();
 
+/// Initials for avatar wells (first + last initial).
+String clientInitials(Client c) {
+  final f = c.firstName.trim();
+  final l = c.lastName.trim();
+  final a = f.isNotEmpty ? f[0] : '';
+  final b = l.isNotEmpty ? l[0] : '';
+  final s = '$a$b'.toUpperCase();
+  return s.isEmpty ? '?' : s;
+}
+
 /// Case-insensitive match on name / phone / email (fields that exist).
 bool clientMatchesQuery(Client c, String query) {
   final q = query.trim().toLowerCase();

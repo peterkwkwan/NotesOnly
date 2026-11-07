@@ -138,7 +138,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
         }
         if (client == null) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Client')),
+            appBar: AppBar(title: const Text('Client profile')),
             body: QuietEmptyState(
               title: 'Client gone',
               body: 'This profile is no longer in the local database.',
@@ -149,8 +149,13 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
         }
 
         final text = Theme.of(context).textTheme;
+        final c = PelviColors.of(context);
         final name = clientDisplayName(client);
         final n = _selected.length;
+        final hasEmergency = (client.emergencyContact != null &&
+                client.emergencyContact!.isNotEmpty) ||
+            (client.emergencyContactPhone != null &&
+                client.emergencyContactPhone!.isNotEmpty);
 
         return PopScope(
           canPop: !_selecting,
@@ -159,7 +164,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
           },
           child: Scaffold(
             appBar: AppBar(
-              title: Text(_selecting ? '$n selected' : name),
+              title: Text(_selecting ? '$n selected' : 'Client profile'),
               actions: [
                 if (_selecting) ...[
                   TextButton(
@@ -169,7 +174,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   TextButton(
                     onPressed: n == 0 ? null : _confirmDeleteSelected,
                     style: TextButton.styleFrom(
-                      foregroundColor: PelviColors.of(context).danger,
+                      foregroundColor: c.danger,
                     ),
                     child: const Text('Delete'),
                   ),
@@ -187,276 +192,315 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
               ],
             ),
             body: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                PelviSpace.page,
+                PelviSpace.md,
+                PelviSpace.page,
+                PelviSpace.lg,
+              ),
               children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.page,
-                    PelviSpace.lg,
-                    PelviSpace.page,
-                    PelviSpace.md,
-                  ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text(name, style: text.headlineMedium),
-                    if ((client.phone != null && client.phone!.isNotEmpty) ||
-                        (client.email != null &&
-                            client.email!.isNotEmpty)) ...[
-                      const SizedBox(height: PelviSpace.md),
-                      if (client.phone != null &&
-                          client.phone!.isNotEmpty)
-                        _PhoneLink(phone: client.phone!),
-                      if (client.email != null &&
-                          client.email!.isNotEmpty) ...[
-                        if (client.phone != null &&
-                            client.phone!.isNotEmpty)
-                          const SizedBox(height: PelviSpace.sm),
-                        _EmailLink(email: client.email!),
-                      ],
-                    ],
-                    if ((client.emergencyContact != null &&
-                            client.emergencyContact!.isNotEmpty) ||
-                        (client.emergencyContactPhone != null &&
-                            client.emergencyContactPhone!.isNotEmpty)) ...[
-                      const SizedBox(height: PelviSpace.lg),
-                      const Divider(height: 1),
-                      const SizedBox(height: PelviSpace.lg),
-                      Text('EMERGENCY', style: text.labelMedium),
-                      if (client.emergencyContact != null &&
-                          client.emergencyContact!.isNotEmpty) ...[
-                        const SizedBox(height: PelviSpace.sm),
-                        Text(
-                          client.emergencyContact!,
-                          style: text.bodyMedium,
-                        ),
-                      ],
-                      if (client.emergencyContactPhone != null &&
-                          client.emergencyContactPhone!.isNotEmpty) ...[
-                        const SizedBox(height: PelviSpace.sm),
-                        _PhoneLink(phone: client.emergencyContactPhone!),
-                      ],
-                    ],
-                    const SizedBox(height: PelviSpace.lg),
-                    const Divider(height: 1),
-                    StreamBuilder<bool>(
-                      stream: db.watchRecallMuted(client.id),
-                      builder: (context, muteSnap) {
-                        final muted = muteSnap.data ?? false;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: PelviSpace.sm,
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Mute recalls',
-                                      style: text.labelLarge,
-                                    ),
-                                    Text(
-                                      muted
-                                          ? 'Hidden from Due and Notifications'
-                                          : 'Show in Due when inactive',
-                                      style: text.labelMedium,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Switch.adaptive(
-                                value: muted,
-                                onChanged: (v) =>
-                                    db.setRecallMuted(client.id, v),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    const Divider(height: 1),
-                    const SizedBox(height: PelviSpace.lg),
-                    Text('CLIENT SUMMARY', style: text.labelMedium),
-                    const SizedBox(height: PelviSpace.sm),
                     Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(PelviSpace.md),
+                      width: 64,
+                      height: 64,
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: PelviColors.of(context).surface,
-                        borderRadius: BorderRadius.circular(PelviRadius.md),
-                        border: Border.all(color: PelviColors.of(context).border),
+                        color: c.pink50,
+                        borderRadius: BorderRadius.circular(23),
                       ),
                       child: Text(
-                        'TBD — AI summary of past SOAP notes, '
-                        'with emphasis on the latest visit.',
-                        style: text.bodyMedium?.copyWith(
-                          color: PelviColors.of(context).inkMuted,
+                        clientInitials(client),
+                        style: text.titleMedium?.copyWith(
+                          fontSize: 23,
+                          fontWeight: FontWeight.w500,
+                          color: c.pink700,
+                          height: 1,
                         ),
                       ),
                     ),
-                    if (client.notes != null && client.notes!.isNotEmpty) ...[
-                      const SizedBox(height: PelviSpace.lg),
-                      Text('NOTES', style: text.labelMedium),
-                      const SizedBox(height: PelviSpace.sm),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 96),
-                        child: SingleChildScrollView(
-                          child: Text(
-                            client.notes!,
-                            style: text.bodyMedium?.copyWith(
-                              color: PelviColors.of(context).inkMuted,
+                    const SizedBox(width: PelviSpace.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: text.titleMedium?.copyWith(
+                              fontSize: 23,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: -0.7,
+                              color: c.ink,
+                              height: 1.2,
                             ),
                           ),
-                        ),
+                          if (client.phone != null &&
+                              client.phone!.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            _ContactLink(
+                              icon: Icons.phone_outlined,
+                              label: client.phone!,
+                              onTap: () =>
+                                  _onPhoneTap(context, client.phone!),
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
+                    ),
                   ],
                 ),
-              ),
-              const Divider(height: 1),
-              StreamBuilder<List<Appointment>>(
-                stream: db.watchAppointmentsForClient(clientId),
-                builder: (context, apptSnap) {
-                  final appts = apptSnap.data ?? const <Appointment>[];
-                  void openNew() {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => AppointmentFormScreen(
-                          clientId: client.id,
-                        ),
-                      ),
-                    );
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.page,
-                    PelviSpace.md,
-                    PelviSpace.page,
-                    PelviSpace.sm,
+                if (client.email != null && client.email!.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _ContactLink(
+                    icon: Icons.mail_outlined,
+                    label: client.email!,
+                    onTap: () => _launchExternal(
+                      Uri(scheme: 'mailto', path: client.email!),
+                    ),
                   ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text('APPOINTMENTS', style: text.labelMedium),
-                            if (appts.isNotEmpty) ...[
-                              const SizedBox(height: PelviSpace.sm),
-                              FilledButton(
-                                onPressed: openNew,
-                                child: const Text('New appointment'),
+                ],
+                const SizedBox(height: 20),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(PelviRadius.lg),
+                    border: Border.all(color: c.border),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(17),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasEmergency) ...[
+                          Text('EMERGENCY', style: text.labelMedium),
+                          if (client.emergencyContact != null &&
+                              client.emergencyContact!.isNotEmpty) ...[
+                            const SizedBox(height: PelviSpace.sm),
+                            Text(
+                              client.emergencyContact!,
+                              style: text.bodyMedium?.copyWith(
+                                fontSize: 15,
+                                color: c.ink,
                               ),
-                            ],
+                            ),
                           ],
-                        ),
-                      ),
-                      if (appts.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.page,
-                    PelviSpace.sm,
-                    PelviSpace.page,
-                    PelviSpace.lg,
-                  ),
-                          child: DashedEmptyWell(
-                            message: 'No appointments yet for this client.',
-                            ctaLabel: 'New appointment',
-                            onCta: openNew,
-                          ),
-                        )
-                      else
-                        for (final (i, appt) in appts.indexed) ...[
-                          if (i > 0) const Divider(height: 1),
-                          _AppointmentRow(
-                            appointment: appt,
-                            selecting: _selecting,
-                            selected: _selected.contains(appt.id),
-                            onOpen: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => AppointmentFormScreen(
-                                    existing: appt,
+                          if (client.emergencyContactPhone != null &&
+                              client.emergencyContactPhone!.isNotEmpty) ...[
+                            const SizedBox(height: PelviSpace.sm),
+                            _ContactLink(
+                              icon: Icons.phone_outlined,
+                              label: client.emergencyContactPhone!,
+                              onTap: () => _onPhoneTap(
+                                context,
+                                client.emergencyContactPhone!,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 15),
+                          Divider(height: 1, color: c.border),
+                          const SizedBox(height: 15),
+                        ],
+                        StreamBuilder<bool>(
+                          stream: db.watchRecallMuted(client.id),
+                          builder: (context, muteSnap) {
+                            final muted = muteSnap.data ?? false;
+                            return Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Mute recalls',
+                                        style: text.labelLarge?.copyWith(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: c.ink,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        muted
+                                            ? 'Hidden from Due and Notifications'
+                                            : 'Show in Due when inactive',
+                                        style: text.bodySmall?.copyWith(
+                                          fontSize: 12,
+                                          color: c.inkMuted,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              );
-                            },
-                            onLongPress: () => _enterSelect(appt.id),
-                            onToggle: () => _toggleSelected(appt.id),
+                                Switch.adaptive(
+                                  value: muted,
+                                  onChanged: (v) =>
+                                      db.setRecallMuted(client.id, v),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 13,
+                      color: c.purple700,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      'CLIENT SUMMARY',
+                      style: text.labelMedium?.copyWith(
+                        color: c.purple700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(PelviSpace.md),
+                  decoration: BoxDecoration(
+                    color: c.purple50,
+                    borderRadius: BorderRadius.circular(PelviRadius.md),
+                  ),
+                  child: Text(
+                    'TBD — AI summary of past SOAP notes, '
+                    'with emphasis on the latest visit.',
+                    style: text.bodyMedium?.copyWith(
+                      color: c.purple700,
+                      fontSize: 13,
+                      height: 1.65,
+                    ),
+                  ),
+                ),
+                if (client.notes != null && client.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text('NOTES', style: text.labelMedium),
+                  const SizedBox(height: PelviSpace.sm),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 96),
+                    child: SingleChildScrollView(
+                      child: Text(
+                        client.notes!,
+                        style: text.bodyMedium?.copyWith(
+                          fontSize: 14,
+                          color: c.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                StreamBuilder<List<Appointment>>(
+                  stream: db.watchAppointmentsForClient(clientId),
+                  builder: (context, apptSnap) {
+                    final appts = apptSnap.data ?? const <Appointment>[];
+                    void openNew() {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => AppointmentFormScreen(
+                            clientId: client.id,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text('APPOINTMENTS', style: text.labelMedium),
+                        if (appts.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: PelviSpace.sm),
+                            child: DashedEmptyWell(
+                              message:
+                                  'No appointments yet for this client.',
+                              ctaLabel: 'New appointment',
+                              onCta: openNew,
+                            ),
+                          )
+                        else ...[
+                          for (final appt in appts)
+                            _AppointmentRow(
+                              appointment: appt,
+                              selecting: _selecting,
+                              selected: _selected.contains(appt.id),
+                              onOpen: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => AppointmentFormScreen(
+                                      existing: appt,
+                                    ),
+                                  ),
+                                );
+                              },
+                              onLongPress: () => _enterSelect(appt.id),
+                              onToggle: () => _toggleSelected(appt.id),
+                            ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: FilledButton.icon(
+                              onPressed: openNew,
+                              icon: const Icon(Icons.add, size: 19),
+                              label: const Text('New appointment'),
+                              style: FilledButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    PelviRadius.md,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ],
-                    ],
-                  );
-                },
-              ),
-            ],
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
         );
       },
     );
   }
 }
 
-class _PhoneLink extends StatelessWidget {
-  const _PhoneLink({required this.phone});
+class _ContactLink extends StatelessWidget {
+  const _ContactLink({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
-  final String phone;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => _onPhoneTap(context, phone),
-      child: Row(
-        children: [
-          Icon(
-            Icons.phone_outlined,
-            size: 18,
-            color: PelviColors.of(context).pink700,
-          ),
-          const SizedBox(width: PelviSpace.sm),
-          Expanded(
-            child: Text(
-              phone,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: PelviColors.of(context).pink700,
-                    decoration: TextDecoration.underline,
-                    decorationColor: PelviColors.of(context).pink700,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmailLink extends StatelessWidget {
-  const _EmailLink({required this.email});
-
-  final String email;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
     return InkWell(
-      onTap: () => _launchExternal(Uri(scheme: 'mailto', path: email)),
+      onTap: onTap,
       child: Row(
         children: [
-          Icon(
-            Icons.email_outlined,
-            size: 18,
-            color: PelviColors.of(context).inkMuted,
-          ),
-          const SizedBox(width: PelviSpace.sm),
+          Icon(icon, size: 16, color: c.pink700),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              email,
+              label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: PelviColors.of(context).inkMuted,
-                    decoration: TextDecoration.underline,
-                    decorationColor: PelviColors.of(context).inkMuted,
+                    color: c.pink700,
+                    fontSize: 14,
                   ),
             ),
           ),
@@ -486,35 +530,58 @@ class _AppointmentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final c = PelviColors.of(context);
+    final status = appointment.status;
+    final pillFg = _statusPillForeground(status, c);
+    final pillBg = _statusPillBackground(status, c);
+
     return InkWell(
       onTap: selecting ? onToggle : onOpen,
       onLongPress: selecting ? onToggle : onLongPress,
-      splashColor: PelviColors.of(context).surfaceMuted,
-      highlightColor: PelviColors.of(context).surfaceMuted,
+      splashColor: c.surfaceMuted,
+      highlightColor: c.surfaceMuted,
       child: ColoredBox(
-        color: selected ? PelviColors.of(context).surfaceMuted : Colors.transparent,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: PelviSpace.md,
-            vertical: PelviSpace.sm + 4,
+        color: selected ? c.surfaceMuted : Colors.transparent,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: c.border)),
           ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 56),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
             child: Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         formatApptWhen(appointment.startsAt),
-                        style: text.labelLarge,
+                        style: text.labelLarge?.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: c.ink,
+                        ),
                       ),
-                      Text(
-                        appointmentStatusLabel(appointment.status),
-                        style: text.labelMedium?.copyWith(
-                          color: appointmentStatusColor(appointment.status),
+                      const SizedBox(height: PelviSpace.sm),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: pillBg,
+                          borderRadius:
+                              BorderRadius.circular(PelviRadius.sm),
+                        ),
+                        child: Text(
+                          appointmentStatusLabel(status),
+                          style: text.labelMedium?.copyWith(
+                            fontSize: 11,
+                            height: 1.2,
+                            letterSpacing: 0,
+                            fontWeight: FontWeight.w500,
+                            color: pillFg,
+                          ),
                         ),
                       ),
                     ],
@@ -525,16 +592,14 @@ class _AppointmentRow extends StatelessWidget {
                     selected
                         ? Icons.check_circle
                         : Icons.radio_button_unchecked,
-                    color: selected
-                        ? PelviColors.of(context).pink700
-                        : PelviColors.of(context).inkMuted,
+                    color: selected ? c.pink700 : c.inkMuted,
                     size: 22,
                   )
                 else
                   Icon(
                     Icons.chevron_right,
-                    color: PelviColors.of(context).inkMuted,
-                    size: 20,
+                    color: c.inkMuted,
+                    size: 17,
                   ),
               ],
             ),
@@ -543,4 +608,22 @@ class _AppointmentRow extends StatelessWidget {
       ),
     );
   }
+}
+
+Color _statusPillForeground(AppointmentStatus status, PelviPalette c) {
+  return switch (status) {
+    AppointmentStatus.scheduled => c.pink700,
+    AppointmentStatus.completed => c.pink700,
+    AppointmentStatus.cancelled => c.inkMuted,
+    AppointmentStatus.noShow => c.purple700,
+  };
+}
+
+Color _statusPillBackground(AppointmentStatus status, PelviPalette c) {
+  return switch (status) {
+    AppointmentStatus.scheduled => c.pink50,
+    AppointmentStatus.completed => c.pink50,
+    AppointmentStatus.cancelled => c.surfaceMuted,
+    AppointmentStatus.noShow => c.purple50,
+  };
 }
