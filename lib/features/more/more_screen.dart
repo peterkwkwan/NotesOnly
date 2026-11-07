@@ -534,7 +534,6 @@ class _SwitchRow extends StatelessWidget {
           ),
           Switch.adaptive(
             value: value,
-            activeThumbColor: PelviColors.pink700,
             onChanged: onChanged,
           ),
         ],

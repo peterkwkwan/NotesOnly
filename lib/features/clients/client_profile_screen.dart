@@ -267,7 +267,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                               ),
                               Switch.adaptive(
                                 value: muted,
-                                activeThumbColor: PelviColors.pink700,
                                 onChanged: (v) =>
                                     db.setRecallMuted(client.id, v),
                               ),
