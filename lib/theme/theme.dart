@@ -25,8 +25,8 @@ ThemeData pelviLightTheme() {
       color: PelviColors.ink,
     ),
     titleLarge: baseText.titleLarge?.copyWith(
-      fontSize: 32,
-      height: 28 / 32,
+      fontSize: 28,
+      height: 28 / 28,
       fontWeight: FontWeight.w600,
       letterSpacing: -0.9,
       color: PelviColors.ink,

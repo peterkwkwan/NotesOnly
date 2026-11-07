@@ -104,7 +104,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         child: Text(
                           '${_monthNames[_month.month - 1]} ${_month.year}',
                           textAlign: TextAlign.center,
-                          style: text.titleLarge,
+                          style: text.titleLarge?.copyWith(fontSize: 18),
                         ),
                       ),
                       IconButton(
