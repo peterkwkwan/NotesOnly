@@ -10,6 +10,9 @@ import '../clients/client_format.dart';
 import '../clients/client_profile_screen.dart';
 
 /// In-app recall list — mirrors the Today bell. Purple badge is reserved for unread.
+/// Figma Notifications sheet top radius (`2:7531`).
+const _kSheetTopRadius = 28.0;
+
 Future<void> showNotificationsSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
@@ -17,7 +20,9 @@ Future<void> showNotificationsSheet(BuildContext context) {
     backgroundColor: PelviColors.of(context).surface,
     barrierColor: PelviColors.of(context).overlay,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(PelviRadius.lg)),
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(_kSheetTopRadius),
+      ),
     ),
     builder: (context) => const _NotificationsSheet(),
   );
@@ -225,6 +230,7 @@ class _NotificationsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.of(context);
+    final c = PelviColors.of(context);
     final text = Theme.of(context).textTheme;
     final height = MediaQuery.sizeOf(context).height * 0.72;
     final now = DateTime.now();
@@ -236,114 +242,190 @@ class _NotificationsSheet extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: PelviSpace.sm),
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: PelviColors.of(context).border,
-                  borderRadius: BorderRadius.circular(PelviRadius.full),
+            SizedBox(
+              height: 26,
+              child: Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: c.border,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                PelviSpace.md,
-                PelviSpace.md,
-                PelviSpace.sm,
-                PelviSpace.sm,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text('Notifications', style: text.titleLarge),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close, color: PelviColors.of(context).inkMuted),
-                  ),
-                ],
-              ),
-            ),
-            Divider(height: 1, color: PelviColors.of(context).chromeBorder),
             Expanded(
-              child: StreamBuilder<List<RecallDueEntry>>(
-                stream: db.watchRecallInboxClients(),
-                builder: (context, snap) {
-                  final due = snap.data;
-                  if (due == null) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        color: PelviColors.of(context).pink700,
-                      ),
-                    );
-                  }
-                  if (due.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'No recalls due.',
-                        style: text.bodyMedium?.copyWith(
-                          color: PelviColors.of(context).inkMuted,
-                        ),
-                      ),
-                    );
-                  }
-                  return ListView.separated(
-                    itemCount: due.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final entry = due[i];
-                      return InkWell(
-                        onTap: () => _onRowTap(context, entry),
-                        splashColor: PelviColors.of(context).surfaceMuted,
-                        highlightColor: PelviColors.of(context).surfaceMuted,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: PelviSpace.md,
-                            vertical: PelviSpace.sm + 4,
-                          ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 56),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Recall · ${clientDisplayName(entry.client)}',
-                                        style: text.labelLarge,
-                                      ),
-                                      Text(
-                                        formatLastSeenCaption(
-                                          entry.lastSeen,
-                                          now,
-                                        ),
-                                        style: text.labelMedium,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.chevron_right,
-                                  color: PelviColors.of(context).inkMuted,
-                                  size: 20,
-                                ),
-                              ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: PelviSpace.page),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Notifications',
+                            style: text.titleLarge?.copyWith(
+                              fontSize: 26,
+                              height: 1,
+                              letterSpacing: -0.8,
                             ),
                           ),
                         ),
-                      );
-                    },
-                  );
-                },
+                        Tooltip(
+                          message: 'Close',
+                          child: Material(
+                            color: c.surfaceMuted,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => Navigator.of(context).pop(),
+                              child: SizedBox(
+                                width: 34,
+                                height: 34,
+                                child: Icon(
+                                  Icons.close,
+                                  size: 18,
+                                  color: c.inkMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: PelviSpace.lg),
+                    Expanded(
+                      child: StreamBuilder<List<RecallDueEntry>>(
+                        stream: db.watchRecallInboxClients(),
+                        builder: (context, snap) {
+                          final due = snap.data;
+                          if (due == null) {
+                            return Center(
+                              child: CircularProgressIndicator(
+                                color: c.pink700,
+                              ),
+                            );
+                          }
+                          if (due.isEmpty) {
+                            return Center(
+                              child: Text(
+                                'No recalls due.',
+                                style: text.bodyMedium?.copyWith(
+                                  color: c.inkMuted,
+                                ),
+                              ),
+                            );
+                          }
+                          return ListView.separated(
+                            padding: EdgeInsets.zero,
+                            itemCount: due.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: PelviSpace.sm),
+                            itemBuilder: (context, i) {
+                              final entry = due[i];
+                              return _RecallNotificationCard(
+                                entry: entry,
+                                now: now,
+                                onTap: () => _onRowTap(context, entry),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bordered recall row — Figma `2:7540`.
+class _RecallNotificationCard extends StatelessWidget {
+  const _RecallNotificationCard({
+    required this.entry,
+    required this.now,
+    required this.onTap,
+  });
+
+  final RecallDueEntry entry;
+  final DateTime now;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final text = Theme.of(context).textTheme;
+
+    return Material(
+      color: c.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(PelviRadius.lg),
+        side: BorderSide(color: c.border),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(PelviRadius.lg),
+        splashColor: c.surfaceMuted,
+        highlightColor: c.surfaceMuted,
+        child: Padding(
+          padding: const EdgeInsets.all(17),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: c.purple50,
+                  borderRadius: BorderRadius.circular(PelviRadius.md),
+                ),
+                child: Text(
+                  clientInitials(entry.client),
+                  style: text.bodyMedium?.copyWith(
+                    fontSize: 14,
+                    height: 1,
+                    fontWeight: FontWeight.w500,
+                    color: c.purple700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recall · ${clientDisplayName(entry.client)}',
+                      style: text.bodyMedium?.copyWith(
+                        fontSize: 15,
+                        height: 1.2,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      formatLastSeenCaption(entry.lastSeen, now),
+                      style: text.bodyMedium?.copyWith(
+                        fontSize: 12,
+                        height: 1.2,
+                        fontWeight: FontWeight.w400,
+                        color: c.inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: c.inkMuted, size: 16),
+            ],
+          ),
         ),
       ),
     );

@@ -18,6 +18,7 @@ import 'package:pelvi_crm/features/notes/note_format.dart';
 import 'package:pelvi_crm/features/notes/soap_dictation.dart';
 import 'package:pelvi_crm/features/notes/soap_templates.dart';
 import 'package:pelvi_crm/features/notifications/notifications_sheet.dart';
+import 'package:pelvi_crm/theme/theme.dart';
 import 'package:pelvi_crm/widgets/show_snack.dart';
 
 void main() {
@@ -1084,6 +1085,7 @@ void main() {
         database: db,
         syncEngine: const StubSyncEngine(),
         child: MaterialApp(
+          theme: pelviLightTheme(),
           home: Builder(
             builder: (context) {
               return Scaffold(
@@ -1106,6 +1108,62 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Notifications'), findsOneWidget);
     expect(find.text('No recalls due.'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('notifications sheet shows bordered recall card + initials', (
+    tester,
+  ) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+
+    final now = DateTime(2026, 11, 7, 12);
+    final clientId = await db.insertClient(
+      firstName: 'Susie',
+      lastName: 'Rose',
+    );
+    await db.insertAppointment(
+      clientId: clientId,
+      startsAt: now.subtract(const Duration(days: 92)),
+      status: AppointmentStatus.completed,
+    );
+
+    db.watchRecallDueClients().listen((_) {}).cancel();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          theme: pelviLightTheme(),
+          home: Builder(
+            builder: (context) {
+              return Scaffold(
+                body: TextButton(
+                  onPressed: () => showNotificationsSheet(context),
+                  child: const Text('Bell'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Bell'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Recall · Susie Rose'), findsOneWidget);
+    expect(find.text('SR'), findsOneWidget);
+    expect(find.textContaining('Last seen'), findsOneWidget);
+    final client = await db.getClient(clientId);
+    expect(client, isNotNull);
+    expect(clientInitials(client!), 'SR');
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
