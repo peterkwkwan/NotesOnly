@@ -7,12 +7,12 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../data/auth.dart';
 import '../../data/backup.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
-import '../placeholders/stub_screens.dart';
 
 const _recallDayChoices = <int>[14, 21, 30, 45, 60, 90];
 const _durationChoices = <int>[30, 45, 60, 90];
@@ -377,24 +377,84 @@ class MoreScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: PelviSpace.lg),
+          const _SectionLabel('Account'),
+          const SizedBox(height: PelviSpace.sm),
           _SettingsBlock(
             children: [
+              _AccountRow(
+                email: NotesAuth.currentUser?.email,
+                displayName: NotesAuth.currentUser?.displayName,
+              ),
+              const Divider(height: 1),
               _TappableRow(
-                title: 'Account & sync',
-                subtitle: 'Local-first · sync stub idle',
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const StubScreen(
-                        title: 'Account',
-                        body:
-                            'Auth and cloud sync are stubbed for this scaffold.',
-                      ),
-                    ),
-                  );
-                },
+                title: 'Sign out',
+                subtitle: 'Keeps clinic data on this device · cloud sync later',
+                onTap: () => _signOut(context),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+          'Sign out does not wipe clinic data on this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await NotesAuth.signOut();
+    } catch (e) {
+      if (context.mounted) {
+        showPelviSnackBar(context, 'Sign out failed: $e');
+      }
+    }
+  }
+}
+
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({this.email, this.displayName});
+
+  final String? email;
+  final String? displayName;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final title = (displayName != null && displayName!.trim().isNotEmpty)
+        ? displayName!.trim()
+        : (email ?? 'Signed in');
+    final subtitle = email != null && title != email
+        ? email!
+        : 'Google · Firebase Auth';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: PelviSpace.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.labelLarge),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: c.inkMuted,
+                ),
           ),
         ],
       ),

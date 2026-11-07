@@ -1,9 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'data/auth.dart';
 import 'data/database.dart';
 import 'data/database_provider.dart';
 import 'data/sync_stub.dart';
+import 'features/auth/sign_in_screen.dart';
 import 'features/first_run/first_run_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'theme/theme.dart';
@@ -15,10 +18,13 @@ class PelviApp extends StatefulWidget {
     super.key,
     required this.database,
     this.syncEngine = const StubSyncEngine(),
+    /// Tests only — when set, skips Firebase Auth and treats true as signed in.
+    this.signedInOverride,
   });
 
   final AppDatabase database;
   final SyncEngine syncEngine;
+  final Stream<bool>? signedInOverride;
 
   @override
   State<PelviApp> createState() => _PelviAppState();
@@ -58,6 +64,12 @@ class _PelviAppState extends State<PelviApp> {
     );
   }
 
+  Stream<bool> get _signedIn {
+    final override = widget.signedInOverride;
+    if (override != null) return override;
+    return NotesAuth.authStateChanges().map((User? u) => u != null);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppDatabaseProvider(
@@ -70,15 +82,16 @@ class _PelviAppState extends State<PelviApp> {
           final dark = snap.data ?? false;
           _applySystemUi(dark);
           return MaterialApp(
-            title: 'Pelvi',
+            title: 'NotesOnly',
             debugShowCheckedModeBanner: false,
             theme: pelviLightTheme(),
             darkTheme: pelviDarkTheme(),
             themeMode: dark ? ThemeMode.dark : ThemeMode.light,
-            home: FutureBuilder<bool>(
-              future: _needsFirstRun,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
+            home: StreamBuilder<bool>(
+              stream: _signedIn,
+              builder: (context, authSnap) {
+                if (authSnap.connectionState == ConnectionState.waiting &&
+                    !authSnap.hasData) {
                   final c = PelviColors.of(context);
                   return Scaffold(
                     body: Center(
@@ -86,10 +99,26 @@ class _PelviAppState extends State<PelviApp> {
                     ),
                   );
                 }
-                if (snapshot.data == true) {
-                  return FirstRunScreen(onComplete: _refreshGate);
+                if (authSnap.data != true) {
+                  return const SignInScreen();
                 }
-                return const AppShell();
+                return FutureBuilder<bool>(
+                  future: _needsFirstRun,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      final c = PelviColors.of(context);
+                      return Scaffold(
+                        body: Center(
+                          child: CircularProgressIndicator(color: c.pink700),
+                        ),
+                      );
+                    }
+                    if (snapshot.data == true) {
+                      return FirstRunScreen(onComplete: _refreshGate);
+                    }
+                    return const AppShell();
+                  },
+                );
               },
             ),
           );

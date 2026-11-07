@@ -302,7 +302,12 @@ void main() {
   testWidgets('first-run shows when practitioner name missing', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
 
-    await tester.pumpWidget(PelviApp(database: db));
+    await tester.pumpWidget(
+      PelviApp(
+        database: db,
+        signedInOverride: Stream.value(true),
+      ),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -318,7 +323,12 @@ void main() {
     final db = AppDatabase(NativeDatabase.memory());
     await db.setPractitionerName('Test Clinic');
 
-    await tester.pumpWidget(PelviApp(database: db));
+    await tester.pumpWidget(
+      PelviApp(
+        database: db,
+        signedInOverride: Stream.value(true),
+      ),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -326,6 +336,27 @@ void main() {
     expect(find.text('Calendar'), findsWidgets);
     expect(find.text('Clients'), findsWidgets);
     expect(find.text('More'), findsWidgets);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
+  testWidgets('signed-out shows Google sign-in gate', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    await db.setPractitionerName('Test Clinic');
+
+    await tester.pumpWidget(
+      PelviApp(
+        database: db,
+        signedInOverride: Stream.value(false),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Sign in with Google'), findsOneWidget);
+    expect(find.text('NotesOnly'), findsOneWidget);
+    expect(find.text('Today'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));
