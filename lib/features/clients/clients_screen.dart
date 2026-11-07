@@ -189,11 +189,11 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
-                      PelviSpace.md,
-                      0,
-                      PelviSpace.md,
-                      PelviSpace.lg,
-                    ),
+                    PelviSpace.page,
+                    0,
+                    PelviSpace.page,
+                    PelviSpace.lg,
+                  ),
                     child: DashedEmptyWell(
                       message: 'Your client list will appear here.',
                       ctaLabel: 'Add client',
@@ -234,11 +234,11 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
-                        PelviSpace.md,
-                        PelviSpace.md,
-                        PelviSpace.md,
-                        PelviSpace.sm,
-                      ),
+                    PelviSpace.page,
+                    PelviSpace.md,
+                    PelviSpace.page,
+                    PelviSpace.sm,
+                  ),
                       child: TextField(
                         onChanged: (v) => setState(() => _query = v),
                         textInputAction: TextInputAction.search,
@@ -277,31 +277,44 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
-                        PelviSpace.md,
+                        PelviSpace.page,
                         0,
-                        PelviSpace.md,
+                        PelviSpace.page,
                         PelviSpace.sm,
                       ),
-                      child: Row(
-                        children: [
-                          _FilterChip(
-                            label: 'All',
-                            selected: _filter == _ClientsFilter.all,
-                            onTap: () => setState(
-                              () => _filter = _ClientsFilter.all,
-                            ),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: PelviColors.surfaceMuted,
+                          borderRadius:
+                              BorderRadius.circular(PelviRadius.md),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _FilterChip(
+                                  label: 'All',
+                                  selected: _filter == _ClientsFilter.all,
+                                  onTap: () => setState(
+                                    () => _filter = _ClientsFilter.all,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: _FilterChip(
+                                  label: due.isEmpty
+                                      ? 'Due'
+                                      : 'Due (${due.length})',
+                                  selected: dueMode,
+                                  onTap: () => setState(
+                                    () => _filter = _ClientsFilter.due,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: PelviSpace.sm),
-                          _FilterChip(
-                            label: due.isEmpty
-                                ? 'Due'
-                                : 'Due (${due.length})',
-                            selected: dueMode,
-                            onTap: () => setState(
-                              () => _filter = _ClientsFilter.due,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                     if (showStrips)
@@ -562,7 +575,7 @@ class _LetterBar extends StatelessWidget {
         child: Align(
           alignment: Alignment.centerLeft,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
+            padding: const EdgeInsets.symmetric(horizontal: PelviSpace.page),
             child: pinned
                 ? Row(
                     children: [
@@ -596,16 +609,15 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
+    return TextButton(
       onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: selected ? PelviColors.pink700 : PelviColors.ink,
-        side: BorderSide(
-          color: selected ? PelviColors.pink700 : PelviColors.border,
-        ),
-        backgroundColor: selected ? PelviColors.pink50 : PelviColors.surface,
-        padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
-        minimumSize: const Size(0, 36),
+      style: TextButton.styleFrom(
+        foregroundColor:
+            selected ? PelviColors.pink700 : PelviColors.inkMuted,
+        backgroundColor:
+            selected ? PelviColors.surface : Colors.transparent,
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(0, 33),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(PelviRadius.md),
@@ -614,7 +626,9 @@ class _FilterChip extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: selected ? PelviColors.pink700 : PelviColors.ink,
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? PelviColors.pink700 : PelviColors.inkMuted,
             ),
       ),
     );
@@ -640,16 +654,16 @@ class _ChipStrip extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            PelviSpace.md,
-            PelviSpace.sm,
-            PelviSpace.md,
-            PelviSpace.sm,
-          ),
+                    PelviSpace.page,
+                    PelviSpace.sm,
+                    PelviSpace.page,
+                    PelviSpace.sm,
+                  ),
           child: Text(caption, style: text.labelMedium),
         ),
         // Cap at two chip rows; height follows 1–2 runs (no empty 2nd-row gap).
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
+          padding: const EdgeInsets.symmetric(horizontal: PelviSpace.page),
           child: ClipRect(
             child: ConstrainedBox(
               constraints: const BoxConstraints(

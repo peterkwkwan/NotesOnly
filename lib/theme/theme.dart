@@ -8,24 +8,34 @@ export 'colors.dart';
 export 'spacing.dart';
 
 ThemeData pelviLightTheme() {
-  final baseText = GoogleFonts.plusJakartaSansTextTheme();
+  final baseText = GoogleFonts.interTextTheme();
   final text = baseText.copyWith(
     displayLarge: baseText.displayLarge?.copyWith(
-      fontSize: 28,
-      height: 34 / 28,
-      fontWeight: FontWeight.w600,
+      fontSize: 25,
+      height: 34 / 25,
+      fontWeight: FontWeight.w500,
+      letterSpacing: -0.7,
       color: PelviColors.ink,
     ),
     headlineMedium: baseText.headlineMedium?.copyWith(
-      fontSize: 22,
-      height: 28 / 22,
+      fontSize: 32,
+      height: 28 / 32,
       fontWeight: FontWeight.w600,
+      letterSpacing: -0.9,
       color: PelviColors.ink,
     ),
     titleLarge: baseText.titleLarge?.copyWith(
-      fontSize: 22,
-      height: 28 / 22,
+      fontSize: 32,
+      height: 28 / 32,
       fontWeight: FontWeight.w600,
+      letterSpacing: -0.9,
+      color: PelviColors.ink,
+    ),
+    titleMedium: baseText.titleMedium?.copyWith(
+      fontSize: 23,
+      height: 28 / 23,
+      fontWeight: FontWeight.w600,
+      letterSpacing: -0.7,
       color: PelviColors.ink,
     ),
     bodyLarge: baseText.bodyLarge?.copyWith(
@@ -35,28 +45,28 @@ ThemeData pelviLightTheme() {
       color: PelviColors.ink,
     ),
     bodyMedium: baseText.bodyMedium?.copyWith(
-      fontSize: 16,
-      height: 24 / 16,
+      fontSize: 15,
+      height: 1.65,
       fontWeight: FontWeight.w400,
       color: PelviColors.ink,
     ),
     labelLarge: baseText.labelLarge?.copyWith(
-      fontSize: 16,
-      height: 24 / 16,
+      fontSize: 15,
+      height: 24 / 15,
       fontWeight: FontWeight.w600,
       color: PelviColors.ink,
     ),
     labelMedium: baseText.labelMedium?.copyWith(
-      fontSize: 13,
-      height: 18 / 13,
-      fontWeight: FontWeight.w500,
-      letterSpacing: 0.2,
+      fontSize: 11,
+      height: 14 / 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1.1,
       color: PelviColors.inkMuted,
     ),
     labelSmall: baseText.labelSmall?.copyWith(
       fontSize: 11,
       height: 14 / 11,
-      fontWeight: FontWeight.w500,
+      fontWeight: FontWeight.w400,
       letterSpacing: 0.2,
       color: PelviColors.inkMuted,
     ),
@@ -103,7 +113,7 @@ ThemeData pelviLightTheme() {
       color: PelviColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(PelviRadius.md),
+        borderRadius: BorderRadius.circular(PelviRadius.lg),
         side: const BorderSide(color: PelviColors.border),
       ),
     ),
@@ -129,33 +139,53 @@ ThemeData pelviLightTheme() {
       style: FilledButton.styleFrom(
         backgroundColor: PelviColors.pink700,
         foregroundColor: PelviColors.inkInverse,
-        minimumSize: const Size(64, 48),
-        textStyle: text.labelLarge?.copyWith(color: PelviColors.inkInverse),
+        minimumSize: const Size(64, 50),
+        textStyle: text.labelLarge?.copyWith(
+          color: PelviColors.inkInverse,
+          fontSize: 15,
+        ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(PelviRadius.md),
+          borderRadius: BorderRadius.circular(PelviRadius.button),
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: PelviColors.pink700,
-        side: const BorderSide(color: PelviColors.pink700),
+        side: const BorderSide(color: PelviColors.border),
         minimumSize: const Size(64, 44),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(PelviRadius.md),
         ),
       ),
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: PelviColors.pink700,
       foregroundColor: PelviColors.inkInverse,
       elevation: 0,
       focusElevation: 0,
       hoverElevation: 0,
       highlightElevation: 0,
-      shape: CircleBorder(
-        side: BorderSide(color: PelviColors.canvas, width: 3),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(PelviRadius.fab),
       ),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((s) {
+        return s.contains(WidgetState.selected)
+            ? PelviColors.inkInverse
+            : PelviColors.surface;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((s) {
+        return s.contains(WidgetState.selected)
+            ? PelviColors.pink700
+            : PelviColors.surfaceMuted;
+      }),
+      trackOutlineColor: WidgetStateProperty.resolveWith((s) {
+        return s.contains(WidgetState.selected)
+            ? Colors.transparent
+            : PelviColors.border;
+      }),
     ),
   );
 }

@@ -190,11 +190,11 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
               children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  PelviSpace.md,
-                  PelviSpace.lg,
-                  PelviSpace.md,
-                  PelviSpace.md,
-                ),
+                    PelviSpace.page,
+                    PelviSpace.lg,
+                    PelviSpace.page,
+                    PelviSpace.md,
+                  ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -335,11 +335,11 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
-                          PelviSpace.md,
-                          PelviSpace.md,
-                          PelviSpace.md,
-                          PelviSpace.sm,
-                        ),
+                    PelviSpace.page,
+                    PelviSpace.md,
+                    PelviSpace.page,
+                    PelviSpace.sm,
+                  ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -357,11 +357,11 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                       if (appts.isEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(
-                            PelviSpace.md,
-                            PelviSpace.sm,
-                            PelviSpace.md,
-                            PelviSpace.lg,
-                          ),
+                    PelviSpace.page,
+                    PelviSpace.sm,
+                    PelviSpace.page,
+                    PelviSpace.lg,
+                  ),
                           child: DashedEmptyWell(
                             message: 'No appointments yet for this client.',
                             ctaLabel: 'New appointment',

@@ -98,7 +98,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(PelviSpace.md),
+          padding: const EdgeInsets.all(PelviSpace.page),
           children: [
             Text.rich(
               TextSpan(

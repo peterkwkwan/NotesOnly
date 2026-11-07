@@ -352,7 +352,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           actions: [
             if (_saving)
               const Padding(
-                padding: EdgeInsets.symmetric(horizontal: PelviSpace.md),
+                padding: EdgeInsets.symmetric(horizontal: PelviSpace.page),
                 child: Center(
                   child: SizedBox(
                     width: 16,
@@ -379,11 +379,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(
-            PelviSpace.md,
-            PelviSpace.md,
-            PelviSpace.md,
-            PelviSpace.xxl + 72,
-          ),
+                    PelviSpace.page,
+                    PelviSpace.md,
+                    PelviSpace.page,
+                    PelviSpace.xxl + 72,
+                  ),
           children: [
             _NoteEditorHeader(
               listening: _listening,
@@ -513,8 +513,8 @@ class _DictationFab extends StatelessWidget {
     return Tooltip(
       message: listening ? 'Stop dictation' : 'Dictate',
       child: SizedBox(
-        width: 60,
-        height: 60,
+        width: 54,
+        height: 54,
         child: FloatingActionButton(
           heroTag: 'soapDictationFab',
           onPressed: onPressed,
@@ -525,12 +525,12 @@ class _DictationFab extends StatelessWidget {
           backgroundColor:
               listening ? PelviColors.pink950 : PelviColors.pink700,
           foregroundColor: PelviColors.inkInverse,
-          shape: const CircleBorder(
-            side: BorderSide(color: PelviColors.canvas, width: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.lg),
           ),
           child: Icon(
             listening ? Icons.stop_rounded : Icons.mic_none_rounded,
-            size: 28,
+            size: 24,
           ),
         ),
       ),
@@ -559,14 +559,11 @@ class _SoapField extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(icon, size: 22, color: PelviColors.purple700),
+            Icon(icon, size: 18, color: PelviColors.purple700),
             const SizedBox(width: PelviSpace.sm),
             Text(
               label.toUpperCase(),
-              style: text.labelMedium?.copyWith(
-                color: PelviColors.ink,
-                fontWeight: FontWeight.w600,
-              ),
+              style: text.labelMedium,
             ),
           ],
         ),

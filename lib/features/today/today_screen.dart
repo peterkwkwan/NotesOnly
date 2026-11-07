@@ -62,9 +62,9 @@ class TodayScreen extends StatelessWidget {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.md,
+                    PelviSpace.page,
                     0,
-                    PelviSpace.md,
+                    PelviSpace.page,
                     PelviSpace.lg,
                   ),
                   child: DashedEmptyWell(

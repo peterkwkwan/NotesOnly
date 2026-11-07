@@ -122,7 +122,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: PelviSpace.md),
+                      const EdgeInsets.symmetric(horizontal: PelviSpace.page),
                   child: Row(
                     children: [
                       for (final letter in _weekdayLetters)
@@ -154,9 +154,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.md,
+                    PelviSpace.page,
                     PelviSpace.sm,
-                    PelviSpace.md,
+                    PelviSpace.page,
                     PelviSpace.md,
                   ),
                   child: Container(
@@ -181,9 +181,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
+                    PelviSpace.page,
                     PelviSpace.md,
-                    PelviSpace.md,
-                    PelviSpace.md,
+                    PelviSpace.page,
                     PelviSpace.sm,
                   ),
                   child: Row(
@@ -218,11 +218,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
-                      PelviSpace.md,
-                      PelviSpace.sm,
-                      PelviSpace.md,
-                      PelviSpace.lg,
-                    ),
+                    PelviSpace.page,
+                    PelviSpace.sm,
+                    PelviSpace.page,
+                    PelviSpace.lg,
+                  ),
                     child: DashedEmptyWell(
                       message: 'No appointments this day.',
                       ctaLabel: 'Add appointment',
@@ -278,7 +278,7 @@ class _MonthGrid extends StatelessWidget {
     final cellCount = ((leading + daysInMonth + 6) ~/ 7) * 7;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
+      padding: const EdgeInsets.symmetric(horizontal: PelviSpace.page),
       child: Column(
         children: [
           for (var row = 0; row < cellCount ~/ 7; row++)

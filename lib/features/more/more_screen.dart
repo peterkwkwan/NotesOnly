@@ -235,7 +235,7 @@ class MoreScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Account Settings')),
       body: ListView(
-        padding: const EdgeInsets.all(PelviSpace.md),
+        padding: const EdgeInsets.all(PelviSpace.page),
         children: [
           _SettingsBlock(
             children: [
@@ -442,11 +442,11 @@ class _SettingsBlock extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: PelviColors.surface,
-        borderRadius: BorderRadius.circular(PelviRadius.md),
+        borderRadius: BorderRadius.circular(PelviRadius.lg),
         border: Border.all(color: PelviColors.border),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
+        padding: const EdgeInsets.symmetric(horizontal: 17),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: children,

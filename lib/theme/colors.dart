@@ -1,31 +1,31 @@
 import 'package:flutter/material.dart';
 
-/// Pelvi brand + neutral color tokens (see docs/design-system.md).
+/// Pelvi brand + neutral color tokens (Figma SoT — cream / dusty pink).
 class PelviColors {
   PelviColors._();
 
-  // Brand — pink (primary) / purple (secondary)
-  static const pink950 = Color(0xFF9D174D);
-  static const pink700 = Color(0xFFDB2777);
-  static const pink400 = Color(0xFFF472B6);
-  static const pink200 = Color(0xFFFBCFE8);
-  static const pink50 = Color(0xFFFCE7F3);
+  // Brand — dusty pink (primary) / purple (secondary)
+  static const pink950 = Color(0xFF8A2E56); // pressed / deepest pink
+  static const pink700 = Color(0xFFB63C70);
+  static const pink400 = Color(0xFFD48AA8);
+  static const pink200 = Color(0xFFE8C4D4);
+  static const pink50 = Color(0xFFF8EAF0);
 
-  static const purple950 = Color(0xFF4C1D95);
-  static const purple700 = Color(0xFF7C3AED);
-  static const purple400 = Color(0xFFA78BFA);
-  static const purple50 = Color(0xFFF5F3FF);
+  static const purple950 = Color(0xFF5A4578);
+  static const purple700 = Color(0xFF7B609F);
+  static const purple400 = Color(0xFFA892C0);
+  static const purple50 = Color(0xFFF1ECF6);
 
-  // Neutrals (Fudget-aligned)
-  static const canvas = Color(0xFFFFFFFF);
+  // Neutrals (Figma cream canvas)
+  static const canvas = Color(0xFFFFFCFA);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFF5F5F7);
-  static const ink = Color(0xFF1C1C1E);
-  static const inkMuted = Color(0xFF8E8E93);
+  static const surfaceMuted = Color(0xFFF6F2F2);
+  static const ink = Color(0xFF302931);
+  static const inkMuted = Color(0xFF827780);
   static const inkInverse = Color(0xFFFFFFFF);
-  static const border = Color(0xFFE5E5EA);
-  static const chromeBorder = Color(0xFFD2D2D7);
-  static const overlay = Color(0x732C1C1E); // ~45% ink
+  static const border = Color(0xFFEDE5E8);
+  static const chromeBorder = Color(0xFFEDE5E8);
+  static const overlay = Color(0x73302931); // ~45% ink
 
   // Semantic
   static const success = Color(0xFF007A33);

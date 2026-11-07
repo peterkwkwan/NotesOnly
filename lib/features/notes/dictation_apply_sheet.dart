@@ -71,11 +71,11 @@ class _DictationApplySheetState extends State<_DictationApplySheet> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
-            PelviSpace.md,
-            PelviSpace.sm,
-            PelviSpace.md,
-            PelviSpace.md,
-          ),
+                    PelviSpace.page,
+                    PelviSpace.sm,
+                    PelviSpace.page,
+                    PelviSpace.md,
+                  ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

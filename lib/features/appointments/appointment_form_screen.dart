@@ -272,7 +272,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(PelviSpace.md),
+          padding: const EdgeInsets.all(PelviSpace.page),
           children: [
             Text('CLIENT', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),

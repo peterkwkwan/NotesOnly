@@ -53,16 +53,15 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
                 Text(
                   'Pelvi',
                   textAlign: TextAlign.center,
-                  style: text.displayLarge?.copyWith(
+                  style: text.titleLarge?.copyWith(
                     color: PelviColors.pink700,
-                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: PelviSpace.sm),
                 Text(
                   'What should we call your practice?',
                   textAlign: TextAlign.center,
-                  style: text.headlineMedium,
+                  style: text.titleMedium,
                 ),
                 const SizedBox(height: PelviSpace.sm),
                 Text(

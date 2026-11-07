@@ -63,11 +63,11 @@ class TabPlaceholderScaffold extends StatelessWidget {
           if (trailingWell != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                PelviSpace.md,
-                0,
-                PelviSpace.md,
-                PelviSpace.lg,
-              ),
+                    PelviSpace.page,
+                    0,
+                    PelviSpace.page,
+                    PelviSpace.lg,
+                  ),
               child: trailingWell!,
             ),
         ],

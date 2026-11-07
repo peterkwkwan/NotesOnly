@@ -47,4 +47,4 @@ lib/
 
 ## Design
 
-Paper-white chrome, pink `#DB2777` primary, purple `#7C3AED` secondary, Plus Jakarta Sans. See project design-system docs in the Pelvi CRM Cursor store.
+Cream canvas `#FFFCFA`, dusty pink `#B63C70` primary, purple `#7B609F` secondary, Inter. Figma is visual SoT — see project design-system docs in the Pelvi CRM Cursor store.

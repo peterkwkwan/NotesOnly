@@ -135,8 +135,8 @@ class _CenterFabState extends State<_CenterFab>
   @override
   Widget build(BuildContext context) {
     final fab = SizedBox(
-      width: 60,
-      height: 60,
+      width: 48,
+      height: 48,
       child: FloatingActionButton(
         onPressed: widget.onPressed,
         elevation: 0,
@@ -145,10 +145,10 @@ class _CenterFabState extends State<_CenterFab>
         highlightElevation: 0,
         backgroundColor: PelviColors.pink700,
         foregroundColor: PelviColors.inkInverse,
-        shape: const CircleBorder(
-          side: BorderSide(color: PelviColors.canvas, width: 3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(PelviRadius.fab),
         ),
-        child: const Icon(Icons.add, size: 28),
+        child: const Icon(Icons.add, size: 25),
       ),
     );
 
@@ -257,15 +257,24 @@ class _TabItem extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(selected ? selectedIcon : icon, size: 22, color: color),
-          const SizedBox(height: 2),
+          Container(
+            width: 40,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? PelviColors.pink50 : Colors.transparent,
+              borderRadius: BorderRadius.circular(PelviRadius.full),
+            ),
+            child: Icon(selected ? selectedIcon : icon, size: 21, color: color),
+          ),
+          const SizedBox(height: 5),
           Text(
             label,
             style: TextStyle(
               fontSize: 11,
               height: 14 / 11,
               letterSpacing: 0.2,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               color: color,
             ),
           ),
