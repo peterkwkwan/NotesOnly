@@ -156,15 +156,22 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 child: const Text('Delete'),
               ),
             ] else ...[
-              IconButton(
-                tooltip: 'Add client',
-                onPressed: _openNew,
-                style: IconButton.styleFrom(
-                  foregroundColor: PelviColors.of(context).pink700,
+              Padding(
+                padding: const EdgeInsets.only(right: PelviSpace.sm),
+                child: IconButton(
+                  tooltip: 'Add client',
+                  onPressed: _openNew,
+                  style: IconButton.styleFrom(
+                    foregroundColor: PelviColors.of(context).purple700,
+                    backgroundColor: PelviColors.of(context).pink50,
+                    side: BorderSide(color: PelviColors.of(context).pink200),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(PelviRadius.md),
+                    ),
+                  ),
+                  icon: const Icon(Icons.person_add_outlined),
                 ),
-                icon: const Icon(Icons.person_add_outlined),
               ),
-              const SizedBox(width: PelviSpace.sm),
             ],
           ],
         ),
@@ -568,7 +575,7 @@ class _LetterBar extends StatelessWidget {
           fontWeight: FontWeight.w700,
         );
     return Material(
-      color: PelviColors.of(context).surfaceMuted,
+      color: PelviColors.of(context).purple50,
       child: SizedBox(
         height: kAlphaLetterHeaderHeight,
         width: double.infinity,
@@ -689,7 +696,7 @@ class _ChipStrip extends StatelessWidget {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           shape: RoundedRectangleBorder(
                             borderRadius:
-                                BorderRadius.circular(PelviRadius.md),
+                                BorderRadius.circular(PelviRadius.full),
                           ),
                         ),
                         child: Text(
@@ -728,27 +735,36 @@ class _ClientRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final meta = dueCaption ??
-        [
-          if (client.phone != null && client.phone!.isNotEmpty) client.phone!,
-          if (client.email != null && client.email!.isNotEmpty) client.email!,
-        ].join(' · ');
+    final colors = PelviColors.of(context);
+    final text = Theme.of(context).textTheme;
+    final metaStyle = text.bodyMedium?.copyWith(
+      fontSize: 13,
+      height: 16 / 13,
+      color: colors.inkMuted,
+    );
+    final phone = client.phone?.trim() ?? '';
+    final email = client.email?.trim() ?? '';
+    final due = dueCaption?.trim() ?? '';
+    final avatar = clientAvatarColors(client, colors);
+
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
-      splashColor: PelviColors.of(context).surfaceMuted,
-      highlightColor: PelviColors.of(context).surfaceMuted,
+      splashColor: colors.surfaceMuted,
+      highlightColor: colors.surfaceMuted,
       child: ColoredBox(
-        color: selected ? PelviColors.of(context).surfaceMuted : Colors.transparent,
+        color: selected ? colors.surfaceMuted : Colors.transparent,
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: PelviSpace.md,
-            vertical: PelviSpace.sm + 4,
+            horizontal: PelviSpace.page,
+            vertical: PelviSpace.sm,
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 56),
             child: Row(
               children: [
+                _InitialsAvatar(initials: clientInitials(client), colors: avatar),
+                const SizedBox(width: PelviSpace.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -756,13 +772,18 @@ class _ClientRow extends StatelessWidget {
                     children: [
                       Text(
                         clientDisplayName(client),
-                        style: Theme.of(context).textTheme.labelLarge,
+                        style: text.labelLarge,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      if (meta.isNotEmpty)
-                        Text(
-                          meta,
-                          style: Theme.of(context).textTheme.labelMedium,
-                        ),
+                      if (due.isNotEmpty)
+                        Text(due, style: metaStyle, maxLines: 1, overflow: TextOverflow.ellipsis)
+                      else ...[
+                        if (phone.isNotEmpty)
+                          Text(phone, style: metaStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        if (email.isNotEmpty)
+                          Text(email, style: metaStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
                     ],
                   ),
                 ),
@@ -771,21 +792,48 @@ class _ClientRow extends StatelessWidget {
                     selected
                         ? Icons.check_circle
                         : Icons.radio_button_unchecked,
-                    color: selected
-                        ? PelviColors.of(context).pink700
-                        : PelviColors.of(context).inkMuted,
+                    color: selected ? colors.pink700 : colors.inkMuted,
                     size: 22,
                   )
                 else
                   Icon(
                     Icons.chevron_right,
-                    color: PelviColors.of(context).inkMuted,
+                    color: colors.inkMuted,
                     size: 20,
                   ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _InitialsAvatar extends StatelessWidget {
+  const _InitialsAvatar({required this.initials, required this.colors});
+
+  final String initials;
+  final ({Color wash, Color ink}) colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.wash,
+        borderRadius: BorderRadius.circular(PelviRadius.lg),
+      ),
+      child: Text(
+        initials,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: colors.ink,
+              fontSize: 14,
+              height: 1,
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }

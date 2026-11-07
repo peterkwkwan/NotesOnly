@@ -834,9 +834,10 @@ void main() {
     expect(find.text('All'), findsOneWidget);
     expect(find.textContaining('Due'), findsOneWidget);
     expect(find.text('RECENT'), findsOneWidget);
-    expect(find.text('PINNED'), findsNothing);
     expect(find.text(kPinnedSectionLabel), findsOneWidget);
+    expect(find.text('PINNED'), findsOneWidget);
     expect(find.byIcon(Icons.push_pin), findsOneWidget);
+    expect(find.text('AL'), findsWidgets); // Ada Lovelace initials avatar
     // In-list A–Z letters only (one scroll sticky overlay, not N pinned headers).
     expect(find.text('H'), findsOneWidget);
     expect(find.text('L'), findsOneWidget);

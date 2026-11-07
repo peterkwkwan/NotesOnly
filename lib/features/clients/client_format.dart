@@ -6,7 +6,7 @@ import '../notes/note_format.dart';
 
 String clientDisplayName(Client c) => '${c.firstName} ${c.lastName}'.trim();
 
-/// Initials for avatar wells (first + last initial).
+/// Initials for avatar wells (first + last initial; `?` if empty).
 String clientInitials(Client c) {
   final f = c.firstName.trim();
   final l = c.lastName.trim();
@@ -14,6 +14,17 @@ String clientInitials(Client c) {
   final b = l.isNotEmpty ? l[0] : '';
   final s = '$a$b'.toUpperCase();
   return s.isEmpty ? '?' : s;
+}
+
+/// Stable pink/purple avatar wash from client id (Figma alternates).
+({Color wash, Color ink}) clientAvatarColors(
+  Client c, [
+  PelviPalette palette = PelviPalette.light,
+]) {
+  final purple = c.id.isOdd;
+  return purple
+      ? (wash: palette.purple50, ink: palette.purple700)
+      : (wash: palette.pink50, ink: palette.pink700);
 }
 
 /// Case-insensitive match on name / phone / email (fields that exist).
@@ -87,7 +98,7 @@ const kAlphaClientRowHeight = 80.0;
 const kAlphaClientDividerHeight = 1.0;
 
 /// Leading phone-book section above A–Z (sticky overlay uses this label).
-const kPinnedSectionLabel = 'Pinned';
+const kPinnedSectionLabel = 'PINNED';
 
 /// Current A–Z sticky letter for [offset] — one letter, never a stacked set.
 String stickyLetterAtOffset(
