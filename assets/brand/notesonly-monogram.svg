@@ -1,0 +1,6 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="95" height="102.5" viewBox="0 0 95 102.5" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Folded note monogram">
+<path id="Note monogram" d="M10 0H18.75C22.5 0 25 1.875 27.5 5L70 60V0L95 25V92.5C95 98.125 90.625 102.5 85 102.5H78.125C74.375 102.5 71.875 100.625 69.375 97.5L25 40V92.5C25 98.125 20.625 102.5 15 102.5H10C4.375 102.5 0 98.125 0 92.5V10C0 4.375 4.375 0 10 0Z" fill="#BC718D"/>
+<path id="Note fold" d="M70 0L95 25H78.125C73.75 25 70 21.25 70 16.875V0Z" fill="#88718F"/>
+</g>
+</svg>

@@ -344,6 +344,8 @@ void main() {
   testWidgets('signed-out shows Google sign-in gate', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     await db.setPractitionerName('Test Clinic');
+    await tester.binding.setSurfaceSize(const Size(412, 892));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
       PelviApp(
@@ -354,8 +356,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Sign in with Google'), findsOneWidget);
+    expect(find.text('Continue with Google'), findsOneWidget);
     expect(find.text('NotesOnly'), findsOneWidget);
+    expect(find.textContaining('A little less admin'), findsOneWidget);
     expect(find.text('Today'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
