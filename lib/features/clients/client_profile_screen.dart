@@ -191,6 +191,46 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   ),
               ],
             ),
+            bottomNavigationBar: _selecting
+                ? null
+                : Material(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          PelviSpace.page,
+                          PelviSpace.sm,
+                          PelviSpace.page,
+                          PelviSpace.sm,
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => AppointmentFormScreen(
+                                    clientId: client.id,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.add, size: 19),
+                            label: const Text('New appointment'),
+                            style: FilledButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  PelviRadius.md,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
             body: ListView(
               padding: const EdgeInsets.fromLTRB(
                 PelviSpace.page,
@@ -402,31 +442,20 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   stream: db.watchAppointmentsForClient(clientId),
                   builder: (context, apptSnap) {
                     final appts = apptSnap.data ?? const <Appointment>[];
-                    void openNew() {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => AppointmentFormScreen(
-                            clientId: client.id,
-                          ),
-                        ),
-                      );
-                    }
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text('APPOINTMENTS', style: text.labelMedium),
                         if (appts.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: PelviSpace.sm),
+                          const Padding(
+                            padding: EdgeInsets.only(top: PelviSpace.sm),
                             child: DashedEmptyWell(
                               message:
                                   'No appointments yet for this client.',
-                              ctaLabel: 'New appointment',
-                              onCta: openNew,
                             ),
                           )
-                        else ...[
+                        else
                           for (final appt in appts)
                             _AppointmentRow(
                               appointment: appt,
@@ -444,24 +473,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                               onLongPress: () => _enterSelect(appt.id),
                               onToggle: () => _toggleSelected(appt.id),
                             ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: FilledButton.icon(
-                              onPressed: openNew,
-                              icon: const Icon(Icons.add, size: 19),
-                              label: const Text('New appointment'),
-                              style: FilledButton.styleFrom(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    PelviRadius.md,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
                       ],
                     );
                   },
