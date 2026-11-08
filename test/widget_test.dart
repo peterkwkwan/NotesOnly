@@ -9,6 +9,7 @@ import 'package:pelvi_crm/data/appointment_overlap.dart';
 import 'package:pelvi_crm/data/backup.dart';
 import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
+import 'package:pelvi_crm/data/online.dart';
 import 'package:pelvi_crm/data/sync.dart';
 import 'package:pelvi_crm/data/remote_id.dart';
 import 'package:pelvi_crm/features/appointments/appointment_agenda_row.dart';
@@ -73,6 +74,14 @@ void main() {
     expect(isTransientSyncFailure(TimeoutException('sync')), isTrue);
     expect(isTransientSyncFailure(Exception('UNAVAILABLE')), isTrue);
     expect(isTransientSyncFailure(Exception('permission-denied')), isFalse);
+  });
+
+  test('deviceLooksOnline returns a bool without throwing', () async {
+    // Environment may be online or offline; just assert the probe is safe.
+    final online = await deviceLooksOnline(
+      timeout: const Duration(milliseconds: 500),
+    );
+    expect(online, isA<bool>());
   });
 
   test('newRemoteId is UUID-shaped and unique', () {

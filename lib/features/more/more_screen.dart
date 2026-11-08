@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,6 +12,7 @@ import '../../data/auth.dart';
 import '../../data/backup.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
+import '../../data/online.dart';
 import '../../data/sync.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
@@ -385,11 +387,7 @@ class MoreScreen extends StatelessWidget {
             children: [
               _SyncStatusRow(db: db),
               const Divider(height: 1),
-              _TappableRow(
-                title: 'Sync now',
-                subtitle: 'Retry syncing your clients and notes now',
-                onTap: () => _syncNow(context),
-              ),
+              const _SyncNowRow(),
             ],
           ),
           const SizedBox(height: PelviSpace.lg),
@@ -412,23 +410,6 @@ class MoreScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _syncNow(BuildContext context) async {
-    final sync = AppDatabaseProvider.syncOf(context);
-    final status = await sync.syncNow();
-    if (!context.mounted) return;
-    switch (status) {
-      case SyncStatus.synced:
-        showPelviSnackBar(context, 'Up to date');
-      case SyncStatus.pending:
-        showPelviSnackBar(context, 'Still waiting — check your connection');
-      case SyncStatus.error:
-        showPelviSnackBar(context, 'Couldn’t sync — try again');
-      case SyncStatus.syncing:
-      case SyncStatus.idle:
-        break;
-    }
   }
 
   Future<void> _signOut(BuildContext context) async {
@@ -484,9 +465,9 @@ class _SyncStatusRow extends StatelessWidget {
               SyncStatus.synced => last == null || last.isEmpty
                   ? 'Your clinic data is up to date'
                   : 'Last updated ${_formatSyncTime(last)}',
-              SyncStatus.pending => 'Will update when you’re back online',
+              SyncStatus.pending => 'Will update when you are back online',
               SyncStatus.syncing => 'Updating…',
-              SyncStatus.error => 'Couldn’t update — tap Sync now to try again',
+              SyncStatus.error => 'Could not update — tap Sync now to try again',
               SyncStatus.idle => 'Sign in to keep devices in sync',
             };
             return Padding(
@@ -519,7 +500,7 @@ class _SyncStatusRow extends StatelessWidget {
         SyncStatus.synced => 'Up to date',
         SyncStatus.pending => 'Waiting to sync',
         SyncStatus.syncing => 'Updating',
-        SyncStatus.error => 'Couldn’t sync',
+        SyncStatus.error => 'Could not sync',
         SyncStatus.idle => 'Not syncing',
       };
 
@@ -532,6 +513,156 @@ class _SyncStatusRow extends StatelessWidget {
     final hh = dt.hour.toString().padLeft(2, '0');
     final mm = dt.minute.toString().padLeft(2, '0');
     return '$y-$m-$d $hh:$mm';
+  }
+}
+
+enum _SyncNowPhase { idle, updating, success, failed }
+
+/// Manual retry control: disabled offline; online tap → Updating → Success/Failed.
+class _SyncNowRow extends StatefulWidget {
+  const _SyncNowRow();
+
+  @override
+  State<_SyncNowRow> createState() => _SyncNowRowState();
+}
+
+class _SyncNowRowState extends State<_SyncNowRow>
+    with WidgetsBindingObserver {
+  bool _online = true;
+  _SyncNowPhase _phase = _SyncNowPhase.idle;
+  Timer? _resultClear;
+  Timer? _onlinePoll;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_refreshOnline());
+    _onlinePoll = Timer.periodic(const Duration(seconds: 8), (_) {
+      unawaited(_refreshOnline());
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _resultClear?.cancel();
+    _onlinePoll?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshOnline());
+    }
+  }
+
+  Future<void> _refreshOnline() async {
+    final online = await deviceLooksOnline();
+    if (!mounted) return;
+    if (online != _online) setState(() => _online = online);
+  }
+
+  Future<void> _onTap() async {
+    if (!_online || _phase == _SyncNowPhase.updating) return;
+    setState(() => _phase = _SyncNowPhase.updating);
+    final sync = AppDatabaseProvider.syncOf(context);
+    final status = await sync.syncNow();
+    if (!mounted) return;
+    final ok = status == SyncStatus.synced;
+    setState(() => _phase = ok ? _SyncNowPhase.success : _SyncNowPhase.failed);
+    _resultClear?.cancel();
+    _resultClear = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() => _phase = _SyncNowPhase.idle);
+    });
+    unawaited(_refreshOnline());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final enabled = _online && _phase != _SyncNowPhase.updating;
+    final (title, subtitle, Color? accent, Widget trailing) = switch (_phase) {
+      _SyncNowPhase.updating => (
+          'Sync now',
+          'Updating…',
+          null,
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: c.pink700,
+            ),
+          ),
+        ),
+      _SyncNowPhase.success => (
+          'Success',
+          'Your clinic data is up to date',
+          c.success,
+          Icon(Icons.check_circle_outline, color: c.success, size: 20),
+        ),
+      _SyncNowPhase.failed => (
+          'Failed',
+          'Could not update — try again',
+          c.danger,
+          Icon(Icons.error_outline, color: c.danger, size: 20),
+        ),
+      _SyncNowPhase.idle when !_online => (
+          'Sync now',
+          'Connect to the internet to sync',
+          null,
+          Icon(Icons.cloud_off_outlined, color: c.inkMuted, size: 20),
+        ),
+      _SyncNowPhase.idle => (
+          'Sync now',
+          'Retry syncing your clients and notes now',
+          null,
+          Icon(Icons.chevron_right, color: c.inkMuted, size: 20),
+        ),
+    };
+
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: PelviSpace.md),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: enabled || _phase != _SyncNowPhase.idle
+                            ? null
+                            : c.inkMuted,
+                      ),
+                ),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: accent ?? c.inkMuted,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          trailing,
+        ],
+      ),
+    );
+
+    if (!enabled) {
+      return Opacity(opacity: _phase == _SyncNowPhase.idle ? 0.55 : 1, child: content);
+    }
+    return InkWell(
+      onTap: _onTap,
+      splashColor: c.surfaceMuted,
+      highlightColor: c.surfaceMuted,
+      child: content,
+    );
   }
 }
 
