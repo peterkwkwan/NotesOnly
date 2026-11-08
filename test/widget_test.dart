@@ -6,7 +6,8 @@ import 'package:pelvi_crm/data/appointment_overlap.dart';
 import 'package:pelvi_crm/data/backup.dart';
 import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
-import 'package:pelvi_crm/data/sync_stub.dart';
+import 'package:pelvi_crm/data/sync.dart';
+import 'package:pelvi_crm/data/remote_id.dart';
 import 'package:pelvi_crm/features/appointments/appointment_agenda_row.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
 import 'package:pelvi_crm/features/calendar/calendar_screen.dart';
@@ -55,6 +56,32 @@ void main() {
     // Old helper hard-capped at 56 and clipped the time on wrap.
     expect(slot, greaterThan(56));
     expect(find.text(message), findsOneWidget);
+  });
+
+  test('LWW remote wins when updatedAt >= local', () {
+    final older = DateTime.utc(2026, 1, 1);
+    final newer = DateTime.utc(2026, 1, 2);
+    expect(remoteWinsLww(older, newer), isTrue);
+    expect(remoteWinsLww(newer, older), isFalse);
+    expect(remoteWinsLww(newer, newer), isTrue);
+  });
+
+  test('newRemoteId is UUID-shaped and unique', () {
+    final a = newRemoteId();
+    final b = newRemoteId();
+    expect(a, matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')));
+    expect(a, isNot(b));
+  });
+
+  test('insertClient assigns remoteId and pending sync', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    final id = await db.insertClient(firstName: 'Ada', lastName: 'Lovelace');
+    final client = await db.getClient(id);
+    expect(client, isNotNull);
+    expect(client!.remoteId, isNotEmpty);
+    expect(client.syncStatus, RowSyncStatus.pending);
   });
 
   test('formatNoteDate is EEE, d MMM yyyy', () {
@@ -195,7 +222,7 @@ void main() {
     );
   });
 
-  test('deleteAppointment removes row and unlinks note', () async {
+  test('deleteAppointment soft-deletes row and unlinks note', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
 
@@ -211,7 +238,10 @@ void main() {
     );
 
     await db.deleteAppointment(apptId);
-    expect(await db.getAppointment(apptId), isNull);
+    final tombstone = await db.getAppointment(apptId);
+    expect(tombstone, isNotNull);
+    expect(tombstone!.deletedAt, isNotNull);
+    expect(tombstone.syncStatus, RowSyncStatus.pending);
     final kept = await db.getNote(note.id);
     expect(kept, isNotNull);
     expect(kept!.appointmentId, isNull);
@@ -834,11 +864,15 @@ void main() {
       startsAt: DateTime(2026, 1, 1, 10),
     );
     await db.deleteClient(grace);
-    expect(await db.getClient(grace), isNull);
+    final gone = await db.getClient(grace);
+    expect(gone?.deletedAt, isNotNull);
+    expect(await db.watchClients().first, isNot(contains(gone)));
     expect(await db.getPinnedClientIds(), isEmpty);
     expect(await db.watchRecentClientIds().first, isEmpty);
     expect(await db.getRecallMutedIds(), isEmpty);
-    expect(await db.select(db.appointments).get(), isEmpty);
+    final appts = await db.select(db.appointments).get();
+    expect(appts, hasLength(1));
+    expect(appts.single.deletedAt, isNotNull);
   });
 
   testWidgets('Clients tab search, recent, pinned section, letter headers', (tester) async {
@@ -1078,8 +1112,8 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Delete').last);
     await tester.pumpAndSettle();
 
-    expect(await db.getAppointment(a1), isNull);
-    expect(await db.getAppointment(a2), isNull);
+    expect((await db.getAppointment(a1))?.deletedAt, isNotNull);
+    expect((await db.getAppointment(a2))?.deletedAt, isNotNull);
     expect(find.textContaining('selected'), findsNothing);
     expect(find.text('Edit'), findsOneWidget);
 

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'app.dart';
 import 'data/auth.dart';
 import 'data/database.dart';
+import 'data/firestore_sync.dart';
 import 'data/local_notifications.dart';
 import 'firebase_options.dart';
 import 'theme/colors.dart';
@@ -28,5 +29,6 @@ Future<void> main() async {
   await database.ensureDefaults();
   await LocalNotifications.init();
 
-  runApp(PelviApp(database: database));
+  final sync = FirestoreSyncEngine(database);
+  runApp(PelviApp(database: database, syncEngine: sync));
 }

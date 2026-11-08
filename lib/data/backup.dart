@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import 'database.dart';
+import 'remote_id.dart';
 
 /// Backup format version — bump when shape changes.
 const backupFormatVersion = 1;
@@ -227,6 +228,11 @@ Future<void> restoreBackupMap(AppDatabase db, Map<String, Object?> map) async {
       await db.into(db.clients).insert(
             ClientsCompanion.insert(
               id: Value(id),
+              remoteId: Value(
+                (m['remoteId'] as String?)?.trim().isNotEmpty == true
+                    ? (m['remoteId'] as String).trim()
+                    : newRemoteId(),
+              ),
               firstName: (m['firstName'] as String?)?.trim() ?? 'Unknown',
               lastName: (m['lastName'] as String?)?.trim() ?? 'Client',
               phone: Value(m['phone'] as String?),
@@ -238,6 +244,7 @@ Future<void> restoreBackupMap(AppDatabase db, Map<String, Object?> map) async {
               notes: Value(m['notes'] as String?),
               createdAt: Value(_parseDate(m['createdAt']) ?? DateTime.now()),
               updatedAt: Value(_parseDate(m['updatedAt']) ?? DateTime.now()),
+              syncStatus: const Value(RowSyncStatus.pending),
             ),
           );
     }
@@ -258,6 +265,11 @@ Future<void> restoreBackupMap(AppDatabase db, Map<String, Object?> map) async {
       await db.into(db.appointments).insert(
             AppointmentsCompanion.insert(
               id: Value(id),
+              remoteId: Value(
+                (m['remoteId'] as String?)?.trim().isNotEmpty == true
+                    ? (m['remoteId'] as String).trim()
+                    : newRemoteId(),
+              ),
               clientId: clientId,
               startsAt: startsAt,
               endsAt: Value(_parseDate(m['endsAt'])),
@@ -265,6 +277,7 @@ Future<void> restoreBackupMap(AppDatabase db, Map<String, Object?> map) async {
               notes: Value(m['notes'] as String?),
               createdAt: Value(_parseDate(m['createdAt']) ?? DateTime.now()),
               updatedAt: Value(_parseDate(m['updatedAt']) ?? DateTime.now()),
+              syncStatus: const Value(RowSyncStatus.pending),
             ),
           );
     }
@@ -285,6 +298,11 @@ Future<void> restoreBackupMap(AppDatabase db, Map<String, Object?> map) async {
       await db.into(db.notes).insert(
             NotesCompanion.insert(
               id: Value(id),
+              remoteId: Value(
+                (m['remoteId'] as String?)?.trim().isNotEmpty == true
+                    ? (m['remoteId'] as String).trim()
+                    : newRemoteId(),
+              ),
               clientId: clientId,
               appointmentId: Value(m['appointmentId'] as int?),
               noteDate: noteDate,
@@ -297,6 +315,7 @@ Future<void> restoreBackupMap(AppDatabase db, Map<String, Object?> map) async {
               finalizedAt: Value(_parseDate(m['finalizedAt'])),
               createdAt: Value(_parseDate(m['createdAt']) ?? DateTime.now()),
               updatedAt: Value(_parseDate(m['updatedAt']) ?? DateTime.now()),
+              syncStatus: const Value(RowSyncStatus.pending),
             ),
           );
     }
@@ -313,4 +332,5 @@ Future<void> restoreBackupMap(AppDatabase db, Map<String, Object?> map) async {
   });
 
   await db.ensureDefaults();
+  db.onLocalChange?.call();
 }

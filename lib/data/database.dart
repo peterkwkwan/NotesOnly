@@ -5,6 +5,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 
 import 'appointment_overlap.dart';
 import 'recall.dart';
+import 'remote_id.dart';
 
 export 'recall.dart';
 
@@ -35,8 +36,16 @@ enum NoteStatus {
   finalized,
 }
 
+/// Per-row cloud sync flag (Drift ↔ Firestore).
+enum RowSyncStatus {
+  synced,
+  pending,
+  error,
+}
+
 class Clients extends Table {
   IntColumn get id => integer().autoIncrement()();
+  TextColumn get remoteId => text().withDefault(const Constant(''))();
   TextColumn get firstName => text().withLength(min: 1, max: 120)();
   TextColumn get lastName => text().withLength(min: 1, max: 120)();
   TextColumn get phone => text().nullable()();
@@ -48,10 +57,14 @@ class Clients extends Table {
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get syncStatus => intEnum<RowSyncStatus>()
+      .withDefault(Constant(RowSyncStatus.pending.index))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 class Appointments extends Table {
   IntColumn get id => integer().autoIncrement()();
+  TextColumn get remoteId => text().withDefault(const Constant(''))();
   IntColumn get clientId => integer().references(Clients, #id)();
   DateTimeColumn get startsAt => dateTime()();
   DateTimeColumn get endsAt => dateTime().nullable()();
@@ -60,10 +73,14 @@ class Appointments extends Table {
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get syncStatus => intEnum<RowSyncStatus>()
+      .withDefault(Constant(RowSyncStatus.pending.index))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 class Notes extends Table {
   IntColumn get id => integer().autoIncrement()();
+  TextColumn get remoteId => text().withDefault(const Constant(''))();
   IntColumn get clientId => integer().references(Clients, #id)();
   IntColumn get appointmentId =>
       integer().nullable().references(Appointments, #id)();
@@ -80,12 +97,19 @@ class Notes extends Table {
   DateTimeColumn get finalizedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get syncStatus => intEnum<RowSyncStatus>()
+      .withDefault(Constant(RowSyncStatus.pending.index))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Key/value settings (practitioner name, recall days, …).
 class Settings extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get syncStatus => intEnum<RowSyncStatus>()
+      .withDefault(Constant(RowSyncStatus.synced.index))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {key};
@@ -96,8 +120,13 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
       : super(executor ?? _openConnection());
 
+  /// Fired after a local mutation that may need a cloud push.
+  void Function()? onLocalChange;
+
+  void _notifyDirty() => onLocalChange?.call();
+
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -111,6 +140,62 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 4) {
             await m.addColumn(clients, clients.emergencyContactPhone);
+          }
+          if (from < 5) {
+            await m.addColumn(clients, clients.remoteId);
+            await m.addColumn(clients, clients.syncStatus);
+            await m.addColumn(clients, clients.deletedAt);
+            await m.addColumn(appointments, appointments.remoteId);
+            await m.addColumn(appointments, appointments.syncStatus);
+            await m.addColumn(appointments, appointments.deletedAt);
+            await m.addColumn(notes, notes.remoteId);
+            await m.addColumn(notes, notes.syncStatus);
+            await m.addColumn(notes, notes.deletedAt);
+            await m.addColumn(settings, settings.updatedAt);
+            await m.addColumn(settings, settings.syncStatus);
+            await m.addColumn(settings, settings.deletedAt);
+
+            final now = DateTime.now();
+            for (final c in await select(clients).get()) {
+              await (update(clients)..where((t) => t.id.equals(c.id))).write(
+                ClientsCompanion(
+                  remoteId: Value(newRemoteId()),
+                  syncStatus: const Value(RowSyncStatus.pending),
+                  updatedAt: Value(now),
+                ),
+              );
+            }
+            for (final a in await select(appointments).get()) {
+              await (update(appointments)..where((t) => t.id.equals(a.id)))
+                  .write(
+                AppointmentsCompanion(
+                  remoteId: Value(newRemoteId()),
+                  syncStatus: const Value(RowSyncStatus.pending),
+                  updatedAt: Value(now),
+                ),
+              );
+            }
+            for (final n in await select(notes).get()) {
+              await (update(notes)..where((t) => t.id.equals(n.id))).write(
+                NotesCompanion(
+                  remoteId: Value(newRemoteId()),
+                  syncStatus: const Value(RowSyncStatus.pending),
+                  updatedAt: Value(now),
+                ),
+              );
+            }
+            for (final s in await select(settings).get()) {
+              await (update(settings)..where((t) => t.key.equals(s.key))).write(
+                SettingsCompanion(
+                  updatedAt: Value(now),
+                  syncStatus: Value(
+                    isCloudSyncedSetting(s.key)
+                        ? RowSyncStatus.pending
+                        : RowSyncStatus.synced,
+                  ),
+                ),
+              );
+            }
           }
         },
       );
@@ -142,6 +227,23 @@ class AppDatabase extends _$AppDatabase {
   /// Comma-separated pinned (favourite) client ids, most recently pinned first.
   static const pinnedClientIdsKey = 'pinned_client_ids';
 
+  /// Firebase Auth uid this local book is bound to (account-switch guard).
+  static const syncBoundUidKey = 'sync_bound_uid';
+  static const syncLastSuccessKey = 'sync_last_success';
+  static String syncCursorKey(String collection) => 'sync_cursor_$collection';
+
+  /// Settings that mirror to Firestore (excludes device-local id lists + sync meta).
+  static bool isCloudSyncedSetting(String key) {
+    if (key.startsWith('sync_')) return false;
+    const localOnly = {
+      recentClientIdsKey,
+      pinnedClientIdsKey,
+      recallMutedIdsKey,
+      recallClearedIdsKey,
+    };
+    return !localOnly.contains(key);
+  }
+
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'pelvi_crm');
   }
@@ -152,10 +254,25 @@ class AppDatabase extends _$AppDatabase {
     return row?.value;
   }
 
+  Stream<String?> watchSetting(String key) {
+    return (select(settings)..where((t) => t.key.equals(key)))
+        .watch()
+        .map((rows) => rows.isEmpty ? null : rows.first.value);
+  }
+
   Future<void> setSetting(String key, String value) async {
+    final cloud = isCloudSyncedSetting(key);
     await into(settings).insertOnConflictUpdate(
-      SettingsCompanion.insert(key: key, value: value),
+      SettingsCompanion.insert(
+        key: key,
+        value: value,
+        updatedAt: Value(DateTime.now()),
+        syncStatus: Value(
+          cloud ? RowSyncStatus.pending : RowSyncStatus.synced,
+        ),
+      ),
     );
+    if (cloud) _notifyDirty();
   }
 
   Future<String?> getPractitionerName() => getSetting(practitionerNameKey);
@@ -258,13 +375,16 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<RecallDueEntry>> getRecallDueClients({DateTime? now}) async {
     final clientsList = await (select(clients)
+          ..where((t) => t.deletedAt.isNull())
           ..orderBy([
             (t) => OrderingTerm.asc(t.lastName),
             (t) => OrderingTerm.asc(t.firstName),
           ]))
         .get();
-    final appts = await select(appointments).get();
-    final notesList = await select(notes).get();
+    final appts =
+        await (select(appointments)..where((t) => t.deletedAt.isNull())).get();
+    final notesList =
+        await (select(notes)..where((t) => t.deletedAt.isNull())).get();
     final days = await getRecallDays();
     final muted = await getRecallMutedIds();
     return computeRecallDue(
@@ -470,6 +590,7 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<List<Client>> watchClients() {
     return (select(clients)
+          ..where((t) => t.deletedAt.isNull())
           ..orderBy([
             (t) => OrderingTerm.asc(t.lastName),
             (t) => OrderingTerm.asc(t.firstName),
@@ -482,7 +603,8 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Stream<Client?> watchClient(int id) {
-    return (select(clients)..where((t) => t.id.equals(id)))
+    return (select(clients)
+          ..where((t) => t.id.equals(id) & t.deletedAt.isNull()))
         .watch()
         .map((rows) => rows.isEmpty ? null : rows.first);
   }
@@ -542,12 +664,32 @@ class AppDatabase extends _$AppDatabase {
     await setSetting(pinnedClientIdsKey, current.join(','));
   }
 
-  /// Delete client and owned appointments/notes; scrub id from settings lists.
+  /// Soft-delete client and owned appointments/notes; scrub id from settings lists.
   Future<void> deleteClient(int id) async {
-    await (delete(notes)..where((t) => t.clientId.equals(id))).go();
-    await (delete(appointments)..where((t) => t.clientId.equals(id))).go();
-    await (delete(clients)..where((t) => t.id.equals(id))).go();
+    final now = DateTime.now();
+    await (update(notes)..where((t) => t.clientId.equals(id))).write(
+      NotesCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    await (update(appointments)..where((t) => t.clientId.equals(id))).write(
+      AppointmentsCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    await (update(clients)..where((t) => t.id.equals(id))).write(
+      ClientsCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
     await _scrubClientIdFromSettings(id);
+    _notifyDirty();
   }
 
   Future<void> _scrubClientIdFromSettings(int id) async {
@@ -571,9 +713,10 @@ class AppDatabase extends _$AppDatabase {
     String? emergencyContact,
     String? emergencyContactPhone,
     String? notes,
-  }) {
-    return into(clients).insert(
+  }) async {
+    final id = await into(clients).insert(
       ClientsCompanion.insert(
+        remoteId: Value(newRemoteId()),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phone: Value(_blankToNull(phone)),
@@ -581,8 +724,11 @@ class AppDatabase extends _$AppDatabase {
         emergencyContact: Value(_blankToNull(emergencyContact)),
         emergencyContactPhone: Value(_blankToNull(emergencyContactPhone)),
         notes: Value(_blankToNull(notes)),
+        syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
+    _notifyDirty();
+    return id;
   }
 
   Future<bool> updateClient({
@@ -605,14 +751,16 @@ class AppDatabase extends _$AppDatabase {
         emergencyContactPhone: Value(_blankToNull(emergencyContactPhone)),
         notes: Value(_blankToNull(notes)),
         updatedAt: Value(DateTime.now()),
+        syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
+    if (n > 0) _notifyDirty();
     return n > 0;
   }
 
   Stream<List<Appointment>> watchAppointmentsForClient(int clientId) {
     return (select(appointments)
-          ..where((t) => t.clientId.equals(clientId))
+          ..where((t) => t.clientId.equals(clientId) & t.deletedAt.isNull())
           ..orderBy([(t) => OrderingTerm.desc(t.startsAt)]))
         .watch();
   }
@@ -627,7 +775,9 @@ class AppDatabase extends _$AppDatabase {
     ])
       ..where(
         appointments.startsAt.isBiggerOrEqualValue(start) &
-            appointments.startsAt.isSmallerThanValue(end),
+            appointments.startsAt.isSmallerThanValue(end) &
+            appointments.deletedAt.isNull() &
+            clients.deletedAt.isNull(),
       )
       ..orderBy([OrderingTerm.asc(appointments.startsAt)]);
     return query.watch().map(
@@ -649,7 +799,8 @@ class AppDatabase extends _$AppDatabase {
           ..where(
             (t) =>
                 t.startsAt.isBiggerOrEqualValue(start) &
-                t.startsAt.isSmallerThanValue(end),
+                t.startsAt.isSmallerThanValue(end) &
+                t.deletedAt.isNull(),
           ))
         .watch()
         .map((rows) {
@@ -675,7 +826,8 @@ class AppDatabase extends _$AppDatabase {
     final newEnd = appointmentEffectiveEnd(startsAt, endsAt, minutes);
     final query = select(appointments).join([
       innerJoin(clients, clients.id.equalsExp(appointments.clientId)),
-    ]);
+    ])
+      ..where(appointments.deletedAt.isNull() & clients.deletedAt.isNull());
     final rows = await query.get();
     for (final row in rows) {
       final other = row.readTable(appointments);
@@ -714,14 +866,18 @@ class AppDatabase extends _$AppDatabase {
         conflict.client,
       );
     }
-    return into(appointments).insert(
+    final id = await into(appointments).insert(
       AppointmentsCompanion.insert(
+        remoteId: Value(newRemoteId()),
         clientId: clientId,
         startsAt: startsAt,
         endsAt: Value(endsAt),
         status: Value(status),
+        syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
+    _notifyDirty();
+    return id;
   }
 
   Future<bool> updateAppointment({
@@ -749,8 +905,10 @@ class AppDatabase extends _$AppDatabase {
         endsAt: endsAt == null ? const Value.absent() : Value(endsAt),
         status: status == null ? const Value.absent() : Value(status),
         updatedAt: Value(DateTime.now()),
+        syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
+    if (n > 0) _notifyDirty();
     return n > 0;
   }
 
@@ -759,16 +917,29 @@ class AppDatabase extends _$AppDatabase {
         .getSingleOrNull();
   }
 
-  /// Removes the appointment; unlinks any SOAP note (note kept).
+  /// Soft-deletes the appointment; unlinks any SOAP note (note kept).
   Future<void> deleteAppointment(int id) async {
+    final now = DateTime.now();
     await (update(notes)..where((t) => t.appointmentId.equals(id))).write(
-      const NotesCompanion(appointmentId: Value(null)),
+      NotesCompanion(
+        appointmentId: const Value(null),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
     );
-    await (delete(appointments)..where((t) => t.id.equals(id))).go();
+    await (update(appointments)..where((t) => t.id.equals(id))).write(
+      AppointmentsCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    _notifyDirty();
   }
 
   Stream<Note?> watchNote(int id) {
-    return (select(notes)..where((t) => t.id.equals(id)))
+    return (select(notes)
+          ..where((t) => t.id.equals(id) & t.deletedAt.isNull()))
         .watch()
         .map((rows) => rows.isEmpty ? null : rows.first);
   }
@@ -778,14 +949,18 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<Note?> getNoteForAppointment(int appointmentId) {
-    return (select(notes)..where((t) => t.appointmentId.equals(appointmentId)))
+    return (select(notes)
+          ..where(
+            (t) =>
+                t.appointmentId.equals(appointmentId) & t.deletedAt.isNull(),
+          ))
         .getSingleOrNull();
   }
 
   /// Visit history: notes for a client, newest first.
   Stream<List<Note>> watchNotesForClient(int clientId) {
     return (select(notes)
-          ..where((t) => t.clientId.equals(clientId))
+          ..where((t) => t.clientId.equals(clientId) & t.deletedAt.isNull())
           ..orderBy([(t) => OrderingTerm.desc(t.noteDate)]))
         .watch();
   }
@@ -793,7 +968,7 @@ class AppDatabase extends _$AppDatabase {
   /// Most recent note for [clientId], excluding [exceptNoteId] when set.
   Future<Note?> getLastNoteForClient(int clientId, {int? exceptNoteId}) async {
     final query = select(notes)
-      ..where((t) => t.clientId.equals(clientId))
+      ..where((t) => t.clientId.equals(clientId) & t.deletedAt.isNull())
       ..orderBy([(t) => OrderingTerm.desc(t.noteDate)])
       ..limit(5);
     final rows = await query.get();
@@ -814,11 +989,14 @@ class AppDatabase extends _$AppDatabase {
     if (existing != null) return existing;
     final id = await into(notes).insert(
       NotesCompanion.insert(
+        remoteId: Value(newRemoteId()),
         clientId: clientId,
         appointmentId: Value(appointmentId),
         noteDate: noteDate ?? DateTime.now(),
+        syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
+    _notifyDirty();
     return (await getNote(id))!;
   }
 
@@ -838,8 +1016,10 @@ class AppDatabase extends _$AppDatabase {
         assessment: Value(assessment),
         plan: Value(plan),
         updatedAt: Value(DateTime.now()),
+        syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
+    _notifyDirty();
   }
 
   /// Copy S/O/A/P from [source] into [targetId] (same-client caller checks).
@@ -856,8 +1036,10 @@ class AppDatabase extends _$AppDatabase {
         assessment: Value(source.assessment),
         plan: Value(source.plan),
         updatedAt: Value(DateTime.now()),
+        syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
+    _notifyDirty();
     return true;
   }
 

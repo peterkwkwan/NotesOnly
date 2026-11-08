@@ -7,7 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
-import 'package:pelvi_crm/data/sync_stub.dart';
+import 'package:pelvi_crm/data/sync.dart';
 import 'package:pelvi_crm/features/notifications/notifications_sheet.dart';
 import 'package:pelvi_crm/theme/colors.dart';
 

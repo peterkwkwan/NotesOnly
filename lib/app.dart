@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'data/auth.dart';
 import 'data/database.dart';
 import 'data/database_provider.dart';
-import 'data/sync_stub.dart';
+import 'data/sync.dart';
 import 'features/auth/sign_in_screen.dart';
 import 'features/first_run/first_run_screen.dart';
 import 'features/shell/app_shell.dart';
@@ -30,13 +30,29 @@ class PelviApp extends StatefulWidget {
   State<PelviApp> createState() => _PelviAppState();
 }
 
-class _PelviAppState extends State<PelviApp> {
+class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
   late Future<bool> _needsFirstRun;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _needsFirstRun = _checkFirstRun();
+    widget.syncEngine.start();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.syncEngine.stop();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.syncEngine.onAppResumed();
+    }
   }
 
   Future<bool> _checkFirstRun() async {

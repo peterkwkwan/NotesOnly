@@ -2,7 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
-import 'package:pelvi_crm/data/sync_stub.dart';
+import 'package:pelvi_crm/data/sync.dart';
 import 'package:pelvi_crm/features/more/more_screen.dart';
 import 'package:pelvi_crm/features/today/today_screen.dart';
 import 'package:pelvi_crm/theme/theme.dart';

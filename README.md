@@ -44,7 +44,17 @@ keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -sto
 5. **Web:** add a Web app in the same Firebase project, then run `flutterfire configure` (or paste web options into `lib/firebase_options.dart`). Web options are intentionally not set yet.
 6. Later (Play): also add upload-key and Play App Signing SHA-1s the same way.
 
-Cloud sync / Firestore is **not** wired yet (auth gate + sign-out only).
+## Firestore sync
+
+Offline-first: writes go to Drift first; when signed in, pending rows push to
+`users/{uid}/clients|appointments|notes|settings/{id}` and pull by `updatedAt`.
+
+**Peter (Firebase Console):**
+
+1. Firestore → **Create database** (production mode) if not created yet.
+2. Deploy rules from the repo: `firebase deploy --only firestore:rules`
+   (or paste `firestore.rules` in Console → Rules → Publish).
+3. Confirm Google Sign-In still works (SHA-1 on Android app).
 
 ## Project layout
 

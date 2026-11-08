@@ -9,7 +9,9 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../data/auth.dart';
 import '../../data/backup.dart';
+import '../../data/database.dart';
 import '../../data/database_provider.dart';
+import '../../data/sync.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
@@ -377,6 +379,20 @@ class MoreScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: PelviSpace.lg),
+          const _SectionLabel('Cloud sync'),
+          const SizedBox(height: PelviSpace.sm),
+          _SettingsBlock(
+            children: [
+              _SyncStatusRow(db: db),
+              const Divider(height: 1),
+              _TappableRow(
+                title: 'Sync now',
+                subtitle: 'Push pending changes and pull from Firestore',
+                onTap: () => _syncNow(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: PelviSpace.lg),
           const _SectionLabel('Account'),
           const SizedBox(height: PelviSpace.sm),
           _SettingsBlock(
@@ -388,7 +404,7 @@ class MoreScreen extends StatelessWidget {
               const Divider(height: 1),
               _TappableRow(
                 title: 'Sign out',
-                subtitle: 'Keeps clinic data on this device · cloud sync later',
+                subtitle: 'Keeps clinic data on this device',
                 onTap: () => _signOut(context),
               ),
             ],
@@ -396,6 +412,26 @@ class MoreScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _syncNow(BuildContext context) async {
+    final sync = AppDatabaseProvider.syncOf(context);
+    final status = await sync.syncNow();
+    if (!context.mounted) return;
+    switch (status) {
+      case SyncStatus.synced:
+        showPelviSnackBar(context, 'Synced');
+      case SyncStatus.pending:
+        showPelviSnackBar(context, 'Still pending — check connection');
+      case SyncStatus.error:
+        showPelviSnackBar(
+          context,
+          sync.lastError ?? 'Sync failed',
+        );
+      case SyncStatus.syncing:
+      case SyncStatus.idle:
+        break;
+    }
   }
 
   Future<void> _signOut(BuildContext context) async {
@@ -426,6 +462,80 @@ class MoreScreen extends StatelessWidget {
         showPelviSnackBar(context, 'Sign out failed: $e');
       }
     }
+  }
+}
+
+class _SyncStatusRow extends StatelessWidget {
+  const _SyncStatusRow({required this.db});
+
+  final AppDatabase db;
+
+  @override
+  Widget build(BuildContext context) {
+    final sync = AppDatabaseProvider.syncOf(context);
+    final c = PelviColors.of(context);
+    return StreamBuilder<SyncStatus>(
+      stream: sync.watchStatus(),
+      initialData: SyncStatus.idle,
+      builder: (context, snap) {
+        final status = snap.data ?? SyncStatus.idle;
+        return StreamBuilder<String?>(
+          stream: db.watchSetting(AppDatabase.syncLastSuccessKey),
+          builder: (context, lastSnap) {
+            final last = lastSnap.data;
+            final subtitle = switch (status) {
+              SyncStatus.synced => last == null || last.isEmpty
+                  ? 'Up to date'
+                  : 'Last synced ${_formatSyncTime(last)}',
+              SyncStatus.pending => 'Waiting to upload local changes',
+              SyncStatus.syncing => 'Syncing…',
+              SyncStatus.error =>
+                sync.lastError ?? 'Sync error — tap Sync now to retry',
+              SyncStatus.idle => 'Sign in to sync',
+            };
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: PelviSpace.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _statusLabel(status),
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: status == SyncStatus.error
+                              ? c.danger
+                              : c.inkMuted,
+                        ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  static String _statusLabel(SyncStatus status) => switch (status) {
+        SyncStatus.synced => 'Synced',
+        SyncStatus.pending => 'Pending',
+        SyncStatus.syncing => 'Syncing',
+        SyncStatus.error => 'Error',
+        SyncStatus.idle => 'Idle',
+      };
+
+  static String _formatSyncTime(String iso) {
+    final dt = DateTime.tryParse(iso)?.toLocal();
+    if (dt == null) return iso;
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $hh:$mm';
   }
 }
 

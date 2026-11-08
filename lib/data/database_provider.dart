@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'database.dart';
-import 'sync_stub.dart';
+import 'sync.dart';
 
-/// Inherited access to the opened [AppDatabase] and sync stub.
+/// Inherited access to the opened [AppDatabase] and sync engine.
 class AppDatabaseProvider extends InheritedWidget {
   const AppDatabaseProvider({
     super.key,
