@@ -54,11 +54,12 @@ class _SignInScreenState extends State<SignInScreen> {
     // Figma left panel fill (not in palette — keep local).
     const leftBg = Color(0xFFF8F4F3);
 
+    // Figma 1440: left ~660 / right ~780. Flex keeps split on narrower wide viewports.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          width: 660,
+        Expanded(
+          flex: 660,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: leftBg,
@@ -178,20 +179,24 @@ class _SignInScreenState extends State<SignInScreen> {
           ),
         ),
         Expanded(
+          flex: 780,
           child: Padding(
             padding: const EdgeInsets.all(64),
             child: Column(
               children: [
                 Expanded(
-                  child: Center(
-                    child: SizedBox(
-                      width: 380,
+                  // Figma auth area: centered in the right half.
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 380),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
                             'Welcome to NotesOnly',
+                            textAlign: TextAlign.center,
                             style: text.titleLarge?.copyWith(
                               fontSize: 30,
                               height: 39 / 30,
@@ -203,6 +208,7 @@ class _SignInScreenState extends State<SignInScreen> {
                           const SizedBox(height: 12),
                           Text(
                             'Sign in to your practitioner workspace.',
+                            textAlign: TextAlign.center,
                             style: text.bodyMedium?.copyWith(
                               fontSize: 15,
                               height: 25 / 15,
@@ -211,22 +217,17 @@ class _SignInScreenState extends State<SignInScreen> {
                             ),
                           ),
                           const SizedBox(height: 32),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _GoogleButton(busy: _busy, onPressed: _signIn),
-                              const SizedBox(height: 16),
-                              Text(
-                                'For new and returning practitioners',
-                                textAlign: TextAlign.center,
-                                style: text.labelSmall?.copyWith(
-                                  fontSize: 13,
-                                  height: 21 / 13,
-                                  fontWeight: FontWeight.w400,
-                                  color: c.inkMuted,
-                                ),
-                              ),
-                            ],
+                          _GoogleButton(busy: _busy, onPressed: _signIn),
+                          const SizedBox(height: 16),
+                          Text(
+                            'For new and returning practitioners',
+                            textAlign: TextAlign.center,
+                            style: text.labelSmall?.copyWith(
+                              fontSize: 13,
+                              height: 21 / 13,
+                              fontWeight: FontWeight.w400,
+                              color: c.inkMuted,
+                            ),
                           ),
                         ],
                       ),
@@ -489,24 +490,27 @@ class _GoogleButton extends StatelessWidget {
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset(
-                    'assets/brand/google-g.png',
+                  SizedBox(
                     width: 24,
                     height: 24,
-                    filterQuality: FilterQuality.high,
+                    child: Image.asset(
+                      'assets/brand/google-g.png',
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  Flexible(
-                    child: Text(
-                      'Continue with Google',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.labelLarge?.copyWith(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: c.ink,
-                      ),
+                  Text(
+                    'Continue with Google',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.labelLarge?.copyWith(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: c.ink,
                     ),
                   ),
                 ],
