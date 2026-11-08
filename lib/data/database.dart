@@ -143,6 +143,22 @@ class AppDatabase extends _$AppDatabase {
     await m.addColumn(table, column);
   }
 
+  /// ADD COLUMN for a Drift `dateTime().withDefault(currentDateAndTime)`.
+  ///
+  /// SQLite rejects non-constant defaults on ALTER TABLE ADD COLUMN, so we
+  /// bake a literal unix-seconds default then stamp rows.
+  Future<void> addDateTimeColumnConstDefault({
+    required String table,
+    required String column,
+  }) async {
+    if (await hasSqliteColumn(table, column)) return;
+    final seconds = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    await customStatement(
+      'ALTER TABLE "$table" ADD COLUMN "$column" INTEGER NOT NULL DEFAULT $seconds',
+    );
+    await customStatement('UPDATE "$table" SET "$column" = $seconds');
+  }
+
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
@@ -172,7 +188,11 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnIfMissing(m, notes, notes.remoteId);
             await _addColumnIfMissing(m, notes, notes.syncStatus);
             await _addColumnIfMissing(m, notes, notes.deletedAt);
-            await _addColumnIfMissing(m, settings, settings.updatedAt);
+            // Not m.addColumn: currentDateAndTime is non-constant (SQLite forbid).
+            await addDateTimeColumnConstDefault(
+              table: 'settings',
+              column: 'updated_at',
+            );
             await _addColumnIfMissing(m, settings, settings.syncStatus);
             await _addColumnIfMissing(m, settings, settings.deletedAt);
 

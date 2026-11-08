@@ -101,6 +101,27 @@ void main() {
     expect(await db.hasSqliteColumn('clients', 'remote_id'), isTrue);
   });
 
+  test('dateTime ADD COLUMN uses constant unix default', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.customStatement(
+      'CREATE TABLE t_probe (id INTEGER NOT NULL PRIMARY KEY)',
+    );
+    await db.customStatement('INSERT INTO t_probe (id) VALUES (1)');
+    await db.addDateTimeColumnConstDefault(
+      table: 't_probe',
+      column: 'updated_at',
+    );
+    expect(await db.hasSqliteColumn('t_probe', 'updated_at'), isTrue);
+    // Idempotent second call (would throw if non-constant DEFAULT were used twice).
+    await db.addDateTimeColumnConstDefault(
+      table: 't_probe',
+      column: 'updated_at',
+    );
+    final row = await db.customSelect('SELECT updated_at FROM t_probe').getSingle();
+    expect(row.read<int>('updated_at'), greaterThan(0));
+  });
+
   test('formatNoteDate is EEE, d MMM yyyy', () {
     expect(
       formatNoteDate(DateTime(2026, 10, 28)),
