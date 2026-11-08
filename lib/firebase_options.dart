@@ -1,6 +1,6 @@
 // Generated from Firebase project notesonly-e4829.
 // Android: android/app/google-services.json.
-// Web: same project browser key + web app id (register Web app in Console if missing).
+// Web: Firebase Console web app config.
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
@@ -28,15 +28,14 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // shortcut: appId is a stub until Peter adds a Web app in Console and pastes
-  // the real appId (or runs `flutterfire configure`); Auth primarily needs apiKey.
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBxVs-nxEczlWAKrTdk1z_b-bqTvNt9KjE',
-    appId: '1:832931514693:web:00000000000000000000000000000001',
+    apiKey: 'AIzaSyCszG1jvvDjQZEs-skkhVf0LbTeh3tfMk',
+    appId: '1:832931514693:web:a2902ee456eacd5f95162c',
     messagingSenderId: '832931514693',
     projectId: 'notesonly-e4829',
     authDomain: 'notesonly-e4829.firebaseapp.com',
     storageBucket: 'notesonly-e4829.firebasestorage.app',
+    measurementId: 'G-DBKMQDKGBK',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
