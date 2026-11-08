@@ -5,6 +5,7 @@ import '../../data/database_provider.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
+import '../shell/desktop_chrome.dart';
 import 'note_editor_screen.dart';
 
 /// Open the note for an appointment (create draft if none).
@@ -21,6 +22,11 @@ Future<void> openNoteForAppointment(
     noteDate: noteDate,
   );
   if (!context.mounted) return;
+  final shell = ShellNavigation.maybeOf(context);
+  if (shell?.openSoapNote != null && isDesktopShell(context)) {
+    shell!.openSoapNote!(note.id);
+    return;
+  }
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => NoteEditorScreen(noteId: note.id),

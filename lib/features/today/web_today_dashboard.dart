@@ -957,6 +957,11 @@ class _DraftRow extends StatelessWidget {
         const SizedBox(width: 16),
         OutlinedButton(
           onPressed: () {
+            final open = ShellNavigation.maybeOf(context)?.openSoapNote;
+            if (open != null) {
+              open(note.id);
+              return;
+            }
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => NoteEditorScreen(noteId: note.id),

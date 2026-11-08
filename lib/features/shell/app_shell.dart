@@ -10,6 +10,7 @@ import '../calendar/calendar_screen.dart';
 import '../clients/clients_screen.dart';
 import '../more/more_screen.dart';
 import '../more/web_practice_settings.dart';
+import '../notes/web_soap_notes_page.dart';
 import '../notes/web_soap_templates_library.dart';
 import '../today/today_screen.dart';
 import 'desktop_chrome.dart';
@@ -25,6 +26,8 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  int? _soapNoteId;
+  String? _soapBreadcrumb;
   StreamSubscription<List<RecallDueEntry>>? _recallSub;
   StreamSubscription<bool>? _recallNotifSub;
   int _dueCount = 0;
@@ -36,16 +39,6 @@ class _AppShellState extends State<AppShell> {
     CalendarScreen(),
     ClientsScreen(),
     MoreScreen(),
-  ];
-
-  /// Desktop IA matches Figma sidebar (SOAP notes stubbed; Templates wired).
-  static const _desktopPages = <Widget>[
-    TodayScreen(),
-    CalendarScreen(),
-    ClientsScreen(),
-    DesktopPlaceholderPage(title: 'SOAP notes'),
-    WebSoapTemplatesLibrary(),
-    WebPracticeSettings(),
   ];
 
   @override
@@ -95,21 +88,52 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _goTo(int desktopIndex) {
-    final next = desktopIndex.clamp(0, _desktopPages.length - 1);
+    final next = desktopIndex.clamp(0, 5);
     if (next == _index) return;
     setState(() => _index = next);
   }
+
+  void _openSoapNote(int noteId) {
+    setState(() {
+      _index = DesktopDest.soapNotes;
+      _soapNoteId = noteId;
+    });
+  }
+
+  void _onSoapBreadcrumb(String? crumb) {
+    if (_soapBreadcrumb == crumb) return;
+    setState(() => _soapBreadcrumb = crumb);
+  }
+
+  List<Widget> get _desktopPages => [
+        const TodayScreen(),
+        const CalendarScreen(),
+        const ClientsScreen(),
+        WebSoapNotesPage(
+          noteId: _soapNoteId,
+          onBreadcrumb: _onSoapBreadcrumb,
+          onOpenNote: _openSoapNote,
+        ),
+        const WebSoapTemplatesLibrary(),
+        const WebPracticeSettings(),
+      ];
 
   @override
   Widget build(BuildContext context) {
     final desktop = isDesktopShell(context);
 
     if (desktop) {
-      final breadcrumb = DesktopDest.breadcrumbFor(_index);
+      final breadcrumb = _index == DesktopDest.soapNotes &&
+              _soapNoteId != null &&
+              (_soapBreadcrumb?.isNotEmpty ?? false)
+          ? _soapBreadcrumb!
+          : DesktopDest.breadcrumbFor(_index);
       return ShellNavigation(
         index: _index,
         goTo: _goTo,
         breadcrumb: breadcrumb,
+        soapNoteId: _soapNoteId,
+        openSoapNote: _openSoapNote,
         child: Scaffold(
           body: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
