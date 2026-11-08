@@ -374,7 +374,7 @@ class _HeadingRow extends StatelessWidget {
         const SizedBox(width: 10),
         FilledButton.icon(
           onPressed: onAdd,
-          icon: const Icon(Icons.person_add_alt_1_outlined, size: 16),
+          icon: const Icon(Icons.add, size: 16),
           label: const Text(
             'Add client',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),

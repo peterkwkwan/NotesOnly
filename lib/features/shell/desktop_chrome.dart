@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../data/auth.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/show_snack.dart';
 import '../notifications/notifications_sheet.dart';
 
 /// Wide-viewport breakpoint for NotesOnly web desktop shell (Figma 1440).
@@ -410,52 +412,74 @@ class DesktopTopBar extends StatelessWidget {
                     final display =
                         name.isEmpty ? 'Practitioner' : name;
                     final initials = practitionerInitials(name);
-                    return Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: c.pink50,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            initials,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: c.pink700,
-                            ),
-                          ),
+                    return PopupMenuButton<String>(
+                      tooltip: 'Account menu',
+                      offset: const Offset(0, 44),
+                      onSelected: (value) async {
+                        if (value == 'settings') {
+                          ShellNavigation.maybeOf(context)
+                              ?.goTo(DesktopDest.practiceSettings);
+                        } else if (value == 'signOut') {
+                          await _signOutFromDesktop(context);
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'settings',
+                          child: Text('Practice settings'),
                         ),
-                        const SizedBox(width: 12),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              display,
+                        PopupMenuItem(
+                          value: 'signOut',
+                          child: Text('Sign out'),
+                        ),
+                      ],
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: c.pink50,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              initials,
                               style: TextStyle(
                                 fontSize: 12,
-                                height: 1.5,
-                                fontWeight: FontWeight.w600,
-                                color: c.ink,
+                                fontWeight: FontWeight.w500,
+                                color: c.pink700,
                               ),
                             ),
-                            Text(
-                              'Practitioner',
-                              style: TextStyle(
-                                fontSize: 10,
-                                height: 1.5,
-                                color: c.inkMuted,
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                display,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: c.ink,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(Icons.expand_more, size: 14, color: c.inkMuted),
-                      ],
+                              Text(
+                                'Practitioner',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  height: 1.5,
+                                  color: c.inkMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(Icons.expand_more, size: 14, color: c.inkMuted),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -465,6 +489,36 @@ class DesktopTopBar extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _signOutFromDesktop(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Sign out?'),
+      content: const Text(
+        'Sign out does not wipe clinic data on this device.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Sign out'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await NotesAuth.signOut();
+  } catch (e) {
+    if (context.mounted) {
+      showPelviSnackBar(context, 'Sign out failed: $e');
+    }
   }
 }
 
