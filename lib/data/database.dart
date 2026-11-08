@@ -128,35 +128,57 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 5;
 
+  /// True if [column] already exists on [table] (for idempotent migrations).
+  Future<bool> hasSqliteColumn(String table, String column) async {
+    final rows = await customSelect('PRAGMA table_info("$table")').get();
+    return rows.any((r) => r.read<String>('name') == column);
+  }
+
+  Future<void> _addColumnIfMissing(
+    Migrator m,
+    TableInfo<Table, dynamic> table,
+    GeneratedColumn<Object> column,
+  ) async {
+    if (await hasSqliteColumn(table.actualTableName, column.name)) return;
+    await m.addColumn(table, column);
+  }
+
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
           if (from < 2) {
-            await m.addColumn(notes, notes.addendum);
+            await _addColumnIfMissing(m, notes, notes.addendum);
           }
           if (from < 3) {
-            await m.addColumn(clients, clients.notes);
+            await _addColumnIfMissing(m, clients, clients.notes);
           }
           if (from < 4) {
-            await m.addColumn(clients, clients.emergencyContactPhone);
+            await _addColumnIfMissing(
+              m,
+              clients,
+              clients.emergencyContactPhone,
+            );
           }
           if (from < 5) {
-            await m.addColumn(clients, clients.remoteId);
-            await m.addColumn(clients, clients.syncStatus);
-            await m.addColumn(clients, clients.deletedAt);
-            await m.addColumn(appointments, appointments.remoteId);
-            await m.addColumn(appointments, appointments.syncStatus);
-            await m.addColumn(appointments, appointments.deletedAt);
-            await m.addColumn(notes, notes.remoteId);
-            await m.addColumn(notes, notes.syncStatus);
-            await m.addColumn(notes, notes.deletedAt);
-            await m.addColumn(settings, settings.updatedAt);
-            await m.addColumn(settings, settings.syncStatus);
-            await m.addColumn(settings, settings.deletedAt);
+            // Idempotent: a crashed prior run may have added some columns
+            // without bumping user_version.
+            await _addColumnIfMissing(m, clients, clients.remoteId);
+            await _addColumnIfMissing(m, clients, clients.syncStatus);
+            await _addColumnIfMissing(m, clients, clients.deletedAt);
+            await _addColumnIfMissing(m, appointments, appointments.remoteId);
+            await _addColumnIfMissing(m, appointments, appointments.syncStatus);
+            await _addColumnIfMissing(m, appointments, appointments.deletedAt);
+            await _addColumnIfMissing(m, notes, notes.remoteId);
+            await _addColumnIfMissing(m, notes, notes.syncStatus);
+            await _addColumnIfMissing(m, notes, notes.deletedAt);
+            await _addColumnIfMissing(m, settings, settings.updatedAt);
+            await _addColumnIfMissing(m, settings, settings.syncStatus);
+            await _addColumnIfMissing(m, settings, settings.deletedAt);
 
             final now = DateTime.now();
             for (final c in await select(clients).get()) {
+              if (c.remoteId.isNotEmpty) continue;
               await (update(clients)..where((t) => t.id.equals(c.id))).write(
                 ClientsCompanion(
                   remoteId: Value(newRemoteId()),
@@ -166,6 +188,7 @@ class AppDatabase extends _$AppDatabase {
               );
             }
             for (final a in await select(appointments).get()) {
+              if (a.remoteId.isNotEmpty) continue;
               await (update(appointments)..where((t) => t.id.equals(a.id)))
                   .write(
                 AppointmentsCompanion(
@@ -176,6 +199,7 @@ class AppDatabase extends _$AppDatabase {
               );
             }
             for (final n in await select(notes).get()) {
+              if (n.remoteId.isNotEmpty) continue;
               await (update(notes)..where((t) => t.id.equals(n.id))).write(
                 NotesCompanion(
                   remoteId: Value(newRemoteId()),
@@ -185,14 +209,14 @@ class AppDatabase extends _$AppDatabase {
               );
             }
             for (final s in await select(settings).get()) {
+              // Re-mark cloud settings pending only when still default-synced
+              // after a half-applied migrate; skip if already pending/error.
+              if (s.syncStatus != RowSyncStatus.synced) continue;
+              if (!isCloudSyncedSetting(s.key)) continue;
               await (update(settings)..where((t) => t.key.equals(s.key))).write(
                 SettingsCompanion(
                   updatedAt: Value(now),
-                  syncStatus: Value(
-                    isCloudSyncedSetting(s.key)
-                        ? RowSyncStatus.pending
-                        : RowSyncStatus.synced,
-                  ),
+                  syncStatus: const Value(RowSyncStatus.pending),
                 ),
               );
             }

@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Migrator;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,6 +83,22 @@ void main() {
     expect(client, isNotNull);
     expect(client!.remoteId, isNotEmpty);
     expect(client.syncStatus, RowSyncStatus.pending);
+  });
+
+  test('v5 column adds are idempotent via pragma check', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    expect(await db.hasSqliteColumn('clients', 'remote_id'), isTrue);
+    expect(await db.hasSqliteColumn('appointments', 'sync_status'), isTrue);
+    expect(await db.hasSqliteColumn('notes', 'deleted_at'), isTrue);
+    expect(await db.hasSqliteColumn('settings', 'updated_at'), isTrue);
+    expect(await db.hasSqliteColumn('clients', 'no_such_col'), isFalse);
+
+    // Re-adding existing sync columns must not throw (half-applied migrate).
+    final m = Migrator(db);
+    await db.migration.onUpgrade(m, 4, 5);
+    await db.migration.onUpgrade(m, 4, 5);
+    expect(await db.hasSqliteColumn('clients', 'remote_id'), isTrue);
   });
 
   test('formatNoteDate is EEE, d MMM yyyy', () {
