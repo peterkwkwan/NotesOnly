@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../data/auth.dart';
@@ -136,13 +134,17 @@ class MoreScreen extends StatelessWidget {
     try {
       final map = await buildBackupMap(db);
       final json = encodeBackupJson(map);
-      final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-      final file = File(p.join(dir.path, 'notesonly-backup-$stamp.json'));
-      await file.writeAsString(json);
+      final bytes = Uint8List.fromList(utf8.encode(json));
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile(file.path, mimeType: 'application/json')],
+          files: [
+            XFile.fromData(
+              bytes,
+              mimeType: 'application/json',
+              name: 'notesonly-backup-$stamp.json',
+            ),
+          ],
           subject: 'NotesOnly backup',
           text: 'NotesOnly backup (clients, appointments, notes)',
         ),
@@ -158,20 +160,25 @@ class MoreScreen extends StatelessWidget {
     final db = AppDatabaseProvider.of(context);
     try {
       final csv = await buildBackupCsv(db);
-      final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-      final clients = File(p.join(dir.path, 'notesonly-clients-$stamp.csv'));
-      final appts = File(p.join(dir.path, 'notesonly-appointments-$stamp.csv'));
-      final notes = File(p.join(dir.path, 'notesonly-notes-$stamp.csv'));
-      await clients.writeAsString(csv.clients);
-      await appts.writeAsString(csv.appointments);
-      await notes.writeAsString(csv.notes);
       await SharePlus.instance.share(
         ShareParams(
           files: [
-            XFile(clients.path, mimeType: 'text/csv'),
-            XFile(appts.path, mimeType: 'text/csv'),
-            XFile(notes.path, mimeType: 'text/csv'),
+            XFile.fromData(
+              Uint8List.fromList(utf8.encode(csv.clients)),
+              mimeType: 'text/csv',
+              name: 'notesonly-clients-$stamp.csv',
+            ),
+            XFile.fromData(
+              Uint8List.fromList(utf8.encode(csv.appointments)),
+              mimeType: 'text/csv',
+              name: 'notesonly-appointments-$stamp.csv',
+            ),
+            XFile.fromData(
+              Uint8List.fromList(utf8.encode(csv.notes)),
+              mimeType: 'text/csv',
+              name: 'notesonly-notes-$stamp.csv',
+            ),
           ],
           subject: 'NotesOnly CSV export',
           text: 'NotesOnly clients, appointments, and notes (CSV)',

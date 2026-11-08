@@ -1,6 +1,6 @@
-// Generated manually from android/app/google-services.json (project notesonly-e4829).
-// Web/iOS: add apps in Firebase Console, then replace stubs via FlutterFire CLI
-// (`flutterfire configure`) or paste options here.
+// Generated from Firebase project notesonly-e4829.
+// Android: android/app/google-services.json.
+// Web: same project browser key + web app id (register Web app in Console if missing).
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
@@ -8,11 +8,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'FirebaseOptions for web are not configured. '
-        'Add a Web app in Firebase Console (notesonly-e4829) and run '
-        '`flutterfire configure`, or paste web options into firebase_options.dart.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -22,7 +18,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.windows:
       case TargetPlatform.linux:
         throw UnsupportedError(
-          'FirebaseOptions are only set for Android. '
+          'FirebaseOptions are only set for Android and web. '
           'Use FlutterFire CLI when adding another platform.',
         );
       default:
@@ -31,6 +27,17 @@ class DefaultFirebaseOptions {
         );
     }
   }
+
+  // shortcut: appId is a stub until Peter adds a Web app in Console and pastes
+  // the real appId (or runs `flutterfire configure`); Auth primarily needs apiKey.
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBxVs-nxEczlWAKrTdk1z_b-bqTvNt9KjE',
+    appId: '1:832931514693:web:00000000000000000000000000000001',
+    messagingSenderId: '832931514693',
+    projectId: 'notesonly-e4829',
+    authDomain: 'notesonly-e4829.firebaseapp.com',
+    storageBucket: 'notesonly-e4829.firebasestorage.app',
+  );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBxVs-nxEczlWAKrTdk1z_b-bqTvNt9KjE',

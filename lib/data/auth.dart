@@ -1,7 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
-/// Google → Firebase Auth. No Firestore sync here (M2).
+/// Google → Firebase Auth (Android: google_sign_in; web: Auth popup).
 class NotesAuth {
   NotesAuth._();
 
@@ -21,13 +22,26 @@ class NotesAuth {
   }
 
   static Future<void> ensureGoogleInitialized() async {
-    if (_googleReady) return;
+    if (kIsWeb || _googleReady) return;
     await _google.initialize();
     _googleReady = true;
   }
 
-  /// Returns false if the user cancelled the Google sheet.
+  /// Returns false if the user cancelled the Google sheet / popup.
   static Future<bool> signInWithGoogle() async {
+    if (kIsWeb) {
+      try {
+        await _auth.signInWithPopup(GoogleAuthProvider());
+        return true;
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'popup-closed-by-user' ||
+            e.code == 'cancelled-popup-request') {
+          return false;
+        }
+        rethrow;
+      }
+    }
+
     await ensureGoogleInitialized();
     try {
       final account = await _google.authenticate();
@@ -50,8 +64,10 @@ class NotesAuth {
   }
 
   static Future<void> signOut() async {
-    await ensureGoogleInitialized();
-    await _google.signOut();
+    if (!kIsWeb) {
+      await ensureGoogleInitialized();
+      await _google.signOut();
+    }
     await _auth.signOut();
   }
 }
