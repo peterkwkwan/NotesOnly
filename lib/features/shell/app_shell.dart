@@ -124,7 +124,13 @@ class _AppShellState extends State<AppShell> {
                     Expanded(
                       child: IndexedStack(
                         index: _index,
-                        children: _desktopPages,
+                        children: [
+                          for (var i = 0; i < _desktopPages.length; i++)
+                            _DesktopTabNavigator(
+                              key: ValueKey('desktop-tab-$i'),
+                              child: _desktopPages[i],
+                            ),
+                        ],
                       ),
                     ),
                   ],
@@ -148,6 +154,25 @@ class _AppShellState extends State<AppShell> {
         onChanged: (i) => _goTo(_desktopIndexFromMobile(i)),
         onFab: () => showQuickAddSheet(context),
       ),
+    );
+  }
+}
+
+/// Keeps pushes (e.g. Client profile) inside the content column so sidebar/top bar stay.
+class _DesktopTabNavigator extends StatelessWidget {
+  const _DesktopTabNavigator({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      onGenerateRoute: (settings) {
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => child,
+        );
+      },
     );
   }
 }

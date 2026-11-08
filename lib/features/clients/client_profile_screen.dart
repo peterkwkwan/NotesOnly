@@ -6,8 +6,10 @@ import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
 import '../appointments/appointment_form_screen.dart';
+import '../shell/desktop_chrome.dart';
 import 'client_form_screen.dart';
 import 'client_format.dart';
+import 'web_client_profile.dart';
 
 Future<void> _launchExternal(Uri uri) async {
   await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -122,6 +124,12 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (isDesktopShell(context)) {
+      return Scaffold(
+        body: WebClientProfile(clientId: widget.clientId),
+      );
+    }
+
     final db = AppDatabaseProvider.of(context);
     final clientId = widget.clientId;
 
