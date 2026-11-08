@@ -664,7 +664,7 @@ class _PillButton extends StatelessWidget {
   }
 }
 
-class _WeekSchedule extends StatelessWidget {
+class _WeekSchedule extends StatefulWidget {
   const _WeekSchedule({
     required this.days,
     required this.selected,
@@ -689,183 +689,15 @@ class _WeekSchedule extends StatelessWidget {
 
   static const _hourH = 66.0;
   static const _gutter = 52.0;
+  static const _dayStart = 0;
+  static const _dayEnd = 24;
 
   @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final hours = (endHour - startHour).clamp(1, 24);
-    final gridH = hours * _hourH;
-    final today = _dateOnly(DateTime.now());
+  State<_WeekSchedule> createState() => _WeekScheduleState();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: c.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          SizedBox(
-            height: 72,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: _gutter,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Device',
-                        style: TextStyle(fontSize: 9, color: c.inkMuted),
-                      ),
-                      Text(
-                        'clock',
-                        style: TextStyle(fontSize: 9, color: c.inkMuted),
-                      ),
-                    ],
-                  ),
-                ),
-                for (final day in days)
-                  Expanded(
-                    child: _DayHeading(
-                      day: day,
-                      selected: _sameDay(day, selected),
-                      today: _sameDay(day, today),
-                      bookingCount: rows
-                          .where((r) =>
-                              _sameDay(r.appointment.startsAt, day))
-                          .length,
-                      onTap: () => onSelectDay(day),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: gridH,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final colW =
-                    (constraints.maxWidth - _gutter) / days.length;
-                return Stack(
-                  children: [
-                    for (var i = 0; i <= hours * 2; i++)
-                      Positioned(
-                        left: _gutter,
-                        right: 0,
-                        top: i * (_hourH / 2),
-                        child: Container(
-                          height: 1,
-                          color: i.isEven ? c.border : c.surfaceMuted,
-                        ),
-                      ),
-                    for (var h = 0; h <= hours; h++)
-                      Positioned(
-                        left: 8,
-                        top: h * _hourH + 4,
-                        child: Text(
-                          '${startHour + h}:00',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: c.inkMuted,
-                          ),
-                        ),
-                      ),
-                    for (var i = 0; i < days.length; i++)
-                      Positioned(
-                        left: _gutter + i * colW,
-                        top: 0,
-                        width: colW,
-                        height: gridH,
-                        child: _DayColumn(
-                          day: days[i],
-                          startHour: startHour,
-                          hourH: _hourH,
-                          weekendTint: days[i].weekday == DateTime.saturday
-                              ? c.pink50.withValues(alpha: 0.35)
-                              : days[i].weekday == DateTime.sunday
-                                  ? c.purple50.withValues(alpha: 0.55)
-                                  : null,
-                          onTapSlot: (time) =>
-                              onTapSlot(days[i], time),
-                        ),
-                      ),
-                    for (final row in rows)
-                      if (_inVisibleHours(
-                        row.appointment.startsAt,
-                        startHour,
-                        endHour,
-                      ))
-                        _eventCard(
-                          context: context,
-                          days: days,
-                          gutter: _gutter,
-                          colW: colW,
-                          startHour: startHour,
-                          hourH: _hourH,
-                          defaultMins: defaultMins,
-                          row: row,
-                        ),
-                    if (draft != null)
-                      _draftCard(
-                        context: context,
-                        days: days,
-                        gutter: _gutter,
-                        colW: colW,
-                        startHour: startHour,
-                        endHour: endHour,
-                        hourH: _hourH,
-                        draft: draft!,
-                      ),
-                  ],
-                );
-              },
-            ),
-          ),
-          SizedBox(
-            height: 48,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: c.pink50,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Scheduled',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: c.pink700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Text(
-                    rows.isEmpty
-                        ? 'No appointments in this view.'
-                        : '${rows.length} appointment${rows.length == 1 ? '' : 's'} shown.',
-                    style: TextStyle(fontSize: 10, color: c.inkMuted),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static bool _inVisibleHours(DateTime starts, int startHour, int endHour) {
+  static bool _inDayHours(DateTime starts) {
     final mins = starts.hour * 60 + starts.minute;
-    return mins >= startHour * 60 && mins < endHour * 60;
+    return mins >= _dayStart * 60 && mins < _dayEnd * 60;
   }
 
   static Widget _eventCard({
@@ -992,6 +824,231 @@ class _WeekSchedule extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WeekScheduleState extends State<_WeekSchedule> {
+  late final ScrollController _timeScroll;
+
+  @override
+  void initState() {
+    super.initState();
+    // Land on clinic hours; full 0–24 grid stays reachable by scroll.
+    _timeScroll = ScrollController(
+      initialScrollOffset: widget.startHour.clamp(0, 23) * _WeekSchedule._hourH,
+    );
+  }
+
+  @override
+  void dispose() {
+    _timeScroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final days = widget.days;
+    final selected = widget.selected;
+    final rows = widget.rows;
+    final clinicStart = widget.startHour.clamp(0, 24);
+    final clinicEnd = widget.endHour.clamp(clinicStart + 1, 24);
+    final hours = _WeekSchedule._dayEnd - _WeekSchedule._dayStart;
+    final gridH = hours * _WeekSchedule._hourH;
+    final viewportH =
+        (clinicEnd - clinicStart).clamp(1, hours) * _WeekSchedule._hourH;
+    final today = _dateOnly(DateTime.now());
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: c.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 72,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: _WeekSchedule._gutter,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Device',
+                        style: TextStyle(fontSize: 9, color: c.inkMuted),
+                      ),
+                      Text(
+                        'clock',
+                        style: TextStyle(fontSize: 9, color: c.inkMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                for (final day in days)
+                  Expanded(
+                    child: _DayHeading(
+                      day: day,
+                      selected: _sameDay(day, selected),
+                      today: _sameDay(day, today),
+                      bookingCount: rows
+                          .where((r) =>
+                              _sameDay(r.appointment.startsAt, day))
+                          .length,
+                      onTap: () => widget.onSelectDay(day),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: viewportH,
+            child: SingleChildScrollView(
+              controller: _timeScroll,
+              child: SizedBox(
+                height: gridH,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final colW = (constraints.maxWidth -
+                            _WeekSchedule._gutter) /
+                        days.length;
+                    return Stack(
+                      children: [
+                        // Clinic-hours band stays emphasized; off-hours stay reachable.
+                        Positioned(
+                          left: _WeekSchedule._gutter,
+                          right: 0,
+                          top: 0,
+                          height: clinicStart * _WeekSchedule._hourH,
+                          child: ColoredBox(
+                            color: c.surfaceMuted.withValues(alpha: 0.55),
+                          ),
+                        ),
+                        Positioned(
+                          left: _WeekSchedule._gutter,
+                          right: 0,
+                          top: clinicEnd * _WeekSchedule._hourH,
+                          bottom: 0,
+                          child: ColoredBox(
+                            color: c.surfaceMuted.withValues(alpha: 0.55),
+                          ),
+                        ),
+                        for (var i = 0; i <= hours * 2; i++)
+                          Positioned(
+                            left: _WeekSchedule._gutter,
+                            right: 0,
+                            top: i * (_WeekSchedule._hourH / 2),
+                            child: Container(
+                              height: 1,
+                              color: i.isEven ? c.border : c.surfaceMuted,
+                            ),
+                          ),
+                        for (var h = 0; h <= hours; h++)
+                          Positioned(
+                            left: 8,
+                            top: h * _WeekSchedule._hourH + 4,
+                            child: Text(
+                              '${_WeekSchedule._dayStart + h}:00',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: c.inkMuted,
+                              ),
+                            ),
+                          ),
+                        for (var i = 0; i < days.length; i++)
+                          Positioned(
+                            left: _WeekSchedule._gutter + i * colW,
+                            top: 0,
+                            width: colW,
+                            height: gridH,
+                            child: _DayColumn(
+                              day: days[i],
+                              startHour: _WeekSchedule._dayStart,
+                              hourH: _WeekSchedule._hourH,
+                              weekendTint:
+                                  days[i].weekday == DateTime.saturday
+                                      ? c.pink50.withValues(alpha: 0.35)
+                                      : days[i].weekday == DateTime.sunday
+                                          ? c.purple50
+                                              .withValues(alpha: 0.55)
+                                          : null,
+                              onTapSlot: (time) =>
+                                  widget.onTapSlot(days[i], time),
+                            ),
+                          ),
+                        for (final row in rows)
+                          if (_WeekSchedule._inDayHours(
+                            row.appointment.startsAt,
+                          ))
+                            _WeekSchedule._eventCard(
+                              context: context,
+                              days: days,
+                              gutter: _WeekSchedule._gutter,
+                              colW: colW,
+                              startHour: _WeekSchedule._dayStart,
+                              hourH: _WeekSchedule._hourH,
+                              defaultMins: widget.defaultMins,
+                              row: row,
+                            ),
+                        if (widget.draft != null)
+                          _WeekSchedule._draftCard(
+                            context: context,
+                            days: days,
+                            gutter: _WeekSchedule._gutter,
+                            colW: colW,
+                            startHour: _WeekSchedule._dayStart,
+                            endHour: _WeekSchedule._dayEnd,
+                            hourH: _WeekSchedule._hourH,
+                            draft: widget.draft!,
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 48,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.pink50,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Scheduled',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: c.pink700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Text(
+                    rows.isEmpty
+                        ? 'No appointments in this view.'
+                        : '${rows.length} appointment${rows.length == 1 ? '' : 's'} shown.',
+                    style: TextStyle(fontSize: 10, color: c.inkMuted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
