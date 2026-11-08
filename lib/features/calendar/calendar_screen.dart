@@ -6,6 +6,8 @@ import '../../widgets/empty_state.dart';
 import '../appointments/appointment_agenda_row.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../notes/note_format.dart';
+import '../shell/desktop_chrome.dart';
+import 'web_calendar_page.dart';
 
 const _monthNames = [
   'January',
@@ -67,6 +69,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (isDesktopShell(context)) {
+      return const WebCalendarPage();
+    }
+
     final db = AppDatabaseProvider.of(context);
     final text = Theme.of(context).textTheme;
     final today = _dateOnly(DateTime.now());

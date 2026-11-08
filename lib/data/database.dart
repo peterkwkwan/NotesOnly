@@ -820,6 +820,12 @@ class AppDatabase extends _$AppDatabase {
       watchAppointmentsWithClientOnDay(DateTime day) {
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
+    return watchAppointmentsWithClientInRange(start, end);
+  }
+
+  /// Appointments in [[start], [end]) with client (local datetimes).
+  Stream<List<({Appointment appointment, Client client})>>
+      watchAppointmentsWithClientInRange(DateTime start, DateTime end) {
     final query = select(appointments).join([
       innerJoin(clients, clients.id.equalsExp(appointments.clientId)),
     ])
@@ -905,6 +911,7 @@ class AppDatabase extends _$AppDatabase {
     required DateTime startsAt,
     DateTime? endsAt,
     AppointmentStatus status = AppointmentStatus.scheduled,
+    String? notes,
   }) async {
     final conflict = await findOverlappingAppointment(
       startsAt: startsAt,
@@ -923,6 +930,7 @@ class AppDatabase extends _$AppDatabase {
         startsAt: startsAt,
         endsAt: Value(endsAt),
         status: Value(status),
+        notes: Value(_blankToNull(notes)),
         syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
