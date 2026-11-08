@@ -11,7 +11,7 @@ import '../clients/clients_screen.dart';
 import '../more/more_screen.dart';
 import '../more/web_practice_settings.dart';
 import '../notes/web_soap_notes_page.dart';
-import '../notes/web_soap_templates_library.dart';
+import '../templates/web_templates_host.dart';
 import '../today/today_screen.dart';
 import 'desktop_chrome.dart';
 import 'quick_add_sheet.dart';
@@ -114,7 +114,7 @@ class _AppShellState extends State<AppShell> {
           onBreadcrumb: _onSoapBreadcrumb,
           onOpenNote: _openSoapNote,
         ),
-        const WebSoapTemplatesLibrary(),
+        const WebTemplatesHost(),
         const WebPracticeSettings(),
       ];
 

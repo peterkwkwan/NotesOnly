@@ -3,13 +3,22 @@ import 'package:flutter/material.dart';
 import '../../theme/theme.dart';
 import 'soap_templates.dart';
 
+/// Opens the template builder from the library (Edit draft / Create draft).
+typedef OpenTemplateBuilder = void Function({
+  required String name,
+  String description,
+  bool seedPostnatal,
+});
+
 /// Desktop SOAP template library (Figma `NotesOnly · SOAP template library`).
 ///
 /// Reuses shell chrome; wires built-in [soapTemplates] for names/ids.
 /// Version / publish / field-count / descriptions are presentation stubs
 /// until the template data model grows (builder agent owns editing).
 class WebSoapTemplatesLibrary extends StatefulWidget {
-  const WebSoapTemplatesLibrary({super.key});
+  const WebSoapTemplatesLibrary({super.key, this.onOpenBuilder});
+
+  final OpenTemplateBuilder? onOpenBuilder;
 
   @override
   State<WebSoapTemplatesLibrary> createState() =>
@@ -59,11 +68,24 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   void _stubAction(String label) {
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
-        content: Text('$label — coming with the template builder'),
+        content: Text('$label — not available yet'),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  void _openBuilder({
+    required String name,
+    String description = '',
+    bool seedPostnatal = true,
+  }) {
+    final open = widget.onOpenBuilder;
+    if (open == null) {
+      _stubAction('Open builder');
+      return;
+    }
+    open(name: name, description: description, seedPostnatal: seedPostnatal);
   }
 
   @override
@@ -111,7 +133,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                               setState(() => _startFromId = id),
                           onClose: () =>
                               setState(() => _showNewPanel = false),
-                          onCreateDraft: () => _stubAction('Create draft'),
+                          onCreateDraft: _createDraft,
                           onNameChanged: () => setState(() {}),
                         ),
                       ),
@@ -127,7 +149,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                       startFromId: _startFromId,
                       onStartFrom: (id) => setState(() => _startFromId = id),
                       onClose: () => setState(() => _showNewPanel = false),
-                      onCreateDraft: () => _stubAction('Create draft'),
+                      onCreateDraft: _createDraft,
                       onNameChanged: () => setState(() {}),
                     ),
                   ],
@@ -166,12 +188,27 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
             onSelect: () =>
                 setState(() => _selectedId = items[i].template.id),
             onDuplicate: () => _stubAction('Duplicate'),
-            onEdit: () => _stubAction(
-              items[i].editDraftLabel ? 'Edit draft' : 'Edit',
-            ),
+            onEdit: () {
+              final e = items[i];
+              _openBuilder(
+                name: e.template.label,
+                description: e.description,
+                seedPostnatal: e.template.id == 'postnatal_check',
+              );
+            },
           ),
         ],
       ],
+    );
+  }
+
+  void _createDraft() {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    _openBuilder(
+      name: name,
+      description: _descCtrl.text.trim(),
+      seedPostnatal: _startFromId == 'postnatal_check',
     );
   }
 }
