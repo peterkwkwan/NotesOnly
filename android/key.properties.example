@@ -1,0 +1,7 @@
+# Copy to android/key.properties (gitignored) and fill in real values.
+# Never commit key.properties, *.jks, or *.keystore.
+
+storePassword=<UPLOAD_STORE_PASSWORD>
+keyPassword=<UPLOAD_KEY_PASSWORD>
+keyAlias=notesonly
+storeFile=<ABSOLUTE_OR_RELATIVE_PATH>/notesonly-upload.jks

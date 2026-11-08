@@ -35,6 +35,13 @@ Release APK:
 flutter build apk
 ```
 
+Play Store AAB (needs `android/key.properties` + upload keystore; see `android/key.properties.example`):
+
+```bash
+flutter build appbundle --release
+# artifact: build/app/outputs/bundle/release/app-release.aab
+```
+
 ## Firebase Auth (Google) — Peter checklist
 
 1. Get your **debug** SHA-1 (and SHA-256):
