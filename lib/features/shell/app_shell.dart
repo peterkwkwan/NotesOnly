@@ -9,6 +9,7 @@ import '../../theme/theme.dart';
 import '../calendar/calendar_screen.dart';
 import '../clients/clients_screen.dart';
 import '../more/more_screen.dart';
+import '../notes/web_soap_templates_library.dart';
 import '../today/today_screen.dart';
 import 'desktop_chrome.dart';
 import 'quick_add_sheet.dart';
@@ -36,13 +37,13 @@ class _AppShellState extends State<AppShell> {
     MoreScreen(),
   ];
 
-  /// Desktop IA matches Figma sidebar (SOAP notes / Templates stubbed for later).
+  /// Desktop IA matches Figma sidebar (SOAP notes stubbed; Templates wired).
   static const _desktopPages = <Widget>[
     TodayScreen(),
     CalendarScreen(),
     ClientsScreen(),
     DesktopPlaceholderPage(title: 'SOAP notes'),
-    DesktopPlaceholderPage(title: 'Templates'),
+    WebSoapTemplatesLibrary(),
     MoreScreen(),
   ];
 
