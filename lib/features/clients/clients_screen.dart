@@ -4,9 +4,11 @@ import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
+import '../shell/desktop_chrome.dart';
 import 'client_form_screen.dart';
 import 'client_format.dart';
 import 'client_profile_screen.dart';
+import 'web_clients_dashboard.dart';
 
 enum _ClientsFilter { all, due }
 
@@ -112,6 +114,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (isDesktopShell(context)) {
+      return const WebClientsDashboard();
+    }
+
     final db = AppDatabaseProvider.of(context);
     final text = Theme.of(context).textTheme;
     final now = DateTime.now();

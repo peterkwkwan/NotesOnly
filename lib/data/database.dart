@@ -485,6 +485,15 @@ class AppDatabase extends _$AppDatabase {
         });
   }
 
+  Stream<Set<int>> watchRecallMutedIds() {
+    return (select(settings)..where((t) => t.key.equals(recallMutedIdsKey)))
+        .watch()
+        .map((rows) {
+          final raw = rows.isEmpty ? null : rows.first.value;
+          return parseIdSet(raw);
+        });
+  }
+
   Future<void> setRecallMuted(int clientId, bool muted) async {
     final ids = Set<int>.of(await getRecallMutedIds());
     if (muted) {
