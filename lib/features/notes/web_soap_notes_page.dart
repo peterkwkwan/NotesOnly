@@ -4,6 +4,7 @@ import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../clients/client_format.dart';
+import '../shell/desktop_chrome.dart';
 import 'note_format.dart';
 import 'open_note.dart';
 import 'web_soap_note_workspace.dart';
@@ -17,13 +18,15 @@ class WebSoapNotesPage extends StatelessWidget {
     required this.onOpenNote,
   });
 
+  /// Fallback when [ShellNavigation] is absent (e.g. capture tools).
   final int? noteId;
   final ValueChanged<String?> onBreadcrumb;
   final ValueChanged<int> onOpenNote;
 
   @override
   Widget build(BuildContext context) {
-    final id = noteId;
+    // Nested tab [Navigator] freezes constructor props; shell id stays live.
+    final id = ShellNavigation.maybeOf(context)?.soapNoteId ?? noteId;
     if (id == null) {
       return _SoapNotesHub(
         onOpenNote: onOpenNote,
