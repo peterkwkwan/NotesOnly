@@ -1,3 +1,5 @@
+import 'dart:async';
+
 /// Sync surface for Drift ↔ Firestore (offline-first).
 abstract class SyncEngine {
   /// Kick a debounced push/pull when local rows become dirty.
@@ -31,6 +33,19 @@ enum SyncStatus {
 /// Last-write-wins: remote wins when its `updatedAt` is >= local.
 bool remoteWinsLww(DateTime localUpdatedAt, DateTime remoteUpdatedAt) {
   return !remoteUpdatedAt.isBefore(localUpdatedAt);
+}
+
+/// Timeouts / unavailable / socket failures — UI should show pending, not Syncing.
+bool isTransientSyncFailure(Object error) {
+  if (error is TimeoutException) return true;
+  final s = error.toString().toLowerCase();
+  if (s.contains('unavailable')) return true;
+  if (s.contains('deadline-exceeded')) return true;
+  if (s.contains('network')) return true;
+  if (s.contains('socket')) return true;
+  if (s.contains('offline')) return true;
+  if (s.contains('connection')) return true;
+  return false;
 }
 
 /// No-op sync — tests / unsigned tooling.

@@ -487,7 +487,7 @@ class _SyncStatusRow extends StatelessWidget {
               SyncStatus.synced => last == null || last.isEmpty
                   ? 'Up to date'
                   : 'Last synced ${_formatSyncTime(last)}',
-              SyncStatus.pending => 'Waiting to upload local changes',
+              SyncStatus.pending => 'Will sync when online',
               SyncStatus.syncing => 'Syncing…',
               SyncStatus.error =>
                 sync.lastError ?? 'Sync error — tap Sync now to retry',

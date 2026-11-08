@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Migrator;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -65,6 +67,12 @@ void main() {
     expect(remoteWinsLww(older, newer), isTrue);
     expect(remoteWinsLww(newer, older), isFalse);
     expect(remoteWinsLww(newer, newer), isTrue);
+  });
+
+  test('transient sync failures include timeout and unavailable', () {
+    expect(isTransientSyncFailure(TimeoutException('sync')), isTrue);
+    expect(isTransientSyncFailure(Exception('UNAVAILABLE')), isTrue);
+    expect(isTransientSyncFailure(Exception('permission-denied')), isFalse);
   });
 
   test('newRemoteId is UUID-shaped and unique', () {

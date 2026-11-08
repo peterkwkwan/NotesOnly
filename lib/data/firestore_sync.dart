@@ -23,9 +23,12 @@ class FirestoreSyncEngine implements SyncEngine {
   Timer? _debounce;
   bool _running = false;
   bool _started = false;
+  int _syncGen = 0;
   StreamSubscription<User?>? _authSub;
 
   static const _collections = ['clients', 'appointments', 'notes', 'settings'];
+  /// Airplane / flaky network: don't leave UI on Syncing forever.
+  static const _syncTimeout = Duration(seconds: 12);
 
   @override
   String? get lastError => _lastError;
@@ -93,45 +96,76 @@ class FirestoreSyncEngine implements SyncEngine {
       return SyncStatus.idle;
     }
     if (_running) return _status;
+    final gen = ++_syncGen;
     _running = true;
     _setStatus(SyncStatus.syncing);
     try {
-      final bound = await db.getSetting(AppDatabase.syncBoundUidKey);
-      if (bound != null && bound.isNotEmpty && bound != user.uid) {
-        final hasData = (await db.select(db.clients).get()).isNotEmpty;
-        if (hasData) {
-          _setStatus(
-            SyncStatus.error,
-            error:
-                'This device has data for another Google account. '
-                'Export a backup, clear app data, then sign in again.',
-          );
-          return SyncStatus.error;
-        }
-      }
-      await db.setSetting(AppDatabase.syncBoundUidKey, user.uid);
-
-      final uid = user.uid;
-      await _pushAll(uid);
-      await _pullAll(uid);
-
-      final pending = await _countPending();
-      if (pending > 0) {
-        _setStatus(SyncStatus.pending);
-      } else {
-        _setStatus(SyncStatus.synced);
-        await db.setSetting(
-          AppDatabase.syncLastSuccessKey,
-          DateTime.now().toUtc().toIso8601String(),
-        );
-      }
+      await _runSync(user).timeout(_syncTimeout);
+      if (gen != _syncGen) return _status;
+      return _status;
+    } on TimeoutException catch (e, st) {
+      debugPrint('Firestore sync timed out: $e\n$st');
+      if (gen == _syncGen) await _settleUnavailable();
       return _status;
     } catch (e, st) {
       debugPrint('Firestore sync failed: $e\n$st');
-      _setStatus(SyncStatus.error, error: e.toString());
-      return SyncStatus.error;
+      if (gen != _syncGen) return _status;
+      if (isTransientSyncFailure(e)) {
+        await _settleUnavailable();
+      } else {
+        _setStatus(SyncStatus.error, error: e.toString());
+      }
+      return _status;
     } finally {
-      _running = false;
+      if (gen == _syncGen) _running = false;
+    }
+  }
+
+  Future<void> _runSync(User user) async {
+    final bound = await db.getSetting(AppDatabase.syncBoundUidKey);
+    if (bound != null && bound.isNotEmpty && bound != user.uid) {
+      final hasData = (await db.select(db.clients).get()).isNotEmpty;
+      if (hasData) {
+        _setStatus(
+          SyncStatus.error,
+          error:
+              'This device has data for another Google account. '
+              'Export a backup, clear app data, then sign in again.',
+        );
+        return;
+      }
+    }
+    await db.setSetting(AppDatabase.syncBoundUidKey, user.uid);
+
+    final uid = user.uid;
+    await _pushAll(uid);
+    await _pullAll(uid);
+
+    final pending = await _countPending();
+    if (pending > 0) {
+      _setStatus(SyncStatus.pending);
+    } else {
+      _setStatus(SyncStatus.synced);
+      await db.setSetting(
+        AppDatabase.syncLastSuccessKey,
+        DateTime.now().toUtc().toIso8601String(),
+      );
+    }
+  }
+
+  /// Offline / timeout: Pending if dirty rows, else keep Synced when we have a
+  /// last-success stamp — never leave Syncing.
+  Future<void> _settleUnavailable() async {
+    final pending = await _countPending();
+    if (pending > 0) {
+      _setStatus(SyncStatus.pending);
+      return;
+    }
+    final last = await db.getSetting(AppDatabase.syncLastSuccessKey);
+    if (last != null && last.isNotEmpty) {
+      _setStatus(SyncStatus.synced);
+    } else {
+      _setStatus(SyncStatus.pending);
     }
   }
 
