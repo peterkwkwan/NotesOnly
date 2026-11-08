@@ -387,7 +387,7 @@ class MoreScreen extends StatelessWidget {
               const Divider(height: 1),
               _TappableRow(
                 title: 'Sync now',
-                subtitle: 'Push pending changes and pull from Firestore',
+                subtitle: 'Retry syncing your clients and notes now',
                 onTap: () => _syncNow(context),
               ),
             ],
@@ -420,14 +420,11 @@ class MoreScreen extends StatelessWidget {
     if (!context.mounted) return;
     switch (status) {
       case SyncStatus.synced:
-        showPelviSnackBar(context, 'Synced');
+        showPelviSnackBar(context, 'Up to date');
       case SyncStatus.pending:
-        showPelviSnackBar(context, 'Still pending — check connection');
+        showPelviSnackBar(context, 'Still waiting — check your connection');
       case SyncStatus.error:
-        showPelviSnackBar(
-          context,
-          sync.lastError ?? 'Sync failed',
-        );
+        showPelviSnackBar(context, 'Couldn’t sync — try again');
       case SyncStatus.syncing:
       case SyncStatus.idle:
         break;
@@ -485,13 +482,12 @@ class _SyncStatusRow extends StatelessWidget {
             final last = lastSnap.data;
             final subtitle = switch (status) {
               SyncStatus.synced => last == null || last.isEmpty
-                  ? 'Up to date'
-                  : 'Last synced ${_formatSyncTime(last)}',
-              SyncStatus.pending => 'Will sync when online',
-              SyncStatus.syncing => 'Syncing…',
-              SyncStatus.error =>
-                sync.lastError ?? 'Sync error — tap Sync now to retry',
-              SyncStatus.idle => 'Sign in to sync',
+                  ? 'Your clinic data is up to date'
+                  : 'Last updated ${_formatSyncTime(last)}',
+              SyncStatus.pending => 'Will update when you’re back online',
+              SyncStatus.syncing => 'Updating…',
+              SyncStatus.error => 'Couldn’t update — tap Sync now to try again',
+              SyncStatus.idle => 'Sign in to keep devices in sync',
             };
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: PelviSpace.md),
@@ -520,11 +516,11 @@ class _SyncStatusRow extends StatelessWidget {
   }
 
   static String _statusLabel(SyncStatus status) => switch (status) {
-        SyncStatus.synced => 'Synced',
-        SyncStatus.pending => 'Pending',
-        SyncStatus.syncing => 'Syncing',
-        SyncStatus.error => 'Error',
-        SyncStatus.idle => 'Idle',
+        SyncStatus.synced => 'Up to date',
+        SyncStatus.pending => 'Waiting to sync',
+        SyncStatus.syncing => 'Updating',
+        SyncStatus.error => 'Couldn’t sync',
+        SyncStatus.idle => 'Not syncing',
       };
 
   static String _formatSyncTime(String iso) {
