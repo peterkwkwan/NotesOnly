@@ -28,15 +28,8 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // TODO(peter): web apiKey below is 38 chars (Firebase Browser keys are
-  // typically 39). Hosted web fails with firebase_auth/api-key-not-valid.
-  // Paste the full Browser key from Firebase Console → Project settings →
-  // Your apps → Web app (notesonly) config, or Google Cloud → APIs & Services
-  // → Credentials → Browser key for notesonly-e4829. Do not use the Android
-  // key. Also confirm Auth authorized domains include notesonly-e4829.web.app
-  // and that the key's Application restrictions allow that host.
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCszG1jvvDjQZEs-skkhVf0LbTeh3tfMk',
+    apiKey: 'AIzaSyCszG1jvvDjQZEs-sskkhVf0LbTeh3tfMk',
     appId: '1:832931514693:web:a2902ee456eacd5f95162c',
     messagingSenderId: '832931514693',
     projectId: 'notesonly-e4829',
