@@ -9,6 +9,7 @@ import '../../theme/theme.dart';
 import '../calendar/calendar_screen.dart';
 import '../clients/clients_screen.dart';
 import '../more/more_screen.dart';
+import '../more/web_practice_settings.dart';
 import '../notes/web_soap_templates_library.dart';
 import '../today/today_screen.dart';
 import 'desktop_chrome.dart';
@@ -44,7 +45,7 @@ class _AppShellState extends State<AppShell> {
     ClientsScreen(),
     DesktopPlaceholderPage(title: 'SOAP notes'),
     WebSoapTemplatesLibrary(),
-    MoreScreen(),
+    WebPracticeSettings(),
   ];
 
   @override

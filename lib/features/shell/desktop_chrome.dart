@@ -53,7 +53,7 @@ abstract final class DesktopDest {
         clients => 'Practice / Clients',
         soapNotes => 'Practice / SOAP notes',
         templates => 'Practice / Templates',
-        practiceSettings => 'Practice / Practice settings',
+        practiceSettings => 'Practice / Settings',
         _ => 'Practice',
       };
 }
