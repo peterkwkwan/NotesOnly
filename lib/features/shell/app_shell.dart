@@ -10,9 +10,10 @@ import '../calendar/calendar_screen.dart';
 import '../clients/clients_screen.dart';
 import '../more/more_screen.dart';
 import '../today/today_screen.dart';
+import 'desktop_chrome.dart';
 import 'quick_add_sheet.dart';
 
-/// Root chrome: Today · Calendar · Clients · More + center-docked FAB.
+/// Root chrome: mobile bottom bar · desktop sidebar + top bar.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -27,10 +28,21 @@ class _AppShellState extends State<AppShell> {
   int _dueCount = 0;
   bool _recallNotifsOn = true;
 
-  static const _pages = <Widget>[
+  /// Mobile IA: Today · Calendar · Clients · More.
+  static const _mobilePages = <Widget>[
     TodayScreen(),
     CalendarScreen(),
     ClientsScreen(),
+    MoreScreen(),
+  ];
+
+  /// Desktop IA matches Figma sidebar (SOAP notes / Templates stubbed for later).
+  static const _desktopPages = <Widget>[
+    TodayScreen(),
+    CalendarScreen(),
+    ClientsScreen(),
+    DesktopPlaceholderPage(title: 'SOAP notes'),
+    DesktopPlaceholderPage(title: 'Templates'),
     MoreScreen(),
   ];
 
@@ -68,17 +80,71 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
+  /// [_index] always uses desktop destination ids; mobile remaps More ↔ settings.
+  int _mobileIndex(int desktopIndex) {
+    if (desktopIndex <= 2) return desktopIndex;
+    if (desktopIndex == DesktopDest.practiceSettings) return 3;
+    return 0;
+  }
+
+  int _desktopIndexFromMobile(int mobileIndex) {
+    if (mobileIndex <= 2) return mobileIndex;
+    return DesktopDest.practiceSettings;
+  }
+
+  void _goTo(int desktopIndex) {
+    final next = desktopIndex.clamp(0, _desktopPages.length - 1);
+    if (next == _index) return;
+    setState(() => _index = next);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final desktop = isDesktopShell(context);
+
+    if (desktop) {
+      final breadcrumb = DesktopDest.breadcrumbFor(_index);
+      return ShellNavigation(
+        index: _index,
+        goTo: _goTo,
+        breadcrumb: breadcrumb,
+        child: Scaffold(
+          body: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DesktopSidebar(
+                index: _index,
+                onSelect: _goTo,
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    DesktopTopBar(breadcrumb: breadcrumb),
+                    Expanded(
+                      child: IndexedStack(
+                        index: _index,
+                        children: _desktopPages,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final mobileIndex = _mobileIndex(_index);
     return Scaffold(
       body: IndexedStack(
-        index: _index,
-        children: _pages,
+        index: mobileIndex,
+        children: _mobilePages,
       ),
       // FAB lives in the bottom bar middle slot (Figma), not floating above it.
       bottomNavigationBar: _PelviBottomBar(
-        index: _index,
-        onChanged: (i) => setState(() => _index = i),
+        index: mobileIndex,
+        onChanged: (i) => _goTo(_desktopIndexFromMobile(i)),
         onFab: () => showQuickAddSheet(context),
       ),
     );

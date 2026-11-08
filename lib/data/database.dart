@@ -1072,6 +1072,61 @@ class AppDatabase extends _$AppDatabase {
     _notifyDirty();
   }
 
+  /// Empty S/O/A/P notes (web Today “Open SOAP drafts”), newest first.
+  Stream<List<({Note note, Client client})>> watchOpenSoapDrafts({
+    int limit = 20,
+  }) {
+    final query = select(notes).join([
+      innerJoin(clients, clients.id.equalsExp(notes.clientId)),
+    ])
+      ..where(notes.deletedAt.isNull() & clients.deletedAt.isNull())
+      ..orderBy([OrderingTerm.desc(notes.updatedAt)]);
+    return query.watch().map((rows) {
+      final out = <({Note note, Client client})>[];
+      for (final row in rows) {
+        final note = row.readTable(notes);
+        if (!_noteIsEmptyDraft(note)) continue;
+        out.add((note: note, client: row.readTable(clients)));
+        if (out.length >= limit) break;
+      }
+      return out;
+    });
+  }
+
+  /// Next non-cancelled appointment starting on/after [day]’s midnight (Up next).
+  Stream<({Appointment appointment, Client client})?>
+      watchNextAppointmentOnOrAfter(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final query = select(appointments).join([
+      innerJoin(clients, clients.id.equalsExp(appointments.clientId)),
+    ])
+      ..where(
+        appointments.startsAt.isBiggerOrEqualValue(start) &
+            appointments.deletedAt.isNull() &
+            clients.deletedAt.isNull() &
+            appointments.status
+                .equals(AppointmentStatus.cancelled.index)
+                .not(),
+      )
+      ..orderBy([OrderingTerm.asc(appointments.startsAt)])
+      ..limit(1);
+    return query.watch().map((rows) {
+      if (rows.isEmpty) return null;
+      final row = rows.first;
+      return (
+        appointment: row.readTable(appointments),
+        client: row.readTable(clients),
+      );
+    });
+  }
+
+  static bool _noteIsEmptyDraft(Note note) {
+    return note.subjective.trim().isEmpty &&
+        note.objective.trim().isEmpty &&
+        note.assessment.trim().isEmpty &&
+        note.plan.trim().isEmpty;
+  }
+
   /// Copy S/O/A/P from [source] into [targetId] (same-client caller checks).
   Future<bool> copySoapIntoNote({
     required int targetId,

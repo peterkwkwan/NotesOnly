@@ -7,6 +7,8 @@ import '../appointments/appointment_form_screen.dart';
 import '../clients/client_format.dart';
 import '../notes/open_note.dart';
 import '../notifications/notifications_sheet.dart';
+import '../shell/desktop_chrome.dart';
+import 'web_today_dashboard.dart';
 
 class TodayScreen extends StatelessWidget {
   const TodayScreen({super.key});
@@ -21,6 +23,10 @@ class TodayScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isDesktopShell(context)) {
+      return const WebTodayDashboard();
+    }
+
     final db = AppDatabaseProvider.of(context);
     final today = DateTime.now();
 
