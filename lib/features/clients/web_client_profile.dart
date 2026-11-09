@@ -829,8 +829,10 @@ class _HistoryColumn extends StatelessWidget {
                 appointment: appt,
                 practitioner: practitioner,
                 selected: appt.id == selectedApptId,
-                onTap: () => onSelectAppt(appt.id),
-                onOpen: () => onOpenAppt(appt),
+                onTap: () {
+                  onSelectAppt(appt.id);
+                  onOpenAppt(appt);
+                },
               ),
               const SizedBox(height: 12),
             ],
@@ -921,14 +923,12 @@ class _HistoryCard extends StatelessWidget {
     required this.practitioner,
     required this.selected,
     required this.onTap,
-    required this.onOpen,
   });
 
   final Appointment appointment;
   final String practitioner;
   final bool selected;
   final VoidCallback onTap;
-  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -938,7 +938,6 @@ class _HistoryCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(PelviRadius.md),
       child: InkWell(
         onTap: onTap,
-        onDoubleTap: onOpen,
         borderRadius: BorderRadius.circular(PelviRadius.md),
         child: Container(
           width: double.infinity,
