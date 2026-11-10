@@ -237,7 +237,7 @@ service cloud.firestore {
           'revokedAt', 'acceptedAt', 'acceptedByUid'
         ])
         && request.resource.data.email is string
-        && request.resource.data.email.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$')
+        && request.resource.data.email.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}$')
         && request.resource.data.issuedByUid == request.auth.uid
         && request.resource.data.acceptedAt == null
         && request.resource.data.acceptedByUid == null
