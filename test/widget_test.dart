@@ -1430,4 +1430,87 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('web profile edits client details in place', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1440, 1000);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final clientId = await db.insertClient(
+      firstName: 'Stewie',
+      lastName: 'Brown',
+      phone: '11234951',
+      email: 'peopeeep1@gmail.com',
+      emergencyContact: 'Becca Chambers',
+      notes: 'hello',
+    );
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          home: ClientProfileScreen(clientId: clientId),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Edit details'), findsOneWidget);
+    expect(find.text('Stewie Brown'), findsOneWidget);
+    expect(find.text('New appointment'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+
+    await tester.tap(find.text('Edit details'));
+    await tester.pump();
+
+    expect(find.text('Edit client'), findsNothing);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('New appointment'), findsOneWidget);
+    expect(find.text('FIRST NAME'), findsOneWidget);
+    expect(find.text('EMERGENCY PHONE'), findsOneWidget);
+    expect(find.text('All history'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(7));
+
+    await tester.enterText(find.byType(TextField).at(0), 'Stewart');
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+
+    expect(find.text('Edit details'), findsOneWidget);
+    expect(find.text('Stewie Brown'), findsOneWidget);
+    expect((await db.getClient(clientId))!.firstName, 'Stewie');
+
+    await tester.tap(find.text('Edit details'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).at(0), '');
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    expect(find.text('Required'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect((await db.getClient(clientId))!.firstName, 'Stewie');
+
+    await tester.enterText(find.byType(TextField).at(0), 'Stewart');
+    await tester.enterText(find.byType(TextField).at(6), 'updated note');
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Edit details'), findsOneWidget);
+    expect(find.text('Stewart Brown'), findsOneWidget);
+    expect(find.text('updated note'), findsOneWidget);
+    final saved = await db.getClient(clientId);
+    expect(saved!.firstName, 'Stewart');
+    expect(saved.notes, 'updated note');
+    expect(saved.phone, '11234951');
+    expect(saved.emergencyContact, 'Becca Chambers');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
 }

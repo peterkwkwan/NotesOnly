@@ -8,10 +8,40 @@ import '../appointments/appointment_form_screen.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
-import 'client_form_screen.dart';
 import 'client_format.dart';
 
 enum _HistoryTab { all, appointments, notes }
+
+/// In-place draft for the profile fields. Seeded on edit, discarded on cancel.
+class _ClientDraft {
+  final first = TextEditingController();
+  final last = TextEditingController();
+  final phone = TextEditingController();
+  final email = TextEditingController();
+  final emergency = TextEditingController();
+  final emergencyPhone = TextEditingController();
+  final notes = TextEditingController();
+
+  void load(Client client) {
+    first.text = client.firstName;
+    last.text = client.lastName;
+    phone.text = client.phone ?? '';
+    email.text = client.email ?? '';
+    emergency.text = client.emergencyContact ?? '';
+    emergencyPhone.text = client.emergencyContactPhone ?? '';
+    notes.text = client.notes ?? '';
+  }
+
+  void dispose() {
+    first.dispose();
+    last.dispose();
+    phone.dispose();
+    email.dispose();
+    emergency.dispose();
+    emergencyPhone.dispose();
+    notes.dispose();
+  }
+}
 
 /// Desktop Client profile body (Figma `47:21845`). Shell chrome stays outside.
 class WebClientProfile extends StatefulWidget {
@@ -26,6 +56,62 @@ class WebClientProfile extends StatefulWidget {
 class _WebClientProfileState extends State<WebClientProfile> {
   _HistoryTab _tab = _HistoryTab.all;
   int? _selectedApptId;
+  final _draft = _ClientDraft();
+  bool _editing = false;
+  bool _saving = false;
+  bool _showRequired = false;
+
+  @override
+  void dispose() {
+    _draft.dispose();
+    super.dispose();
+  }
+
+  void _beginEdit(Client client) {
+    _draft.load(client);
+    setState(() {
+      _editing = true;
+      _showRequired = false;
+    });
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _editing = false;
+      _showRequired = false;
+    });
+  }
+
+  Future<void> _save(Client client) async {
+    if (_saving) return;
+    final missingName =
+        _draft.first.text.trim().isEmpty || _draft.last.text.trim().isEmpty;
+    if (missingName) {
+      setState(() => _showRequired = true);
+      return;
+    }
+    setState(() => _saving = true);
+    final db = AppDatabaseProvider.of(context);
+    try {
+      final ok = await db.updateClient(
+        id: client.id,
+        firstName: _draft.first.text,
+        lastName: _draft.last.text,
+        phone: _draft.phone.text,
+        email: _draft.email.text,
+        emergencyContact: _draft.emergency.text,
+        emergencyContactPhone: _draft.emergencyPhone.text,
+        notes: _draft.notes.text,
+      );
+      if (!mounted || !ok) return;
+      setState(() {
+        _editing = false;
+        _showRequired = false;
+      });
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   Future<void> _launchExternal(Uri uri) async {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -147,15 +233,11 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                 sliver: SliverList(
                                   delegate: SliverChildListDelegate([
                                     _PageHeading(
-                                      onEdit: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute<void>(
-                                            builder: (_) => ClientFormScreen(
-                                              existing: client,
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                      editing: _editing,
+                                      saving: _saving,
+                                      onEdit: () => _beginEdit(client),
+                                      onCancel: _cancelEdit,
+                                      onSave: () => _save(client),
                                       onNewAppt: () {
                                         Navigator.of(context).push(
                                           MaterialPageRoute<void>(
@@ -172,6 +254,9 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                       client: client,
                                       pinned: pinned,
                                       next: next,
+                                      editing: _editing,
+                                      draft: _draft,
+                                      showRequired: _showRequired,
                                       onPhone: client.phone != null &&
                                               client.phone!.isNotEmpty
                                           ? () =>
@@ -190,6 +275,8 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                     const SizedBox(height: 26),
                                     _WorkspaceRow(
                                       client: client,
+                                      editing: _editing,
+                                      draft: _draft,
                                       appts: appts,
                                       notes: notes,
                                       tab: _tab,
@@ -250,9 +337,20 @@ class _WebClientProfileState extends State<WebClientProfile> {
 }
 
 class _PageHeading extends StatelessWidget {
-  const _PageHeading({required this.onEdit, required this.onNewAppt});
+  const _PageHeading({
+    required this.editing,
+    required this.saving,
+    required this.onEdit,
+    required this.onCancel,
+    required this.onSave,
+    required this.onNewAppt,
+  });
 
+  final bool editing;
+  final bool saving;
   final VoidCallback onEdit;
+  final VoidCallback onCancel;
+  final VoidCallback onSave;
   final VoidCallback onNewAppt;
 
   @override
@@ -287,27 +385,63 @@ class _PageHeading extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 20),
-        OutlinedButton.icon(
-          onPressed: onEdit,
-          icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
-          label: Text(
-            'Edit details',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
+        if (editing) ...[
+          OutlinedButton(
+            onPressed: saving ? null : onCancel,
+            style: OutlinedButton.styleFrom(
+              backgroundColor: c.surface,
+              foregroundColor: c.ink,
+              side: BorderSide(color: c.border),
+              minimumSize: const Size(0, 38),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+              ),
+            ),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
-          style: OutlinedButton.styleFrom(
-            backgroundColor: c.surface,
-            side: BorderSide(color: c.border),
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: saving ? null : onSave,
+            style: FilledButton.styleFrom(
+              backgroundColor: c.pink700,
+              foregroundColor: c.inkInverse,
+              minimumSize: const Size(0, 38),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+              ),
+            ),
+            child: const Text(
+              'Save',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
-        ),
+        ] else
+          OutlinedButton.icon(
+            onPressed: onEdit,
+            icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
+            label: Text(
+              'Edit details',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: c.ink,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: c.surface,
+              side: BorderSide(color: c.border),
+              minimumSize: const Size(0, 38),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+              ),
+            ),
+          ),
         const SizedBox(width: 10),
         FilledButton.icon(
           onPressed: onNewAppt,
@@ -336,6 +470,9 @@ class _OverviewCard extends StatelessWidget {
     required this.client,
     required this.pinned,
     required this.next,
+    required this.editing,
+    required this.draft,
+    required this.showRequired,
     required this.onPhone,
     required this.onEmail,
   });
@@ -343,6 +480,9 @@ class _OverviewCard extends StatelessWidget {
   final Client client;
   final bool pinned;
   final Appointment? next;
+  final bool editing;
+  final _ClientDraft draft;
+  final bool showRequired;
   final VoidCallback? onPhone;
   final VoidCallback? onEmail;
 
@@ -380,62 +520,64 @@ class _OverviewCard extends StatelessWidget {
           ),
           const SizedBox(width: 20),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        style: TextStyle(
-                          fontSize: 24,
-                          height: 1.5,
-                          fontWeight: FontWeight.w500,
-                          color: c.ink,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+            child: editing
+                ? _IdentityFields(draft: draft, showRequired: showRequired)
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 24,
+                                height: 1.5,
+                                fontWeight: FontWeight.w500,
+                                color: c.ink,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (pinned) ...[
+                            const SizedBox(width: 10),
+                            Icon(Icons.push_pin, size: 15, color: c.purple700),
+                          ],
+                        ],
                       ),
-                    ),
-                    if (pinned) ...[
-                      const SizedBox(width: 10),
-                      Icon(Icons.push_pin, size: 15, color: c.purple700),
+                      const SizedBox(height: 7),
+                      Wrap(
+                        spacing: 24,
+                        runSpacing: 4,
+                        children: [
+                          if (client.phone != null && client.phone!.isNotEmpty)
+                            InkWell(
+                              onTap: onPhone,
+                              child: Text(
+                                client.phone!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.5,
+                                  color: c.pink700,
+                                ),
+                              ),
+                            ),
+                          if (client.email != null && client.email!.isNotEmpty)
+                            InkWell(
+                              onTap: onEmail,
+                              child: Text(
+                                client.email!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.5,
+                                  color: c.pink700,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
-                  ],
-                ),
-                const SizedBox(height: 7),
-                Wrap(
-                  spacing: 24,
-                  runSpacing: 4,
-                  children: [
-                    if (client.phone != null && client.phone!.isNotEmpty)
-                      InkWell(
-                        onTap: onPhone,
-                        child: Text(
-                          client.phone!,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.5,
-                            color: c.pink700,
-                          ),
-                        ),
-                      ),
-                    if (client.email != null && client.email!.isNotEmpty)
-                      InkWell(
-                        onTap: onEmail,
-                        child: Text(
-                          client.email!,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.5,
-                            color: c.pink700,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
           ),
           const SizedBox(width: 20),
           Column(
@@ -476,6 +618,8 @@ class _OverviewCard extends StatelessWidget {
 class _WorkspaceRow extends StatelessWidget {
   const _WorkspaceRow({
     required this.client,
+    required this.editing,
+    required this.draft,
     required this.appts,
     required this.notes,
     required this.tab,
@@ -493,6 +637,8 @@ class _WorkspaceRow extends StatelessWidget {
   });
 
   final Client client;
+  final bool editing;
+  final _ClientDraft draft;
   final List<Appointment> appts;
   final List<Note> notes;
   final _HistoryTab tab;
@@ -515,6 +661,8 @@ class _WorkspaceRow extends StatelessWidget {
         final wide = constraints.maxWidth >= 900;
         final details = _DetailsColumn(
           client: client,
+          editing: editing,
+          draft: draft,
           muteStream: muteStream,
           onMute: onMute,
         );
@@ -566,11 +714,15 @@ class _WorkspaceRow extends StatelessWidget {
 class _DetailsColumn extends StatelessWidget {
   const _DetailsColumn({
     required this.client,
+    required this.editing,
+    required this.draft,
     required this.muteStream,
     required this.onMute,
   });
 
   final Client client;
+  final bool editing;
+  final _ClientDraft draft;
   final Stream<bool> muteStream;
   final ValueChanged<bool> onMute;
 
@@ -600,33 +752,51 @@ class _DetailsColumn extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              Text(
-                'EMERGENCY CONTACT',
-                style: TextStyle(
-                  fontSize: 10,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.inkMuted,
+              if (editing) ...[
+                _ProfileField(
+                  label: 'EMERGENCY CONTACT',
+                  controller: draft.emergency,
+                  hint: 'Optional',
+                  capitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                hasEmergency
-                    ? [
-                        if (client.emergencyContact != null &&
-                            client.emergencyContact!.isNotEmpty)
-                          client.emergencyContact!,
-                        if (client.emergencyContactPhone != null &&
-                            client.emergencyContactPhone!.isNotEmpty)
-                          client.emergencyContactPhone!,
-                      ].join(' · ')
-                    : 'Not set',
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                  color: hasEmergency ? c.ink : c.inkMuted,
+                const SizedBox(height: 18),
+                _ProfileField(
+                  label: 'EMERGENCY PHONE',
+                  controller: draft.emergencyPhone,
+                  hint: 'Optional',
+                  keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.next,
                 ),
-              ),
+              ] else ...[
+                Text(
+                  'EMERGENCY CONTACT',
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.5,
+                    fontWeight: FontWeight.w600,
+                    color: c.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  hasEmergency
+                      ? [
+                          if (client.emergencyContact != null &&
+                              client.emergencyContact!.isNotEmpty)
+                            client.emergencyContact!,
+                          if (client.emergencyContactPhone != null &&
+                              client.emergencyContactPhone!.isNotEmpty)
+                            client.emergencyContactPhone!,
+                        ].join(' · ')
+                      : 'Not set',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: hasEmergency ? c.ink : c.inkMuted,
+                  ),
+                ),
+              ],
               const SizedBox(height: 18),
               Divider(height: 1, color: c.border),
               const SizedBox(height: 18),
@@ -688,14 +858,24 @@ class _DetailsColumn extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              Text(
-                notes.isEmpty ? 'No profile notes yet.' : notes,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: notes.isEmpty ? c.inkMuted : c.ink,
+              if (editing)
+                _ProfileField(
+                  controller: draft.notes,
+                  hint: 'Optional',
+                  minLines: 3,
+                  maxLines: 3,
+                  keyboardType: TextInputType.multiline,
+                  capitalization: TextCapitalization.sentences,
+                )
+              else
+                Text(
+                  notes.isEmpty ? 'No profile notes yet.' : notes,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: notes.isEmpty ? c.inkMuted : c.ink,
+                  ),
                 ),
-              ),
               const SizedBox(height: 10),
               Text(
                 'As recorded in the client profile.',
@@ -1213,6 +1393,158 @@ class _SoapPreview extends StatelessWidget {
           Divider(height: 1, color: c.border),
         ],
       ),
+    );
+  }
+}
+
+class _IdentityFields extends StatelessWidget {
+  const _IdentityFields({required this.draft, required this.showRequired});
+
+  final _ClientDraft draft;
+  final bool showRequired;
+
+  String? _required(TextEditingController controller) =>
+      showRequired && controller.text.trim().isEmpty ? 'Required' : null;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _ProfileField(
+                label: 'FIRST NAME',
+                controller: draft.first,
+                error: _required(draft.first),
+                capitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ProfileField(
+                label: 'LAST NAME',
+                controller: draft.last,
+                error: _required(draft.last),
+                capitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _ProfileField(
+                label: 'PHONE',
+                controller: draft.phone,
+                hint: 'Optional',
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ProfileField(
+                label: 'EMAIL',
+                controller: draft.email,
+                hint: 'Optional',
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileField extends StatelessWidget {
+  const _ProfileField({
+    required this.controller,
+    this.label,
+    this.hint,
+    this.error,
+    this.keyboardType,
+    this.capitalization = TextCapitalization.none,
+    this.textInputAction,
+    this.minLines = 1,
+    this.maxLines = 1,
+  });
+
+  final TextEditingController controller;
+  final String? label;
+  final String? hint;
+  final String? error;
+  final TextInputType? keyboardType;
+  final TextCapitalization capitalization;
+  final TextInputAction? textInputAction;
+  final int minLines;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(PelviRadius.sm),
+      borderSide: BorderSide(color: c.border),
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (label != null) ...[
+          Text(
+            label!,
+            style: TextStyle(
+              fontSize: 10,
+              height: 1.5,
+              fontWeight: FontWeight.w600,
+              color: c.inkMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          textCapitalization: capitalization,
+          textInputAction: textInputAction,
+          minLines: minLines,
+          maxLines: maxLines,
+          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: hint,
+            errorText: error,
+            hintStyle: TextStyle(fontSize: 13, height: 1.5, color: c.inkMuted),
+            filled: true,
+            fillColor: c.surface,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ),
+            border: border,
+            enabledBorder: border,
+            focusedBorder: border.copyWith(
+              borderSide: BorderSide(color: c.pink700, width: 1.5),
+            ),
+            errorBorder: border.copyWith(
+              borderSide: BorderSide(color: c.danger),
+            ),
+            focusedErrorBorder: border.copyWith(
+              borderSide: BorderSide(color: c.danger, width: 1.5),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
