@@ -54,7 +54,7 @@ class _DraftField {
   bool required;
 }
 
-/// Quiet web template editor. Shell chrome hides while this is open.
+/// Quiet web template editor, shown in the desktop content pane.
 ///
 /// shortcut: no Drift/Firestore template schema yet — local in-memory draft only;
 /// upgrade when custom templates are modeled.

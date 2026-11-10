@@ -5,10 +5,7 @@ import 'web_template_builder.dart';
 
 /// Desktop Templates destination: library list, or builder when editing a draft.
 class WebTemplatesHost extends StatefulWidget {
-  const WebTemplatesHost({super.key, this.onEditorActive});
-
-  /// Desktop shell hides its sidebar and top bar while the editor is open.
-  final ValueChanged<bool>? onEditorActive;
+  const WebTemplatesHost({super.key});
 
   @override
   State<WebTemplatesHost> createState() => _WebTemplatesHostState();
@@ -31,12 +28,10 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
       _builderDescription = description;
       _seedPostnatal = seedPostnatal;
     });
-    widget.onEditorActive?.call(true);
   }
 
   void _closeBuilder() {
     setState(() => _inBuilder = false);
-    widget.onEditorActive?.call(false);
   }
 
   @override
