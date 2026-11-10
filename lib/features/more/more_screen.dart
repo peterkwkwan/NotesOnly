@@ -15,6 +15,7 @@ import '../../data/sync.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
+import '../org/org_access_screen.dart';
 
 const _recallDayChoices = <int>[14, 21, 30, 45, 60, 90];
 const _durationChoices = <int>[30, 45, 60, 90];
@@ -405,6 +406,18 @@ class MoreScreen extends StatelessWidget {
               _AccountRow(
                 email: NotesAuth.currentUser?.email,
                 displayName: NotesAuth.currentUser?.displayName,
+              ),
+              const Divider(height: 1),
+              _TappableRow(
+                title: 'Invites',
+                subtitle: 'Send or revoke a clinic invite',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const OrgAccessScreen(),
+                    ),
+                  );
+                },
               ),
               const Divider(height: 1),
               _TappableRow(

@@ -13,6 +13,7 @@ import '../../data/sync.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../notes/soap_templates.dart';
+import '../org/org_access_screen.dart';
 import '../shell/desktop_chrome.dart';
 
 /// Figma `NotesOnly · Practice settings` (`47:22570`) — desktop body only.
@@ -748,6 +749,20 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                               ),
                               const SizedBox(height: 5),
                               const _WebSyncStrip(),
+                              const SizedBox(height: 9),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => const OrgAccessScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Invites'),
+                                ),
+                              ),
                             ],
                           ),
                         ),

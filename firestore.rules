@@ -2,14 +2,304 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email != null;
     }
-    function isOwner(uid) {
+    function isSelf(uid) {
       return signedIn() && request.auth.uid == uid;
     }
+    function isPlatformAdmin() {
+      return signedIn() && request.auth.token.email == 'peterkwkwan@gmail.com';
+    }
+    function memberPath(orgId) {
+      return /databases/$(database)/documents/memberships/$(orgId + '_' + request.auth.uid);
+    }
+    function member(orgId) {
+      return get(memberPath(orgId)).data;
+    }
+    function isActiveMember(orgId) {
+      return signedIn()
+        && exists(memberPath(orgId))
+        && member(orgId).active == true;
+    }
+    function hasRole(orgId, role) {
+      return isActiveMember(orgId) && member(orgId).roles.hasAny([role]);
+    }
+    function isOrgOwner(orgId) {
+      return hasRole(orgId, 'owner');
+    }
+    function isOrgAdmin(orgId) {
+      return hasRole(orgId, 'admin');
+    }
+    function isOrgPractitioner(orgId) {
+      return hasRole(orgId, 'practitioner');
+    }
+    function orgAfter(orgId) {
+      return getAfter(/databases/$(database)/documents/orgs/$(orgId)).data;
+    }
+    function inviteAfter(inviteId) {
+      return getAfter(/databases/$(database)/documents/invites/$(inviteId)).data;
+    }
+    function bookedPractitioner(orgId, uid) {
+      return exists(/databases/$(database)/documents/memberships/$(orgId + '_' + uid))
+        && get(/databases/$(database)/documents/memberships/$(orgId + '_' + uid)).data.active == true
+        && get(/databases/$(database)/documents/memberships/$(orgId + '_' + uid)).data.roles.hasAny(['practitioner']);
+    }
 
+    // Legacy solo book. Read so the one-time migration can copy it. No new writes.
     match /users/{userId}/{document=**} {
-      allow read, write: if isOwner(userId);
+      allow read: if isSelf(userId);
+      allow write: if false;
+    }
+
+    match /orgs/{orgId} {
+      allow read: if isActiveMember(orgId) || isPlatformAdmin();
+      allow create: if signedIn() && orgShape() && (
+        migrationOrg() || createOrgFromInvite()
+      );
+      allow update: if isOrgOwner(orgId)
+        && request.resource.data.ownerUids.size() > 0
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.migratedFromUser == resource.data.migratedFromUser
+        && request.resource.data.inviteId == resource.data.inviteId
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['name', 'ownerUids', 'updatedAt']);
+      allow delete: if false;
+
+      match /clients/{id} {
+        allow read, create, update: if isActiveMember(orgId);
+        allow delete: if false;
+      }
+
+      match /appointments/{id} {
+        allow read: if isOrgOwner(orgId) || isOrgAdmin(orgId) || (
+          isOrgPractitioner(orgId)
+          && resource.data.practitionerUid == request.auth.uid
+        );
+        allow create: if bookedPractitioner(orgId, request.resource.data.practitionerUid) && (
+          isOrgOwner(orgId) || isOrgAdmin(orgId) || (
+            isOrgPractitioner(orgId)
+            && request.resource.data.practitionerUid == request.auth.uid
+          )
+        );
+        allow update: if bookedPractitioner(orgId, request.resource.data.practitionerUid) && (
+          isOrgOwner(orgId) || isOrgAdmin(orgId) || (
+            isOrgPractitioner(orgId)
+            && resource.data.practitionerUid == request.auth.uid
+            && request.resource.data.practitionerUid == request.auth.uid
+          )
+        );
+        allow delete: if false;
+      }
+
+      // Admin is front desk and cannot read SOAP bodies.
+      match /notes/{id} {
+        allow read: if isOrgOwner(orgId) || (
+          isOrgPractitioner(orgId)
+          && resource.data.practitionerUid == request.auth.uid
+        );
+        allow create: if isOrgOwner(orgId) || (
+          isOrgPractitioner(orgId)
+          && request.resource.data.practitionerUid == request.auth.uid
+        );
+        allow update: if isOrgOwner(orgId) || (
+          isOrgPractitioner(orgId)
+          && resource.data.practitionerUid == request.auth.uid
+          && request.resource.data.practitionerUid == request.auth.uid
+        );
+        allow delete: if false;
+      }
+
+      match /templates/{id} {
+        allow read: if isActiveMember(orgId);
+        allow create: if isActiveMember(orgId)
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isActiveMember(orgId)
+          && request.resource.data.createdBy == resource.data.createdBy;
+        allow delete: if false;
+      }
+
+      // shortcut: any member can write org settings, upgrade with role-gated editors
+      match /settings/{id} {
+        allow read, create, update: if isActiveMember(orgId);
+        allow delete: if false;
+      }
+    }
+
+    match /memberships/{memberId} {
+      allow read: if signedIn() && (
+        resource.data.uid == request.auth.uid
+        || isActiveMember(resource.data.orgId)
+      );
+      allow create: if memberShape(memberId) && (
+        migrationMembership() || joinMembership() || createOrgMembership()
+      );
+      allow update: if isOrgOwner(resource.data.orgId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.orgId == resource.data.orgId
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.inviteId == resource.data.inviteId
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['roles', 'active', 'updatedAt'])
+        && orgAfter(resource.data.orgId).ownerUids.size() > 0
+        && !(
+          request.resource.data.active == false
+          && request.resource.data.uid in orgAfter(resource.data.orgId).ownerUids
+        )
+        && (
+          request.resource.data.roles.hasAny(['owner'])
+            == (request.resource.data.uid in orgAfter(resource.data.orgId).ownerUids)
+        );
+      allow delete: if false;
+    }
+
+    match /invites/{inviteId} {
+      allow read: if signedIn() && (
+        resource.data.email == request.auth.token.email
+        || resource.data.issuedByUid == request.auth.uid
+        || (
+          resource.data.kind == 'join'
+          && resource.data.orgId is string
+          && isOrgOwner(resource.data.orgId)
+        )
+      );
+      allow create: if signedIn() && inviteShape() && (
+        platformAdminInvite() || ownerJoinInvite() || adminJoinInvite()
+      );
+      allow update: if acceptInvite() || revokeInvite();
+      allow delete: if false;
+    }
+
+    function orgShape() {
+      return request.resource.data.keys().hasOnly([
+          'name', 'createdByUid', 'ownerUids', 'migratedFromUser',
+          'inviteId', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() < 200
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.ownerUids == [request.auth.uid]
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+    function migrationOrg() {
+      return isPlatformAdmin()
+        && request.resource.data.migratedFromUser == true
+        && request.resource.data.inviteId == null;
+    }
+    function createOrgFromInvite() {
+      return request.resource.data.migratedFromUser == false
+        && request.resource.data.inviteId is string
+        && inviteAfter(request.resource.data.inviteId).kind == 'create-org'
+        && inviteAfter(request.resource.data.inviteId).email == request.auth.token.email
+        && inviteAfter(request.resource.data.inviteId).acceptedByUid == request.auth.uid;
+    }
+    function memberShape(memberId) {
+      return signedIn()
+        && request.resource.data.keys().hasOnly([
+          'orgId', 'uid', 'email', 'roles', 'active', 'inviteId',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.active == true
+        && request.resource.data.orgId is string
+        && memberId == request.resource.data.orgId + '_' + request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+    function migrationMembership() {
+      return isPlatformAdmin()
+        && request.resource.data.inviteId == null
+        && request.resource.data.roles == ['owner', 'practitioner']
+        && orgAfter(request.resource.data.orgId).migratedFromUser == true
+        && orgAfter(request.resource.data.orgId).createdByUid == request.auth.uid;
+    }
+    function joinMembership() {
+      return request.resource.data.inviteId is string
+        && inviteAfter(request.resource.data.inviteId).kind == 'join'
+        && inviteAfter(request.resource.data.inviteId).orgId == request.resource.data.orgId
+        && inviteAfter(request.resource.data.inviteId).acceptedByUid == request.auth.uid
+        && request.resource.data.roles == [inviteAfter(request.resource.data.inviteId).role];
+    }
+    function createOrgMembership() {
+      return request.resource.data.inviteId is string
+        && request.resource.data.roles == ['owner', 'practitioner']
+        && inviteAfter(request.resource.data.inviteId).kind == 'create-org'
+        && inviteAfter(request.resource.data.inviteId).acceptedByUid == request.auth.uid
+        && orgAfter(request.resource.data.orgId).inviteId == request.resource.data.inviteId
+        && orgAfter(request.resource.data.orgId).createdByUid == request.auth.uid;
+    }
+    function inviteShape() {
+      return request.resource.data.keys().hasOnly([
+          'kind', 'email', 'role', 'orgId', 'issuedByUid',
+          'issuedByPlatformAdmin', 'createdAt', 'expiresAt',
+          'revokedAt', 'acceptedAt', 'acceptedByUid'
+        ])
+        && request.resource.data.email is string
+        && request.resource.data.email.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$')
+        && request.resource.data.issuedByUid == request.auth.uid
+        && request.resource.data.acceptedAt == null
+        && request.resource.data.acceptedByUid == null
+        && request.resource.data.revokedAt == null
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(14, 'd') + duration.value(10, 'm')
+        && request.resource.data.createdAt == request.time;
+    }
+    function platformAdminInvite() {
+      return isPlatformAdmin()
+        && request.resource.data.issuedByPlatformAdmin == true
+        && (
+          (
+            request.resource.data.kind == 'create-org'
+            && request.resource.data.orgId == null
+            && request.resource.data.role == null
+          ) || (
+            request.resource.data.kind == 'join'
+            && request.resource.data.orgId is string
+            && request.resource.data.role in ['owner', 'admin', 'practitioner']
+          )
+        );
+    }
+    function ownerJoinInvite() {
+      return request.resource.data.kind == 'join'
+        && request.resource.data.issuedByPlatformAdmin == false
+        && request.resource.data.orgId is string
+        && isOrgOwner(request.resource.data.orgId)
+        && request.resource.data.role in ['owner', 'admin', 'practitioner'];
+    }
+    function adminJoinInvite() {
+      return request.resource.data.kind == 'join'
+        && request.resource.data.issuedByPlatformAdmin == false
+        && request.resource.data.orgId is string
+        && isOrgAdmin(request.resource.data.orgId)
+        && request.resource.data.role in ['admin', 'practitioner'];
+    }
+    function acceptInvite() {
+      return signedIn()
+        && resource.data.email == request.auth.token.email
+        && resource.data.acceptedAt == null
+        && resource.data.revokedAt == null
+        && resource.data.expiresAt > request.time
+        && request.resource.data.acceptedAt == request.time
+        && request.resource.data.acceptedByUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['acceptedAt', 'acceptedByUid']);
+    }
+    function revokeInvite() {
+      return signedIn()
+        && resource.data.acceptedAt == null
+        && request.resource.data.revokedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['revokedAt'])
+        && (
+          resource.data.issuedByUid == request.auth.uid
+          || (
+            resource.data.kind == 'join'
+            && resource.data.orgId is string
+            && isOrgOwner(resource.data.orgId)
+          )
+        );
     }
   }
 }

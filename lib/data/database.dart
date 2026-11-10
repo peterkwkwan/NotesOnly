@@ -4,6 +4,8 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 import 'appointment_overlap.dart';
+import 'auth.dart';
+import 'org.dart';
 import 'recall.dart';
 import 'remote_id.dart';
 
@@ -66,6 +68,8 @@ class Appointments extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get remoteId => text().withDefault(const Constant(''))();
   IntColumn get clientId => integer().references(Clients, #id)();
+  /// Booked practitioner. Empty until sync backfill on a pre-org row.
+  TextColumn get practitionerUid => text().withDefault(const Constant(''))();
   DateTimeColumn get startsAt => dateTime()();
   DateTimeColumn get endsAt => dateTime().nullable()();
   IntColumn get status => intEnum<AppointmentStatus>()
@@ -84,6 +88,8 @@ class Notes extends Table {
   IntColumn get clientId => integer().references(Clients, #id)();
   IntColumn get appointmentId =>
       integer().nullable().references(Appointments, #id)();
+  /// Booked practitioner copied from the appointment (SOAP rules).
+  TextColumn get practitionerUid => text().withDefault(const Constant(''))();
   DateTimeColumn get noteDate => dateTime()();
   TextColumn get subjective => text().withDefault(const Constant(''))();
   TextColumn get objective => text().withDefault(const Constant(''))();
@@ -126,7 +132,7 @@ class AppDatabase extends _$AppDatabase {
   void _notifyDirty() => onLocalChange?.call();
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   /// True if [column] already exists on [table] (for idempotent migrations).
   Future<bool> hasSqliteColumn(String table, String column) async {
@@ -241,6 +247,14 @@ class AppDatabase extends _$AppDatabase {
               );
             }
           }
+          if (from < 6) {
+            await _addColumnIfMissing(
+              m,
+              appointments,
+              appointments.practitionerUid,
+            );
+            await _addColumnIfMissing(m, notes, notes.practitionerUid);
+          }
         },
       );
 
@@ -274,6 +288,12 @@ class AppDatabase extends _$AppDatabase {
   /// Firebase Auth uid this local book is bound to (account-switch guard).
   static const syncBoundUidKey = 'sync_bound_uid';
   static const syncLastSuccessKey = 'sync_last_success';
+  /// Active clinic. Local-only; the whole Drift file is that org.
+  static const activeOrgIdKey = 'sync_active_org_id';
+  /// Comma-separated [OrgRole] names for the signed-in member.
+  static const activeOrgRolesKey = 'sync_org_roles';
+  /// One-shot copy from `users/{uid}` into the org.
+  static const legacyImportedKey = 'sync_legacy_imported';
   static String syncCursorKey(String collection) => 'sync_cursor_$collection';
 
   /// Settings that mirror to Firestore (excludes device-local id lists + sync meta).
@@ -647,6 +667,96 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Any clinical row, including tombstones. Settings defaults are not a book.
+  Future<bool> hasClinicalRows() async {
+    if ((await (select(clients)..limit(1)).get()).isNotEmpty) return true;
+    if ((await (select(appointments)..limit(1)).get()).isNotEmpty) return true;
+    return (await (select(notes)..limit(1)).get()).isNotEmpty;
+  }
+
+  static String? normalizePhone(String? raw) {
+    if (raw == null) return null;
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return null;
+    return digits;
+  }
+
+  static String? normalizeEmail(String? raw) {
+    final trimmed = raw?.trim().toLowerCase();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
+  }
+
+  /// First live client with the same phone digits or email, if any.
+  ///
+  /// shortcut: scans the org book, upgrade when a clinic is large
+  Future<Client?> findDuplicateClient({
+    String? phone,
+    String? email,
+    int? excludeId,
+  }) async {
+    final phoneKey = normalizePhone(phone);
+    final emailKey = normalizeEmail(email);
+    if (phoneKey == null && emailKey == null) return null;
+    final rows = await (select(clients)..where((t) => t.deletedAt.isNull())).get();
+    for (final client in rows) {
+      if (excludeId != null && client.id == excludeId) continue;
+      final samePhone =
+          phoneKey != null && normalizePhone(client.phone) == phoneKey;
+      final sameEmail =
+          emailKey != null && normalizeEmail(client.email) == emailKey;
+      if (samePhone || sameEmail) return client;
+    }
+    return null;
+  }
+
+  /// Stamp empty practitioner ids so a solo book can sync onto an org.
+  Future<void> backfillPractitionerUid(String uid) async {
+    if (uid.isEmpty) return;
+    final now = DateTime.now();
+    final appts = await (select(appointments)
+          ..where((t) => t.practitionerUid.equals('')))
+        .get();
+    for (final row in appts) {
+      await (update(appointments)..where((t) => t.id.equals(row.id))).write(
+        AppointmentsCompanion(
+          practitionerUid: Value(uid),
+          updatedAt: Value(now),
+          syncStatus: const Value(RowSyncStatus.pending),
+        ),
+      );
+    }
+    final noteRows = await (select(notes)
+          ..where((t) => t.practitionerUid.equals('')))
+        .get();
+    for (final row in noteRows) {
+      await (update(notes)..where((t) => t.id.equals(row.id))).write(
+        NotesCompanion(
+          practitionerUid: Value(uid),
+          updatedAt: Value(now),
+          syncStatus: const Value(RowSyncStatus.pending),
+        ),
+      );
+    }
+    if (appts.isNotEmpty || noteRows.isNotEmpty) _notifyDirty();
+  }
+
+  /// Re-queue the whole book for the first push onto an org path.
+  Future<void> markClinicalPending() async {
+    const pending = Value(RowSyncStatus.pending);
+    await update(clients).write(const ClientsCompanion(syncStatus: pending));
+    await update(appointments)
+        .write(const AppointmentsCompanion(syncStatus: pending));
+    await update(notes).write(const NotesCompanion(syncStatus: pending));
+    final settingRows = await select(settings).get();
+    for (final row in settingRows) {
+      if (!isCloudSyncedSetting(row.key)) continue;
+      await (update(settings)..where((t) => t.key.equals(row.key))).write(
+        const SettingsCompanion(syncStatus: pending),
+      );
+    }
+  }
+
   Stream<List<Client>> watchClients() {
     return (select(clients)
           ..where((t) => t.deletedAt.isNull())
@@ -878,13 +988,17 @@ class AppDatabase extends _$AppDatabase {
         });
   }
 
-  /// First overlapping appointment in the solo book, if any.
+  /// Overlap for this practitioner with any client, or this client with anyone.
+  ///
+  /// Cancelled rows are ignored. End equal to the next start is allowed.
   ///
   /// shortcut: scans all rows, upgrade when diary is large
   Future<({Appointment appointment, Client client})?>
       findOverlappingAppointment({
     required DateTime startsAt,
     DateTime? endsAt,
+    required int clientId,
+    String practitionerUid = '',
     int? excludeId,
   }) async {
     final minutes = await getDefaultAppointmentMinutes();
@@ -898,6 +1012,9 @@ class AppDatabase extends _$AppDatabase {
       final other = row.readTable(appointments);
       if (excludeId != null && other.id == excludeId) continue;
       if (other.status == AppointmentStatus.cancelled) continue;
+      final samePractitioner = other.practitionerUid == practitionerUid;
+      final sameClient = other.clientId == clientId;
+      if (!samePractitioner && !sameClient) continue;
       final otherEnd =
           appointmentEffectiveEnd(other.startsAt, other.endsAt, minutes);
       if (appointmentsOverlap(
@@ -921,21 +1038,39 @@ class AppDatabase extends _$AppDatabase {
     DateTime? endsAt,
     AppointmentStatus status = AppointmentStatus.scheduled,
     String? notes,
+    String? practitionerUid,
   }) async {
-    final conflict = await findOverlappingAppointment(
-      startsAt: startsAt,
-      endsAt: endsAt,
-    );
-    if (conflict != null) {
-      throw AppointmentConflictException(
-        conflict.appointment,
-        conflict.client,
+    final self = NotesAuth.currentUser?.uid ?? '';
+    final uid = (practitionerUid == null || practitionerUid.isEmpty)
+        ? self
+        : practitionerUid;
+    if (self.isNotEmpty && uid != self) {
+      final roles = parseOrgRoles(await getSetting(activeOrgRolesKey));
+      final canBookOthers = roles.contains(OrgRole.owner) ||
+          roles.contains(OrgRole.admin);
+      if (!canBookOthers) {
+        throw StateError('Bookings are on your own calendar');
+      }
+    }
+    if (status != AppointmentStatus.cancelled) {
+      final conflict = await findOverlappingAppointment(
+        startsAt: startsAt,
+        endsAt: endsAt,
+        clientId: clientId,
+        practitionerUid: uid,
       );
+      if (conflict != null) {
+        throw AppointmentConflictException(
+          conflict.appointment,
+          conflict.client,
+        );
+      }
     }
     final id = await into(appointments).insert(
       AppointmentsCompanion.insert(
         remoteId: Value(newRemoteId()),
         clientId: clientId,
+        practitionerUid: Value(uid),
         startsAt: startsAt,
         endsAt: Value(endsAt),
         status: Value(status),
@@ -955,16 +1090,21 @@ class AppDatabase extends _$AppDatabase {
   }) async {
     final existing = await getAppointment(id);
     if (existing == null) return false;
-    final conflict = await findOverlappingAppointment(
-      startsAt: startsAt,
-      endsAt: endsAt ?? existing.endsAt,
-      excludeId: id,
-    );
-    if (conflict != null) {
-      throw AppointmentConflictException(
-        conflict.appointment,
-        conflict.client,
+    final nextStatus = status ?? existing.status;
+    if (nextStatus != AppointmentStatus.cancelled) {
+      final conflict = await findOverlappingAppointment(
+        startsAt: startsAt,
+        endsAt: endsAt ?? existing.endsAt,
+        clientId: existing.clientId,
+        practitionerUid: existing.practitionerUid,
+        excludeId: id,
       );
+      if (conflict != null) {
+        throw AppointmentConflictException(
+          conflict.appointment,
+          conflict.client,
+        );
+      }
     }
     final n = await (update(appointments)..where((t) => t.id.equals(id))).write(
       AppointmentsCompanion(
@@ -1054,11 +1194,13 @@ class AppDatabase extends _$AppDatabase {
   }) async {
     final existing = await getNoteForAppointment(appointmentId);
     if (existing != null) return existing;
+    final appt = await getAppointment(appointmentId);
     final id = await into(notes).insert(
       NotesCompanion.insert(
         remoteId: Value(newRemoteId()),
         clientId: clientId,
         appointmentId: Value(appointmentId),
+        practitionerUid: Value(appt?.practitionerUid ?? ''),
         noteDate: noteDate ?? DateTime.now(),
         syncStatus: const Value(RowSyncStatus.pending),
       ),

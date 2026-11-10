@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import 'client_format.dart';
 
 /// Create or edit a client (name, phone, email; optional emergency name/phone).
 class ClientFormScreen extends StatefulWidget {
@@ -70,6 +71,37 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
           notes: _notes.text,
         );
       } else {
+        final existing = await db.findDuplicateClient(
+          phone: _phone.text,
+          email: _email.text,
+        );
+        if (existing != null) {
+          if (!mounted) return;
+          final same = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Same person?'),
+              content: Text(
+                '${clientDisplayName(existing)} already has this phone or email.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Create new'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Use existing'),
+                ),
+              ],
+            ),
+          );
+          if (!mounted) return;
+          if (same != false) {
+            if (same == true) Navigator.of(context).pop(true);
+            return;
+          }
+        }
         await db.insertClient(
           firstName: _firstName.text,
           lastName: _lastName.text,

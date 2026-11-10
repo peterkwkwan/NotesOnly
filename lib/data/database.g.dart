@@ -918,6 +918,18 @@ class $AppointmentsTable extends Appointments
       'REFERENCES clients (id)',
     ),
   );
+  static const VerificationMeta _practitionerUidMeta = const VerificationMeta(
+    'practitionerUid',
+  );
+  @override
+  late final GeneratedColumn<String> practitionerUid = GeneratedColumn<String>(
+    'practitioner_uid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _startsAtMeta = const VerificationMeta(
     'startsAt',
   );
@@ -1007,6 +1019,7 @@ class $AppointmentsTable extends Appointments
     id,
     remoteId,
     clientId,
+    practitionerUid,
     startsAt,
     endsAt,
     status,
@@ -1044,6 +1057,15 @@ class $AppointmentsTable extends Appointments
       );
     } else if (isInserting) {
       context.missing(_clientIdMeta);
+    }
+    if (data.containsKey('practitioner_uid')) {
+      context.handle(
+        _practitionerUidMeta,
+        practitionerUid.isAcceptableOrUnknown(
+          data['practitioner_uid']!,
+          _practitionerUidMeta,
+        ),
+      );
     }
     if (data.containsKey('starts_at')) {
       context.handle(
@@ -1104,6 +1126,10 @@ class $AppointmentsTable extends Appointments
         DriftSqlType.int,
         data['${effectivePrefix}client_id'],
       )!,
+      practitionerUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}practitioner_uid'],
+      )!,
       startsAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}starts_at'],
@@ -1158,6 +1184,9 @@ class Appointment extends DataClass implements Insertable<Appointment> {
   final int id;
   final String remoteId;
   final int clientId;
+
+  /// Booked practitioner. Empty until sync backfill on a pre-org row.
+  final String practitionerUid;
   final DateTime startsAt;
   final DateTime? endsAt;
   final AppointmentStatus status;
@@ -1170,6 +1199,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
     required this.id,
     required this.remoteId,
     required this.clientId,
+    required this.practitionerUid,
     required this.startsAt,
     this.endsAt,
     required this.status,
@@ -1185,6 +1215,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
     map['id'] = Variable<int>(id);
     map['remote_id'] = Variable<String>(remoteId);
     map['client_id'] = Variable<int>(clientId);
+    map['practitioner_uid'] = Variable<String>(practitionerUid);
     map['starts_at'] = Variable<DateTime>(startsAt);
     if (!nullToAbsent || endsAt != null) {
       map['ends_at'] = Variable<DateTime>(endsAt);
@@ -1215,6 +1246,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
       id: Value(id),
       remoteId: Value(remoteId),
       clientId: Value(clientId),
+      practitionerUid: Value(practitionerUid),
       startsAt: Value(startsAt),
       endsAt: endsAt == null && nullToAbsent
           ? const Value.absent()
@@ -1241,6 +1273,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
       id: serializer.fromJson<int>(json['id']),
       remoteId: serializer.fromJson<String>(json['remoteId']),
       clientId: serializer.fromJson<int>(json['clientId']),
+      practitionerUid: serializer.fromJson<String>(json['practitionerUid']),
       startsAt: serializer.fromJson<DateTime>(json['startsAt']),
       endsAt: serializer.fromJson<DateTime?>(json['endsAt']),
       status: $AppointmentsTable.$converterstatus.fromJson(
@@ -1262,6 +1295,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
       'id': serializer.toJson<int>(id),
       'remoteId': serializer.toJson<String>(remoteId),
       'clientId': serializer.toJson<int>(clientId),
+      'practitionerUid': serializer.toJson<String>(practitionerUid),
       'startsAt': serializer.toJson<DateTime>(startsAt),
       'endsAt': serializer.toJson<DateTime?>(endsAt),
       'status': serializer.toJson<int>(
@@ -1281,6 +1315,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
     int? id,
     String? remoteId,
     int? clientId,
+    String? practitionerUid,
     DateTime? startsAt,
     Value<DateTime?> endsAt = const Value.absent(),
     AppointmentStatus? status,
@@ -1293,6 +1328,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
     id: id ?? this.id,
     remoteId: remoteId ?? this.remoteId,
     clientId: clientId ?? this.clientId,
+    practitionerUid: practitionerUid ?? this.practitionerUid,
     startsAt: startsAt ?? this.startsAt,
     endsAt: endsAt.present ? endsAt.value : this.endsAt,
     status: status ?? this.status,
@@ -1307,6 +1343,9 @@ class Appointment extends DataClass implements Insertable<Appointment> {
       id: data.id.present ? data.id.value : this.id,
       remoteId: data.remoteId.present ? data.remoteId.value : this.remoteId,
       clientId: data.clientId.present ? data.clientId.value : this.clientId,
+      practitionerUid: data.practitionerUid.present
+          ? data.practitionerUid.value
+          : this.practitionerUid,
       startsAt: data.startsAt.present ? data.startsAt.value : this.startsAt,
       endsAt: data.endsAt.present ? data.endsAt.value : this.endsAt,
       status: data.status.present ? data.status.value : this.status,
@@ -1326,6 +1365,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
           ..write('id: $id, ')
           ..write('remoteId: $remoteId, ')
           ..write('clientId: $clientId, ')
+          ..write('practitionerUid: $practitionerUid, ')
           ..write('startsAt: $startsAt, ')
           ..write('endsAt: $endsAt, ')
           ..write('status: $status, ')
@@ -1343,6 +1383,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
     id,
     remoteId,
     clientId,
+    practitionerUid,
     startsAt,
     endsAt,
     status,
@@ -1359,6 +1400,7 @@ class Appointment extends DataClass implements Insertable<Appointment> {
           other.id == this.id &&
           other.remoteId == this.remoteId &&
           other.clientId == this.clientId &&
+          other.practitionerUid == this.practitionerUid &&
           other.startsAt == this.startsAt &&
           other.endsAt == this.endsAt &&
           other.status == this.status &&
@@ -1373,6 +1415,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
   final Value<int> id;
   final Value<String> remoteId;
   final Value<int> clientId;
+  final Value<String> practitionerUid;
   final Value<DateTime> startsAt;
   final Value<DateTime?> endsAt;
   final Value<AppointmentStatus> status;
@@ -1385,6 +1428,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
     this.id = const Value.absent(),
     this.remoteId = const Value.absent(),
     this.clientId = const Value.absent(),
+    this.practitionerUid = const Value.absent(),
     this.startsAt = const Value.absent(),
     this.endsAt = const Value.absent(),
     this.status = const Value.absent(),
@@ -1398,6 +1442,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
     this.id = const Value.absent(),
     this.remoteId = const Value.absent(),
     required int clientId,
+    this.practitionerUid = const Value.absent(),
     required DateTime startsAt,
     this.endsAt = const Value.absent(),
     this.status = const Value.absent(),
@@ -1412,6 +1457,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
     Expression<int>? id,
     Expression<String>? remoteId,
     Expression<int>? clientId,
+    Expression<String>? practitionerUid,
     Expression<DateTime>? startsAt,
     Expression<DateTime>? endsAt,
     Expression<int>? status,
@@ -1425,6 +1471,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
       if (id != null) 'id': id,
       if (remoteId != null) 'remote_id': remoteId,
       if (clientId != null) 'client_id': clientId,
+      if (practitionerUid != null) 'practitioner_uid': practitionerUid,
       if (startsAt != null) 'starts_at': startsAt,
       if (endsAt != null) 'ends_at': endsAt,
       if (status != null) 'status': status,
@@ -1440,6 +1487,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
     Value<int>? id,
     Value<String>? remoteId,
     Value<int>? clientId,
+    Value<String>? practitionerUid,
     Value<DateTime>? startsAt,
     Value<DateTime?>? endsAt,
     Value<AppointmentStatus>? status,
@@ -1453,6 +1501,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
       id: id ?? this.id,
       remoteId: remoteId ?? this.remoteId,
       clientId: clientId ?? this.clientId,
+      practitionerUid: practitionerUid ?? this.practitionerUid,
       startsAt: startsAt ?? this.startsAt,
       endsAt: endsAt ?? this.endsAt,
       status: status ?? this.status,
@@ -1475,6 +1524,9 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
     }
     if (clientId.present) {
       map['client_id'] = Variable<int>(clientId.value);
+    }
+    if (practitionerUid.present) {
+      map['practitioner_uid'] = Variable<String>(practitionerUid.value);
     }
     if (startsAt.present) {
       map['starts_at'] = Variable<DateTime>(startsAt.value);
@@ -1513,6 +1565,7 @@ class AppointmentsCompanion extends UpdateCompanion<Appointment> {
           ..write('id: $id, ')
           ..write('remoteId: $remoteId, ')
           ..write('clientId: $clientId, ')
+          ..write('practitionerUid: $practitionerUid, ')
           ..write('startsAt: $startsAt, ')
           ..write('endsAt: $endsAt, ')
           ..write('status: $status, ')
@@ -1583,6 +1636,18 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES appointments (id)',
     ),
+  );
+  static const VerificationMeta _practitionerUidMeta = const VerificationMeta(
+    'practitionerUid',
+  );
+  @override
+  late final GeneratedColumn<String> practitionerUid = GeneratedColumn<String>(
+    'practitioner_uid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
   );
   static const VerificationMeta _noteDateMeta = const VerificationMeta(
     'noteDate',
@@ -1725,6 +1790,7 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
     remoteId,
     clientId,
     appointmentId,
+    practitionerUid,
     noteDate,
     subjective,
     objective,
@@ -1773,6 +1839,15 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
         appointmentId.isAcceptableOrUnknown(
           data['appointment_id']!,
           _appointmentIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('practitioner_uid')) {
+      context.handle(
+        _practitionerUidMeta,
+        practitionerUid.isAcceptableOrUnknown(
+          data['practitioner_uid']!,
+          _practitionerUidMeta,
         ),
       );
     }
@@ -1866,6 +1941,10 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
         DriftSqlType.int,
         data['${effectivePrefix}appointment_id'],
       ),
+      practitionerUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}practitioner_uid'],
+      )!,
       noteDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}note_date'],
@@ -1937,6 +2016,9 @@ class Note extends DataClass implements Insertable<Note> {
   final String remoteId;
   final int clientId;
   final int? appointmentId;
+
+  /// Booked practitioner copied from the appointment (SOAP rules).
+  final String practitionerUid;
   final DateTime noteDate;
   final String subjective;
   final String objective;
@@ -1958,6 +2040,7 @@ class Note extends DataClass implements Insertable<Note> {
     required this.remoteId,
     required this.clientId,
     this.appointmentId,
+    required this.practitionerUid,
     required this.noteDate,
     required this.subjective,
     required this.objective,
@@ -1980,6 +2063,7 @@ class Note extends DataClass implements Insertable<Note> {
     if (!nullToAbsent || appointmentId != null) {
       map['appointment_id'] = Variable<int>(appointmentId);
     }
+    map['practitioner_uid'] = Variable<String>(practitionerUid);
     map['note_date'] = Variable<DateTime>(noteDate);
     map['subjective'] = Variable<String>(subjective);
     map['objective'] = Variable<String>(objective);
@@ -2013,6 +2097,7 @@ class Note extends DataClass implements Insertable<Note> {
       appointmentId: appointmentId == null && nullToAbsent
           ? const Value.absent()
           : Value(appointmentId),
+      practitionerUid: Value(practitionerUid),
       noteDate: Value(noteDate),
       subjective: Value(subjective),
       objective: Value(objective),
@@ -2042,6 +2127,7 @@ class Note extends DataClass implements Insertable<Note> {
       remoteId: serializer.fromJson<String>(json['remoteId']),
       clientId: serializer.fromJson<int>(json['clientId']),
       appointmentId: serializer.fromJson<int?>(json['appointmentId']),
+      practitionerUid: serializer.fromJson<String>(json['practitionerUid']),
       noteDate: serializer.fromJson<DateTime>(json['noteDate']),
       subjective: serializer.fromJson<String>(json['subjective']),
       objective: serializer.fromJson<String>(json['objective']),
@@ -2068,6 +2154,7 @@ class Note extends DataClass implements Insertable<Note> {
       'remoteId': serializer.toJson<String>(remoteId),
       'clientId': serializer.toJson<int>(clientId),
       'appointmentId': serializer.toJson<int?>(appointmentId),
+      'practitionerUid': serializer.toJson<String>(practitionerUid),
       'noteDate': serializer.toJson<DateTime>(noteDate),
       'subjective': serializer.toJson<String>(subjective),
       'objective': serializer.toJson<String>(objective),
@@ -2092,6 +2179,7 @@ class Note extends DataClass implements Insertable<Note> {
     String? remoteId,
     int? clientId,
     Value<int?> appointmentId = const Value.absent(),
+    String? practitionerUid,
     DateTime? noteDate,
     String? subjective,
     String? objective,
@@ -2111,6 +2199,7 @@ class Note extends DataClass implements Insertable<Note> {
     appointmentId: appointmentId.present
         ? appointmentId.value
         : this.appointmentId,
+    practitionerUid: practitionerUid ?? this.practitionerUid,
     noteDate: noteDate ?? this.noteDate,
     subjective: subjective ?? this.subjective,
     objective: objective ?? this.objective,
@@ -2132,6 +2221,9 @@ class Note extends DataClass implements Insertable<Note> {
       appointmentId: data.appointmentId.present
           ? data.appointmentId.value
           : this.appointmentId,
+      practitionerUid: data.practitionerUid.present
+          ? data.practitionerUid.value
+          : this.practitionerUid,
       noteDate: data.noteDate.present ? data.noteDate.value : this.noteDate,
       subjective: data.subjective.present
           ? data.subjective.value
@@ -2162,6 +2254,7 @@ class Note extends DataClass implements Insertable<Note> {
           ..write('remoteId: $remoteId, ')
           ..write('clientId: $clientId, ')
           ..write('appointmentId: $appointmentId, ')
+          ..write('practitionerUid: $practitionerUid, ')
           ..write('noteDate: $noteDate, ')
           ..write('subjective: $subjective, ')
           ..write('objective: $objective, ')
@@ -2184,6 +2277,7 @@ class Note extends DataClass implements Insertable<Note> {
     remoteId,
     clientId,
     appointmentId,
+    practitionerUid,
     noteDate,
     subjective,
     objective,
@@ -2205,6 +2299,7 @@ class Note extends DataClass implements Insertable<Note> {
           other.remoteId == this.remoteId &&
           other.clientId == this.clientId &&
           other.appointmentId == this.appointmentId &&
+          other.practitionerUid == this.practitionerUid &&
           other.noteDate == this.noteDate &&
           other.subjective == this.subjective &&
           other.objective == this.objective &&
@@ -2224,6 +2319,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
   final Value<String> remoteId;
   final Value<int> clientId;
   final Value<int?> appointmentId;
+  final Value<String> practitionerUid;
   final Value<DateTime> noteDate;
   final Value<String> subjective;
   final Value<String> objective;
@@ -2241,6 +2337,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
     this.remoteId = const Value.absent(),
     this.clientId = const Value.absent(),
     this.appointmentId = const Value.absent(),
+    this.practitionerUid = const Value.absent(),
     this.noteDate = const Value.absent(),
     this.subjective = const Value.absent(),
     this.objective = const Value.absent(),
@@ -2259,6 +2356,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
     this.remoteId = const Value.absent(),
     required int clientId,
     this.appointmentId = const Value.absent(),
+    this.practitionerUid = const Value.absent(),
     required DateTime noteDate,
     this.subjective = const Value.absent(),
     this.objective = const Value.absent(),
@@ -2278,6 +2376,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
     Expression<String>? remoteId,
     Expression<int>? clientId,
     Expression<int>? appointmentId,
+    Expression<String>? practitionerUid,
     Expression<DateTime>? noteDate,
     Expression<String>? subjective,
     Expression<String>? objective,
@@ -2296,6 +2395,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
       if (remoteId != null) 'remote_id': remoteId,
       if (clientId != null) 'client_id': clientId,
       if (appointmentId != null) 'appointment_id': appointmentId,
+      if (practitionerUid != null) 'practitioner_uid': practitionerUid,
       if (noteDate != null) 'note_date': noteDate,
       if (subjective != null) 'subjective': subjective,
       if (objective != null) 'objective': objective,
@@ -2316,6 +2416,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
     Value<String>? remoteId,
     Value<int>? clientId,
     Value<int?>? appointmentId,
+    Value<String>? practitionerUid,
     Value<DateTime>? noteDate,
     Value<String>? subjective,
     Value<String>? objective,
@@ -2334,6 +2435,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
       remoteId: remoteId ?? this.remoteId,
       clientId: clientId ?? this.clientId,
       appointmentId: appointmentId ?? this.appointmentId,
+      practitionerUid: practitionerUid ?? this.practitionerUid,
       noteDate: noteDate ?? this.noteDate,
       subjective: subjective ?? this.subjective,
       objective: objective ?? this.objective,
@@ -2363,6 +2465,9 @@ class NotesCompanion extends UpdateCompanion<Note> {
     }
     if (appointmentId.present) {
       map['appointment_id'] = Variable<int>(appointmentId.value);
+    }
+    if (practitionerUid.present) {
+      map['practitioner_uid'] = Variable<String>(practitionerUid.value);
     }
     if (noteDate.present) {
       map['note_date'] = Variable<DateTime>(noteDate.value);
@@ -2414,6 +2519,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
           ..write('remoteId: $remoteId, ')
           ..write('clientId: $clientId, ')
           ..write('appointmentId: $appointmentId, ')
+          ..write('practitionerUid: $practitionerUid, ')
           ..write('noteDate: $noteDate, ')
           ..write('subjective: $subjective, ')
           ..write('objective: $objective, ')
@@ -3404,6 +3510,7 @@ typedef $$AppointmentsTableCreateCompanionBuilder =
       Value<int> id,
       Value<String> remoteId,
       required int clientId,
+      Value<String> practitionerUid,
       required DateTime startsAt,
       Value<DateTime?> endsAt,
       Value<AppointmentStatus> status,
@@ -3418,6 +3525,7 @@ typedef $$AppointmentsTableUpdateCompanionBuilder =
       Value<int> id,
       Value<String> remoteId,
       Value<int> clientId,
+      Value<String> practitionerUid,
       Value<DateTime> startsAt,
       Value<DateTime?> endsAt,
       Value<AppointmentStatus> status,
@@ -3487,6 +3595,11 @@ class $$AppointmentsTableFilterComposer
 
   ColumnFilters<String> get remoteId => $composableBuilder(
     column: $table.remoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3600,6 +3713,11 @@ class $$AppointmentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get startsAt => $composableBuilder(
     column: $table.startsAt,
     builder: (column) => ColumnOrderings(column),
@@ -3678,6 +3796,11 @@ class $$AppointmentsTableAnnotationComposer
 
   GeneratedColumn<String> get remoteId =>
       $composableBuilder(column: $table.remoteId, builder: (column) => column);
+
+  GeneratedColumn<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get startsAt =>
       $composableBuilder(column: $table.startsAt, builder: (column) => column);
@@ -3786,6 +3909,7 @@ class $$AppointmentsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<String> remoteId = const Value.absent(),
                 Value<int> clientId = const Value.absent(),
+                Value<String> practitionerUid = const Value.absent(),
                 Value<DateTime> startsAt = const Value.absent(),
                 Value<DateTime?> endsAt = const Value.absent(),
                 Value<AppointmentStatus> status = const Value.absent(),
@@ -3798,6 +3922,7 @@ class $$AppointmentsTableTableManager
                 id: id,
                 remoteId: remoteId,
                 clientId: clientId,
+                practitionerUid: practitionerUid,
                 startsAt: startsAt,
                 endsAt: endsAt,
                 status: status,
@@ -3812,6 +3937,7 @@ class $$AppointmentsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<String> remoteId = const Value.absent(),
                 required int clientId,
+                Value<String> practitionerUid = const Value.absent(),
                 required DateTime startsAt,
                 Value<DateTime?> endsAt = const Value.absent(),
                 Value<AppointmentStatus> status = const Value.absent(),
@@ -3824,6 +3950,7 @@ class $$AppointmentsTableTableManager
                 id: id,
                 remoteId: remoteId,
                 clientId: clientId,
+                practitionerUid: practitionerUid,
                 startsAt: startsAt,
                 endsAt: endsAt,
                 status: status,
@@ -3928,6 +4055,7 @@ typedef $$NotesTableCreateCompanionBuilder =
       Value<String> remoteId,
       required int clientId,
       Value<int?> appointmentId,
+      Value<String> practitionerUid,
       required DateTime noteDate,
       Value<String> subjective,
       Value<String> objective,
@@ -3947,6 +4075,7 @@ typedef $$NotesTableUpdateCompanionBuilder =
       Value<String> remoteId,
       Value<int> clientId,
       Value<int?> appointmentId,
+      Value<String> practitionerUid,
       Value<DateTime> noteDate,
       Value<String> subjective,
       Value<String> objective,
@@ -4017,6 +4146,11 @@ class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
 
   ColumnFilters<String> get remoteId => $composableBuilder(
     column: $table.remoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4148,6 +4282,11 @@ class $$NotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get noteDate => $composableBuilder(
     column: $table.noteDate,
     builder: (column) => ColumnOrderings(column),
@@ -4269,6 +4408,11 @@ class $$NotesTableAnnotationComposer
 
   GeneratedColumn<String> get remoteId =>
       $composableBuilder(column: $table.remoteId, builder: (column) => column);
+
+  GeneratedColumn<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get noteDate =>
       $composableBuilder(column: $table.noteDate, builder: (column) => column);
@@ -4394,6 +4538,7 @@ class $$NotesTableTableManager
                 Value<String> remoteId = const Value.absent(),
                 Value<int> clientId = const Value.absent(),
                 Value<int?> appointmentId = const Value.absent(),
+                Value<String> practitionerUid = const Value.absent(),
                 Value<DateTime> noteDate = const Value.absent(),
                 Value<String> subjective = const Value.absent(),
                 Value<String> objective = const Value.absent(),
@@ -4411,6 +4556,7 @@ class $$NotesTableTableManager
                 remoteId: remoteId,
                 clientId: clientId,
                 appointmentId: appointmentId,
+                practitionerUid: practitionerUid,
                 noteDate: noteDate,
                 subjective: subjective,
                 objective: objective,
@@ -4430,6 +4576,7 @@ class $$NotesTableTableManager
                 Value<String> remoteId = const Value.absent(),
                 required int clientId,
                 Value<int?> appointmentId = const Value.absent(),
+                Value<String> practitionerUid = const Value.absent(),
                 required DateTime noteDate,
                 Value<String> subjective = const Value.absent(),
                 Value<String> objective = const Value.absent(),
@@ -4447,6 +4594,7 @@ class $$NotesTableTableManager
                 remoteId: remoteId,
                 clientId: clientId,
                 appointmentId: appointmentId,
+                practitionerUid: practitionerUid,
                 noteDate: noteDate,
                 subjective: subjective,
                 objective: objective,

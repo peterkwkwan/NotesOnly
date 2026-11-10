@@ -5,13 +5,26 @@ import 'package:flutter/services.dart';
 import 'data/auth.dart';
 import 'data/database.dart';
 import 'data/database_provider.dart';
+import 'data/org.dart';
 import 'data/sync.dart';
 import 'features/auth/sign_in_screen.dart';
 import 'features/first_run/first_run_screen.dart';
+import 'features/org/org_access_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'theme/theme.dart';
 
 export 'data/database_provider.dart';
+
+class _HomeGate {
+  const _HomeGate({required this.showClinic, required this.firstRun});
+
+  const _HomeGate.waiting() : showClinic = false, firstRun = false;
+
+  const _HomeGate.shell() : showClinic = true, firstRun = false;
+
+  final bool showClinic;
+  final bool firstRun;
+}
 
 class PelviApp extends StatefulWidget {
   const PelviApp({
@@ -31,13 +44,13 @@ class PelviApp extends StatefulWidget {
 }
 
 class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
-  late Future<bool> _needsFirstRun;
+  late Future<_HomeGate> _gate;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _needsFirstRun = _checkFirstRun();
+    _gate = _loadGate();
     widget.syncEngine.start();
   }
 
@@ -55,15 +68,30 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     }
   }
 
-  Future<bool> _checkFirstRun() async {
-    await widget.database.ensureDefaults();
-    final name = await widget.database.getPractitionerName();
-    return name == null || name.trim().isEmpty;
+  Future<_HomeGate> _loadGate() async {
+    final db = widget.database;
+    await db.ensureDefaults();
+    final orgId = await db.getSetting(AppDatabase.activeOrgIdKey);
+    final orgReady = orgId != null && orgId.isNotEmpty;
+    final clinical = orgReady || await db.hasClinicalRows();
+    if (!clinical) return const _HomeGate.waiting();
+    final name = await db.getPractitionerName();
+    if (name != null && name.trim().isNotEmpty) return const _HomeGate.shell();
+    final roles = parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
+    // Joining practitioner: the clinic name arrives with org settings.
+    final firstRun = roles.isEmpty || roles.contains(OrgRole.owner);
+    return _HomeGate(showClinic: true, firstRun: firstRun);
   }
 
   void _refreshGate() {
     setState(() {
-      _needsFirstRun = Future.value(false);
+      _gate = Future.value(const _HomeGate.shell());
+    });
+  }
+
+  void _joinedClinic() {
+    setState(() {
+      _gate = _loadGate();
     });
   }
 
@@ -118,8 +146,8 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
                 if (authSnap.data != true) {
                   return const SignInScreen();
                 }
-                return FutureBuilder<bool>(
-                  future: _needsFirstRun,
+                return FutureBuilder<_HomeGate>(
+                  future: _gate,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState != ConnectionState.done) {
                       final c = PelviColors.of(context);
@@ -129,7 +157,14 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
                         ),
                       );
                     }
-                    if (snapshot.data == true) {
+                    final gate = snapshot.data ?? const _HomeGate.waiting();
+                    if (!gate.showClinic) {
+                      return OrgAccessScreen(
+                        waiting: true,
+                        onJoined: _joinedClinic,
+                      );
+                    }
+                    if (gate.firstRun) {
                       return FirstRunScreen(onComplete: _refreshGate);
                     }
                     return const AppShell();

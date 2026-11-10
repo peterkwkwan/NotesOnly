@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 
 import 'auth.dart';
 import 'database.dart';
+import 'org.dart';
+import 'org_directory.dart';
 import 'sync.dart';
 
 /// Drift-first sync: write local → pending → push; pull `updatedAt` > cursor; LWW.
@@ -16,6 +18,7 @@ class FirestoreSyncEngine implements SyncEngine {
 
   final AppDatabase db;
   final FirebaseFirestore _fs;
+  late final OrgDirectory _orgs = OrgDirectory(firestore: _fs);
 
   final _statusController = StreamController<SyncStatus>.broadcast();
   SyncStatus _status = SyncStatus.idle;
@@ -137,9 +140,19 @@ class FirestoreSyncEngine implements SyncEngine {
     }
     await db.setSetting(AppDatabase.syncBoundUidKey, user.uid);
 
-    final uid = user.uid;
-    await _pushAll(uid);
-    await _pullAll(uid);
+    final orgId = await _ensureActiveOrg(user);
+    if (orgId == null) {
+      _setStatus(SyncStatus.idle);
+      return;
+    }
+    await _pushAll(orgId, user);
+    await _pullAll(orgId, user);
+    if (await db.getSetting(AppDatabase.legacyImportedKey) != '1') {
+      await _importLegacy(user);
+      await db.backfillPractitionerUid(user.uid);
+      await db.setSetting(AppDatabase.legacyImportedKey, '1');
+      await _pushAll(orgId, user);
+    }
 
     final pending = await _countPending();
     if (pending > 0) {
@@ -152,6 +165,132 @@ class FirestoreSyncEngine implements SyncEngine {
       );
     }
   }
+
+  Future<String?> _ensureActiveOrg(User user) async {
+    final existing = await db.getSetting(AppDatabase.activeOrgIdKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+
+    final snap = await _fs
+        .collection('memberships')
+        .where('uid', isEqualTo: user.uid)
+        .limit(20)
+        .get();
+    final active = [
+      for (final doc in snap.docs)
+        if (doc.data()['active'] == true) doc,
+    ];
+    if (active.isNotEmpty) {
+      active.sort((a, b) {
+        final aOwner = _roleList(a).contains('owner') ? 0 : 1;
+        final bOwner = _roleList(b).contains('owner') ? 0 : 1;
+        return aOwner.compareTo(bOwner);
+      });
+      final picked = active.first;
+      final orgId = picked.data()['orgId'] as String;
+      await _bindOrg(orgId, _roleList(picked).join(','));
+      return orgId;
+    }
+
+    final hasLocal = await db.hasClinicalRows();
+    var hasRemote = false;
+    if (!hasLocal && isPlatformAdminEmail(user.email)) {
+      hasRemote = await _legacyHasClinical(user.uid);
+    }
+    if (!shouldMigrateLegacyBook(
+      email: user.email,
+      hasMembership: false,
+      hasClinical: hasLocal || hasRemote,
+    )) {
+      return null;
+    }
+
+    final practice = (await db.getPractitionerName())?.trim();
+    final name =
+        (practice == null || practice.isEmpty) ? 'NotesOnly' : practice;
+    final orgId = await _orgs.createMigratedOrg(user: user, name: name);
+    await _bindOrg(orgId, 'owner,practitioner');
+    await _importLegacy(user);
+    await db.backfillPractitionerUid(user.uid);
+    await db.markClinicalPending();
+    await db.setSetting(AppDatabase.legacyImportedKey, '1');
+    return orgId;
+  }
+
+  List<String> _roleList(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final raw = doc.data()['roles'];
+    if (raw is! List) return const [];
+    return [for (final role in raw) role.toString()];
+  }
+
+  Future<void> _bindOrg(String orgId, String roles) async {
+    final prev = await db.getSetting(AppDatabase.activeOrgIdKey);
+    await db.setSetting(AppDatabase.activeOrgIdKey, orgId);
+    await db.setSetting(AppDatabase.activeOrgRolesKey, roles);
+    if (prev == orgId) return;
+    for (final name in _collections) {
+      await db.setSetting(AppDatabase.syncCursorKey(name), '');
+    }
+  }
+
+  Future<bool> _legacyHasClinical(String uid) async {
+    for (final name in ['clients', 'appointments', 'notes']) {
+      final snap = await _fs
+          .collection('users')
+          .doc(uid)
+          .collection(name)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  Future<void> _importLegacy(User user) async {
+    for (final name in _collections) {
+      Query<Map<String, dynamic>> page = _fs
+          .collection('users')
+          .doc(user.uid)
+          .collection(name)
+          .orderBy('updatedAt')
+          .limit(200);
+      while (true) {
+        final snap = await page.get();
+        if (snap.docs.isEmpty) break;
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          switch (name) {
+            case 'clients':
+              await _applyClient(doc.id, data, pending: true);
+            case 'appointments':
+              await _applyAppointment(doc.id, data, pending: true);
+            case 'notes':
+              await _applyNote(doc.id, data, pending: true);
+            case 'settings':
+              await _applySetting(doc.id, data, pending: true);
+          }
+        }
+        if (snap.docs.length < 200) break;
+        page = _fs
+            .collection('users')
+            .doc(user.uid)
+            .collection(name)
+            .orderBy('updatedAt')
+            .startAfterDocument(snap.docs.last)
+            .limit(200);
+      }
+    }
+  }
+
+  Future<Set<String>> _roleNames() async {
+    final raw = await db.getSetting(AppDatabase.activeOrgRolesKey) ?? '';
+    return raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toSet();
+  }
+
+  bool _seesAllAppointments(Set<String> roles) =>
+      roles.contains('owner') || roles.contains('admin');
+
+  bool _seesNotes(Set<String> roles) =>
+      roles.contains('owner') || roles.contains('practitioner');
 
   /// Offline / timeout: Pending if dirty rows, else keep Synced when we have a
   /// last-success stamp — never leave Syncing.
@@ -191,24 +330,25 @@ class FirestoreSyncEngine implements SyncEngine {
     return clients.length + appts.length + notes.length + cloudSettings.length;
   }
 
-  CollectionReference<Map<String, dynamic>> _col(String uid, String name) =>
-      _fs.collection('users').doc(uid).collection(name);
+  CollectionReference<Map<String, dynamic>> _col(String orgId, String name) =>
+      _fs.collection('orgs').doc(orgId).collection(name);
 
-  Future<void> _pushAll(String uid) async {
-    await _pushClients(uid);
-    await _pushAppointments(uid);
-    await _pushNotes(uid);
-    await _pushSettings(uid);
+  Future<void> _pushAll(String orgId, User user) async {
+    final roles = await _roleNames();
+    await _pushClients(orgId);
+    await _pushAppointments(orgId, user);
+    if (_seesNotes(roles)) await _pushNotes(orgId, user);
+    await _pushSettings(orgId, roles);
   }
 
-  Future<void> _pushClients(String uid) async {
+  Future<void> _pushClients(String orgId) async {
     final rows = await (db.select(db.clients)
           ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
               t.syncStatus.equals(RowSyncStatus.error.index)))
         .get();
     for (final row in rows) {
       try {
-        await _col(uid, 'clients').doc(row.remoteId).set({
+        await _col(orgId, 'clients').doc(row.remoteId).set({
           'firstName': row.firstName,
           'lastName': row.lastName,
           'phone': row.phone,
@@ -234,7 +374,7 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
-  Future<void> _pushAppointments(String uid) async {
+  Future<void> _pushAppointments(String orgId, User user) async {
     final rows = await (db.select(db.appointments)
           ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
               t.syncStatus.equals(RowSyncStatus.error.index)))
@@ -242,9 +382,13 @@ class FirestoreSyncEngine implements SyncEngine {
     for (final row in rows) {
       final client = await db.getClient(row.clientId);
       if (client == null) continue;
+      final practitioner = row.practitionerUid.isEmpty
+          ? user.uid
+          : row.practitionerUid;
       try {
-        await _col(uid, 'appointments').doc(row.remoteId).set({
+        await _col(orgId, 'appointments').doc(row.remoteId).set({
           'clientId': client.remoteId,
+          'practitionerUid': practitioner,
           'startsAt': _ts(row.startsAt)!,
           'endsAt': _ts(row.endsAt),
           'status': row.status.index,
@@ -267,7 +411,7 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
-  Future<void> _pushNotes(String uid) async {
+  Future<void> _pushNotes(String orgId, User user) async {
     final rows = await (db.select(db.notes)
           ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
               t.syncStatus.equals(RowSyncStatus.error.index)))
@@ -276,14 +420,20 @@ class FirestoreSyncEngine implements SyncEngine {
       final client = await db.getClient(row.clientId);
       if (client == null) continue;
       String? apptRemote;
+      var practitioner = row.practitionerUid;
       if (row.appointmentId != null) {
         final appt = await db.getAppointment(row.appointmentId!);
         apptRemote = appt?.remoteId;
+        if (practitioner.isEmpty && appt != null) {
+          practitioner = appt.practitionerUid;
+        }
       }
+      if (practitioner.isEmpty) practitioner = user.uid;
       try {
-        await _col(uid, 'notes').doc(row.remoteId).set({
+        await _col(orgId, 'notes').doc(row.remoteId).set({
           'clientId': client.remoteId,
           'appointmentId': apptRemote,
+          'practitionerUid': practitioner,
           'noteDate': _ts(row.noteDate)!,
           'subjective': row.subjective,
           'objective': row.objective,
@@ -308,7 +458,7 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
-  Future<void> _pushSettings(String uid) async {
+  Future<void> _pushSettings(String orgId, Set<String> roles) async {
     final rows = await (db.select(db.settings)
           ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
               t.syncStatus.equals(RowSyncStatus.error.index)))
@@ -322,11 +472,18 @@ class FirestoreSyncEngine implements SyncEngine {
         continue;
       }
       try {
-        await _col(uid, 'settings').doc(row.key).set({
+        await _col(orgId, 'settings').doc(row.key).set({
           'value': row.value,
           'updatedAt': _ts(row.updatedAt)!,
           'deletedAt': _ts(row.deletedAt),
         });
+        if (row.key == AppDatabase.practitionerNameKey &&
+            roles.contains('owner')) {
+          await _fs.collection('orgs').doc(orgId).update({
+            'name': row.value,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
         await (db.update(db.settings)..where((t) => t.key.equals(row.key)))
             .write(
           const SettingsCompanion(syncStatus: Value(RowSyncStatus.synced)),
@@ -341,20 +498,34 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
-  Future<void> _pullAll(String uid) async {
+  Future<void> _pullAll(String orgId, User user) async {
+    final roles = await _roleNames();
     for (final name in _collections) {
-      await _pullCollection(uid, name);
+      if (name == 'notes' && !_seesNotes(roles)) continue;
+      final filter = (name == 'appointments' && !_seesAllAppointments(roles)) ||
+              (name == 'notes' && !roles.contains('owner'))
+          ? user.uid
+          : null;
+      await _pullCollection(orgId, name, practitionerUid: filter);
     }
   }
 
-  Future<void> _pullCollection(String uid, String name) async {
+  Future<void> _pullCollection(
+    String orgId,
+    String name, {
+    String? practitionerUid,
+  }) async {
     final cursorKey = AppDatabase.syncCursorKey(name);
     final cursorRaw = await db.getSetting(cursorKey);
     final cursor = cursorRaw == null || cursorRaw.isEmpty
         ? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true)
         : DateTime.parse(cursorRaw).toUtc();
 
-    Query<Map<String, dynamic>> q = _col(uid, name)
+    Query<Map<String, dynamic>> q = _col(orgId, name);
+    if (practitionerUid != null) {
+      q = q.where('practitionerUid', isEqualTo: practitionerUid);
+    }
+    q = q
         .where('updatedAt', isGreaterThan: Timestamp.fromDate(cursor))
         .orderBy('updatedAt');
 
@@ -381,7 +552,11 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
-  Future<void> _applyClient(String remoteId, Map<String, dynamic> data) async {
+  Future<void> _applyClient(
+    String remoteId,
+    Map<String, dynamic> data, {
+    bool pending = false,
+  }) async {
     final remoteUpdated = _readTs(data['updatedAt']) ?? DateTime.now().toUtc();
     final existing = await (db.select(db.clients)
           ..where((t) => t.remoteId.equals(remoteId)))
@@ -405,7 +580,7 @@ class FirestoreSyncEngine implements SyncEngine {
       createdAt: Value(_readTs(data['createdAt']) ?? remoteUpdated),
       updatedAt: Value(remoteUpdated),
       deletedAt: Value(deletedAt),
-      syncStatus: const Value(RowSyncStatus.synced),
+      syncStatus: Value(pending ? RowSyncStatus.pending : RowSyncStatus.synced),
     );
     if (existing == null) {
       await db.into(db.clients).insert(companion);
@@ -417,8 +592,9 @@ class FirestoreSyncEngine implements SyncEngine {
 
   Future<void> _applyAppointment(
     String remoteId,
-    Map<String, dynamic> data,
-  ) async {
+    Map<String, dynamic> data, {
+    bool pending = false,
+  }) async {
     final remoteUpdated = _readTs(data['updatedAt']) ?? DateTime.now().toUtc();
     final clientRemote = data['clientId'] as String?;
     if (clientRemote == null) return;
@@ -445,6 +621,7 @@ class FirestoreSyncEngine implements SyncEngine {
     final companion = AppointmentsCompanion(
       remoteId: Value(remoteId),
       clientId: Value(client.id),
+      practitionerUid: Value((data['practitionerUid'] as String?) ?? ''),
       startsAt: Value(startsAt),
       endsAt: Value(_readTs(data['endsAt'])),
       status: Value(status),
@@ -452,7 +629,7 @@ class FirestoreSyncEngine implements SyncEngine {
       createdAt: Value(_readTs(data['createdAt']) ?? remoteUpdated),
       updatedAt: Value(remoteUpdated),
       deletedAt: Value(_readTs(data['deletedAt'])),
-      syncStatus: const Value(RowSyncStatus.synced),
+      syncStatus: Value(pending ? RowSyncStatus.pending : RowSyncStatus.synced),
     );
     if (existing == null) {
       await db.into(db.appointments).insert(companion);
@@ -462,7 +639,11 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
-  Future<void> _applyNote(String remoteId, Map<String, dynamic> data) async {
+  Future<void> _applyNote(
+    String remoteId,
+    Map<String, dynamic> data, {
+    bool pending = false,
+  }) async {
     final remoteUpdated = _readTs(data['updatedAt']) ?? DateTime.now().toUtc();
     final clientRemote = data['clientId'] as String?;
     if (clientRemote == null) return;
@@ -499,6 +680,7 @@ class FirestoreSyncEngine implements SyncEngine {
       remoteId: Value(remoteId),
       clientId: Value(client.id),
       appointmentId: Value(appointmentLocalId),
+      practitionerUid: Value((data['practitionerUid'] as String?) ?? ''),
       noteDate: Value(noteDate),
       subjective: Value((data['subjective'] as String?) ?? ''),
       objective: Value((data['objective'] as String?) ?? ''),
@@ -510,7 +692,7 @@ class FirestoreSyncEngine implements SyncEngine {
       createdAt: Value(_readTs(data['createdAt']) ?? remoteUpdated),
       updatedAt: Value(remoteUpdated),
       deletedAt: Value(_readTs(data['deletedAt'])),
-      syncStatus: const Value(RowSyncStatus.synced),
+      syncStatus: Value(pending ? RowSyncStatus.pending : RowSyncStatus.synced),
     );
     if (existing == null) {
       await db.into(db.notes).insert(companion);
@@ -520,7 +702,11 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
-  Future<void> _applySetting(String key, Map<String, dynamic> data) async {
+  Future<void> _applySetting(
+    String key,
+    Map<String, dynamic> data, {
+    bool pending = false,
+  }) async {
     if (!AppDatabase.isCloudSyncedSetting(key)) return;
     final remoteUpdated = _readTs(data['updatedAt']) ?? DateTime.now().toUtc();
     final existing = await (db.select(db.settings)
@@ -538,7 +724,9 @@ class FirestoreSyncEngine implements SyncEngine {
             value: value,
             updatedAt: Value(remoteUpdated),
             deletedAt: Value(_readTs(data['deletedAt'])),
-            syncStatus: const Value(RowSyncStatus.synced),
+            syncStatus: Value(
+              pending ? RowSyncStatus.pending : RowSyncStatus.synced,
+            ),
           ),
         );
   }

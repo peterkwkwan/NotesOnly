@@ -10,6 +10,7 @@ import 'package:pelvi_crm/data/backup.dart';
 import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
 import 'package:pelvi_crm/data/online.dart';
+import 'package:pelvi_crm/data/org.dart';
 import 'package:pelvi_crm/data/sync.dart';
 import 'package:pelvi_crm/data/remote_id.dart';
 import 'package:pelvi_crm/features/appointments/appointment_agenda_row.dart';
@@ -109,7 +110,13 @@ void main() {
     expect(await db.hasSqliteColumn('appointments', 'sync_status'), isTrue);
     expect(await db.hasSqliteColumn('notes', 'deleted_at'), isTrue);
     expect(await db.hasSqliteColumn('settings', 'updated_at'), isTrue);
+    expect(await db.hasSqliteColumn('appointments', 'practitioner_uid'), isTrue);
+    expect(await db.hasSqliteColumn('notes', 'practitioner_uid'), isTrue);
     expect(await db.hasSqliteColumn('clients', 'no_such_col'), isFalse);
+
+    final m6 = Migrator(db);
+    await db.migration.onUpgrade(m6, 5, 6);
+    await db.migration.onUpgrade(m6, 5, 6);
 
     // Re-adding existing sync columns must not throw (half-applied migrate).
     final m = Migrator(db);
@@ -275,6 +282,43 @@ void main() {
       ),
       isTrue,
     );
+
+    // Back-to-back is allowed (end == next start).
+    await db.insertAppointment(
+      clientId: a,
+      startsAt: DateTime(2026, 10, 28, 10),
+      endsAt: DateTime(2026, 10, 28, 11),
+    );
+
+    // Different practitioner, different client: allowed.
+    await db.insertAppointment(
+      clientId: b,
+      practitionerUid: 'other-physio',
+      startsAt: DateTime(2026, 10, 28, 9),
+    );
+
+    // Same client, other practitioner: blocked.
+    await expectLater(
+      db.insertAppointment(
+        clientId: a,
+        practitionerUid: 'other-physio',
+        startsAt: DateTime(2026, 10, 28, 9),
+      ),
+      throwsA(isA<AppointmentConflictException>()),
+    );
+
+    // Cancelled does not block that practitioner's next booking.
+    await db.insertAppointment(
+      clientId: b,
+      practitionerUid: 'other-physio',
+      startsAt: DateTime(2026, 10, 28, 15),
+      status: AppointmentStatus.cancelled,
+    );
+    await db.insertAppointment(
+      clientId: b,
+      practitionerUid: 'other-physio',
+      startsAt: DateTime(2026, 10, 28, 15),
+    );
   });
 
   test('deleteAppointment soft-deletes row and unlinks note', () async {
@@ -384,8 +428,82 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
+  test('phone or email match finds the existing client', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      phone: '+852 5555 0101',
+      email: 'Ada@Example.com',
+    );
+    final byPhone = await db.findDuplicateClient(phone: '85255550101');
+    final byEmail = await db.findDuplicateClient(email: 'ada@example.com');
+    expect(byPhone?.lastName, 'Lovelace');
+    expect(byEmail?.id, byPhone?.id);
+    expect(await db.findDuplicateClient(phone: '000'), isNull);
+    expect(
+      await db.findDuplicateClient(phone: '85255550101', excludeId: byPhone!.id),
+      isNull,
+    );
+  });
+
+  test('legacy book migrates only for Peter with clinical rows and no org', () {
+    expect(
+      shouldMigrateLegacyBook(
+        email: 'PeterKWKWan@gmail.com',
+        hasMembership: false,
+        hasClinical: true,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldMigrateLegacyBook(
+        email: platformAdminEmail,
+        hasMembership: true,
+        hasClinical: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldMigrateLegacyBook(
+        email: platformAdminEmail,
+        hasMembership: false,
+        hasClinical: false,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldMigrateLegacyBook(
+        email: 'clinic@example.com',
+        hasMembership: false,
+        hasClinical: true,
+      ),
+      isFalse,
+    );
+    expect(
+      inviteStillOpen(
+        now: DateTime.utc(2026, 11, 10),
+        expiresAt: DateTime.utc(2026, 11, 24),
+        accepted: false,
+        revoked: false,
+      ),
+      isTrue,
+    );
+    expect(
+      inviteStillOpen(
+        now: DateTime.utc(2026, 11, 25),
+        expiresAt: DateTime.utc(2026, 11, 24),
+        accepted: false,
+        revoked: false,
+      ),
+      isFalse,
+    );
+  });
+
   testWidgets('first-run shows when practitioner name missing', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
+    await db.setSetting(AppDatabase.activeOrgIdKey, 'org-test');
 
     await tester.pumpWidget(
       PelviApp(
@@ -404,8 +522,29 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
+  testWidgets('waiting screen when signed in with no clinic', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+
+    await tester.pumpWidget(
+      PelviApp(
+        database: db,
+        signedInOverride: Stream.value(true),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Waiting for a clinic'), findsOneWidget);
+    expect(find.text('Accept invite'), findsOneWidget);
+    expect(find.text('Today'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
   testWidgets('shell opens when practitioner name is set', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
+    await db.setSetting(AppDatabase.activeOrgIdKey, 'org-test');
     await db.setPractitionerName('Test Clinic');
 
     await tester.pumpWidget(
