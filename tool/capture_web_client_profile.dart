@@ -104,9 +104,7 @@ void main() {
                       Expanded(
                         child: Column(
                           children: [
-                            const DesktopTopBar(
-                              breadcrumb: 'Clients / Stewie Brown',
-                            ),
+                            const DesktopTopBar(),
                             Expanded(
                               child: WebClientProfile(clientId: clientId),
                             ),

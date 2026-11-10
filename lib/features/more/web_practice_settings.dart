@@ -324,6 +324,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const DesktopBreadcrumb(),
                       Text(
                         'Practice settings',
                         style: TextStyle(

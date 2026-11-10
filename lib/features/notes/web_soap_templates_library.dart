@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/theme.dart';
+import '../shell/desktop_chrome.dart';
 import 'soap_templates.dart';
 
 /// Opens the template builder from the library (Edit draft / Create draft).
@@ -228,6 +229,7 @@ class _Heading extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const DesktopBreadcrumb(),
               Text(
                 'SOAP templates',
                 style: TextStyle(

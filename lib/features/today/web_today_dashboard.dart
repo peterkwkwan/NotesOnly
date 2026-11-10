@@ -261,6 +261,7 @@ class _HeroRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const DesktopBreadcrumb(),
               Text(
                 'A little more room for care.',
                 style: TextStyle(

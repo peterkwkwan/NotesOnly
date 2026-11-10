@@ -317,10 +317,35 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class DesktopTopBar extends StatelessWidget {
-  const DesktopTopBar({super.key, required this.breadcrumb});
+/// Crumb line for desktop page headers (above the title), not the top bar.
+class DesktopBreadcrumb extends StatelessWidget {
+  const DesktopBreadcrumb({super.key, this.text});
 
-  final String breadcrumb;
+  /// Override when [ShellNavigation] is absent or a page needs a local crumb.
+  final String? text;
+
+  @override
+  Widget build(BuildContext context) {
+    final label =
+        text ?? ShellNavigation.maybeOf(context)?.breadcrumb ?? '';
+    if (label.isEmpty) return const SizedBox.shrink();
+    final c = PelviColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.5,
+          color: c.inkMuted,
+        ),
+      ),
+    );
+  }
+}
+
+class DesktopTopBar extends StatelessWidget {
+  const DesktopTopBar({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -339,14 +364,6 @@ class DesktopTopBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Row(
               children: [
-                Text(
-                  breadcrumb,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.5,
-                    color: c.inkMuted,
-                  ),
-                ),
                 const Spacer(),
                 Container(
                   width: 352,

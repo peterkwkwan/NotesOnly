@@ -69,6 +69,7 @@ class _SoapNotesHub extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const DesktopBreadcrumb(),
                 Text(
                   'SOAP notes',
                   style: TextStyle(

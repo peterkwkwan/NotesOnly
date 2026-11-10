@@ -91,7 +91,7 @@ void main() {
                       const Expanded(
                         child: Column(
                           children: [
-                            DesktopTopBar(breadcrumb: breadcrumb),
+                            const DesktopTopBar(),
                             Expanded(child: WebTemplateBuilder()),
                           ],
                         ),

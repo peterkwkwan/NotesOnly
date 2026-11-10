@@ -10,6 +10,7 @@ import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
 import '../clients/client_profile_screen.dart';
+import '../shell/desktop_chrome.dart';
 import 'dictation_apply_sheet.dart';
 import 'note_format.dart';
 import 'soap_dictation.dart';
@@ -580,6 +581,7 @@ class _PageHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const DesktopBreadcrumb(),
               Text(
                 'SOAP note',
                 style: TextStyle(

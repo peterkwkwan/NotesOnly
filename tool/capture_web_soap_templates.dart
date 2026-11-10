@@ -89,9 +89,7 @@ void main() {
                       const Expanded(
                         child: Column(
                           children: [
-                            DesktopTopBar(
-                              breadcrumb: 'Practice / Templates',
-                            ),
+                            const DesktopTopBar(),
                             Expanded(child: WebSoapTemplatesLibrary()),
                           ],
                         ),

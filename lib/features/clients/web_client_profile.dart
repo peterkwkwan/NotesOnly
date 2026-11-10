@@ -7,6 +7,7 @@ import '../../theme/theme.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
+import '../shell/desktop_chrome.dart';
 import 'client_form_screen.dart';
 import 'client_format.dart';
 
@@ -264,6 +265,7 @@ class _PageHeading extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const DesktopBreadcrumb(),
               Text(
                 'Client profile',
                 style: TextStyle(

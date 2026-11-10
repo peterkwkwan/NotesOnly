@@ -97,9 +97,7 @@ void main() {
                       const Expanded(
                         child: Column(
                           children: [
-                            DesktopTopBar(
-                              breadcrumb: 'Practice / Settings',
-                            ),
+                            const DesktopTopBar(),
                             Expanded(child: WebPracticeSettings()),
                           ],
                         ),

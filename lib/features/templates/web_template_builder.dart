@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../shell/desktop_chrome.dart';
 
 /// Figma accent for focused field chrome (`#bc718d`).
 const _focusPink = Color(0xFFBC718D);
@@ -560,6 +561,7 @@ class _HeaderRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const DesktopBreadcrumb(),
               if (onBack != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),

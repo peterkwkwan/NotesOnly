@@ -109,7 +109,7 @@ void main() {
                       Expanded(
                         child: Column(
                           children: [
-                            const DesktopTopBar(breadcrumb: crumb),
+                            const DesktopTopBar(),
                             Expanded(
                               child: WebSoapNoteWorkspace(
                                 noteId: note.id,

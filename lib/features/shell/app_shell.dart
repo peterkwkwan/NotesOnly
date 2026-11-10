@@ -156,7 +156,7 @@ class _AppShellState extends State<AppShell> {
               Expanded(
                 child: Column(
                   children: [
-                    DesktopTopBar(breadcrumb: breadcrumb),
+                    const DesktopTopBar(),
                     Expanded(
                       child: IndexedStack(
                         index: _index,

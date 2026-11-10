@@ -9,6 +9,7 @@ import '../../widgets/show_snack.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../clients/client_format.dart';
 import '../notes/note_format.dart';
+import '../shell/desktop_chrome.dart';
 
 enum _CalView { day, week, month }
 
@@ -472,6 +473,7 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const DesktopBreadcrumb(),
               Text(
                 'Calendar',
                 style: TextStyle(

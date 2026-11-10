@@ -111,9 +111,7 @@ void main() {
                       const Expanded(
                         child: Column(
                           children: [
-                            DesktopTopBar(
-                              breadcrumb: 'Practice / Calendar',
-                            ),
+                            const DesktopTopBar(),
                             Expanded(child: WebCalendarPage()),
                           ],
                         ),

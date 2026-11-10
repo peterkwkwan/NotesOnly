@@ -329,6 +329,7 @@ class _HeadingRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const DesktopBreadcrumb(),
               Text(
                 'Clients',
                 style: TextStyle(

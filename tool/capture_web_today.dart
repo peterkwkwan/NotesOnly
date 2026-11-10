@@ -144,9 +144,7 @@ void main() {
                       const Expanded(
                         child: Column(
                           children: [
-                            DesktopTopBar(
-                              breadcrumb: 'Practice / Today',
-                            ),
+                            const DesktopTopBar(),
                             Expanded(child: WebTodayDashboard()),
                           ],
                         ),
