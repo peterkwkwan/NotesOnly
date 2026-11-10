@@ -174,6 +174,146 @@ class OrgDirectory {
     return orgRef.id;
   }
 
+  Future<List<OrgMember>> listMembers(String orgId) async {
+    final snap = await _fs
+        .collection('memberships')
+        .where('orgId', isEqualTo: orgId)
+        .get();
+    final members = [
+      for (final doc in snap.docs)
+        OrgMember(
+          uid: doc.data()['uid'] as String? ?? '',
+          email: doc.data()['email'] as String? ?? '',
+          roles: rolesFromRaw(doc.data()['roles']),
+          active: doc.data()['active'] == true,
+        ),
+    ];
+    members.sort((a, b) {
+      int rank(OrgMember member) {
+        if (!member.active) return 2;
+        if (member.roles.contains(OrgRole.owner)) return 0;
+        return 1;
+      }
+
+      final byRank = rank(a).compareTo(rank(b));
+      if (byRank != 0) return byRank;
+      return memberLabel(a).toLowerCase().compareTo(memberLabel(b).toLowerCase());
+    });
+    return members;
+  }
+
+  /// Owner path. Keeps `ownerUids` aligned with who still has the owner role.
+  Future<void> setMemberRoles({
+    required String orgId,
+    required String uid,
+    required List<OrgRole> roles,
+  }) async {
+    final next = normalizeOrgRoles(roles);
+    if (next.isEmpty) throw StateError('Choose a role');
+    final memberRef =
+        _fs.collection('memberships').doc(membershipId(orgId, uid));
+    final orgRef = _fs.collection('orgs').doc(orgId);
+    await _fs.runTransaction((tx) async {
+      final orgSnap = await tx.get(orgRef);
+      final memberSnap = await tx.get(memberRef);
+      if (!orgSnap.exists || !memberSnap.exists) {
+        throw StateError('Member not found');
+      }
+      final data = memberSnap.data()!;
+      if (data['active'] != true) {
+        throw StateError('Removed members stay removed');
+      }
+      final current = rolesFromRaw(data['roles']);
+      final owners = _ownerUids(orgSnap.data());
+      final aligned = ownerUidsAfter(
+        ownerUids: owners,
+        uid: uid,
+        isOwner: next.contains(OrgRole.owner),
+      );
+      if (aligned.isEmpty) {
+        throw StateError('The last owner stays an owner');
+      }
+      final rolesSame = joinOrgRoles(current) == joinOrgRoles(next);
+      final ownersSame = _idsEqual(owners, aligned);
+      if (rolesSame && ownersSame) return;
+      if (!ownersSame) {
+        tx.update(orgRef, {
+          'ownerUids': aligned,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (!rolesSame) {
+        tx.update(memberRef, {
+          'roles': [for (final role in next) role.name],
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
+  /// Sets active false. An owner who is not the last is dropped from ownerUids.
+  Future<void> deactivateMember({
+    required String orgId,
+    required String uid,
+  }) async {
+    final memberRef =
+        _fs.collection('memberships').doc(membershipId(orgId, uid));
+    final orgRef = _fs.collection('orgs').doc(orgId);
+    await _fs.runTransaction((tx) async {
+      final orgSnap = await tx.get(orgRef);
+      final memberSnap = await tx.get(memberRef);
+      if (!memberSnap.exists) throw StateError('Member not found');
+      final data = memberSnap.data()!;
+      if (data['active'] != true) return;
+      final current = rolesFromRaw(data['roles']);
+      final owners = _ownerUids(orgSnap.data());
+      final holdsOwner =
+          current.contains(OrgRole.owner) || owners.contains(uid);
+      final nextOwners = ownerUidsAfter(
+        ownerUids: owners,
+        uid: uid,
+        isOwner: false,
+      );
+      if (holdsOwner && nextOwners.isEmpty) {
+        throw StateError('The last owner stays on the clinic');
+      }
+      if (holdsOwner) {
+        final nextRoles = [
+          for (final role in current)
+            if (role != OrgRole.owner) role.name,
+        ];
+        tx.update(orgRef, {
+          'ownerUids': nextOwners,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        tx.update(memberRef, {
+          'roles': nextRoles,
+          'active': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+      tx.update(memberRef, {
+        'active': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  List<String> _ownerUids(Map<String, dynamic>? data) {
+    final raw = data?['ownerUids'];
+    if (raw is! List) return const [];
+    return [for (final id in raw) id.toString()];
+  }
+
+  bool _idsEqual(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   Map<String, Object?> _member({
     required String orgId,
     required User user,

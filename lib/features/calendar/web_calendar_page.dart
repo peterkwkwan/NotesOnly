@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../data/appointment_overlap.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
+import '../../data/org.dart';
+import '../../data/org_directory.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
@@ -79,6 +81,11 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   int? _clientId;
   final _notesCtrl = TextEditingController();
   bool _saving = false;
+  ({Appointment appointment, Client client})? _reassign;
+  String? _reassignUid;
+  List<OrgMember> _members = const [];
+  bool _canReassign = false;
+  bool _rosterStarted = false;
 
   @override
   void initState() {
@@ -91,9 +98,34 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_rosterStarted) return;
+    _rosterStarted = true;
+    _loadRoster();
+  }
+
+  @override
   void dispose() {
     _notesCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRoster() async {
+    try {
+      final db = AppDatabaseProvider.of(context);
+      final orgId = await db.getSetting(AppDatabase.activeOrgIdKey);
+      final roles =
+          parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
+      if (!mounted) return;
+      setState(() => _canReassign = mayReassignBooking(roles));
+      if (orgId == null || orgId.isEmpty) return;
+      final members = await OrgDirectory().listMembers(orgId);
+      if (!mounted) return;
+      setState(() => _members = members);
+    } catch (_) {
+      // Offline or signed out: the panel still shows the booked uid.
+    }
   }
 
   DateTime get _rangeStart {
@@ -156,6 +188,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     final s = starts ?? nextWholeHour();
     setState(() {
       _panelOpen = true;
+      _reassign = null;
+      _reassignUid = null;
       _selected = _dateOnly(d);
       _starts = s;
       _ends = TimeOfDay(hour: (s.hour + 1) % 24, minute: s.minute);
@@ -164,8 +198,65 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     });
   }
 
+  void _openReassign(({Appointment appointment, Client client}) row) {
+    setState(() {
+      _reassign = row;
+      _reassignUid = row.appointment.practitionerUid;
+      _panelOpen = true;
+      _selected = _dateOnly(row.appointment.startsAt);
+      if (_view == _CalView.week) _anchor = _mondayOf(_selected);
+    });
+  }
+
   void _closePanel() {
-    setState(() => _panelOpen = false);
+    setState(() {
+      _panelOpen = false;
+      _reassign = null;
+      _reassignUid = null;
+    });
+  }
+
+  Future<void> _saveReassign(AppDatabase db) async {
+    final row = _reassign;
+    final uid = _reassignUid;
+    if (row == null || uid == null || uid.isEmpty || _saving) return;
+    if (!_canReassign || uid == row.appointment.practitionerUid) return;
+    OrgMember? target;
+    for (final member in _members) {
+      if (member.uid == uid) target = member;
+    }
+    if (target == null || !isBookablePractitioner(target)) {
+      showPelviSnackBar(context, 'Choose an active practitioner');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await db.updateAppointment(
+        id: row.appointment.id,
+        startsAt: row.appointment.startsAt,
+        practitionerUid: uid,
+      );
+      if (!mounted) return;
+      setState(() {
+        _reassign = null;
+        _reassignUid = null;
+        _panelOpen = false;
+      });
+      showPelviSnackBar(context, 'Booking reassigned');
+    } on AppointmentConflictException catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(
+        context,
+        appointmentConflictCopy(
+          clientName: clientDisplayName(e.client),
+          startsAt: e.appointment.startsAt,
+        ),
+      );
+    } catch (e) {
+      if (mounted) showPelviSnackBar(context, 'Could not reassign: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _save(AppDatabase db, int defaultMins) async {
@@ -274,8 +365,9 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                         onToday: _goToday,
                                         onAdd: () => _openPanel(day: _selected),
                                         // Mirror panel Save when a client is picked.
-                                        showSave:
-                                            _panelOpen && _clientId != null,
+                                        showSave: _reassign == null &&
+                                            _panelOpen &&
+                                            _clientId != null,
                                         canSave: _clientId != null && !_saving,
                                         saving: _saving,
                                         onSave: () =>
@@ -338,12 +430,15 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                     startHour: startHour,
                                                     endHour: endHour,
                                                     defaultMins: defaultMins,
-                                                    draft: _panelOpen
+                                                    draft: _panelOpen &&
+                                                            _reassign == null
                                                         ? (
                                                             day: _selected,
                                                             starts: _starts,
                                                           )
                                                         : null,
+                                                    onTapAppointment:
+                                                        _openReassign,
                                                     onSelectDay: (day) =>
                                                         setState(() =>
                                                             _selected = day),
@@ -358,7 +453,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                             const SizedBox(width: 20),
                                             SizedBox(
                                               width: 330,
-                                              child: _NewAppointmentPanel(
+                                              child: _reassign == null
+                                                  ? _NewAppointmentPanel(
                                                 selected: _selected,
                                                 starts: _starts,
                                                 ends: _ends,
@@ -435,7 +531,24 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                 },
                                                 onSave: () =>
                                                     _save(db, defaultMins),
-                                              ),
+                                              )
+                                              : _ReassignPanel(
+                                                  row: _reassign!,
+                                                  members: _members,
+                                                  practitionerUid:
+                                                      _reassignUid ??
+                                                          _reassign!
+                                                              .appointment
+                                                              .practitionerUid,
+                                                  canReassign: _canReassign,
+                                                  saving: _saving,
+                                                  onClose: _closePanel,
+                                                  onPick: (uid) => setState(
+                                                    () => _reassignUid = uid,
+                                                  ),
+                                                  onSave: () =>
+                                                      _saveReassign(db),
+                                                ),
                                             ),
                                           ],
                                         ],
@@ -698,6 +811,7 @@ class _WeekSchedule extends StatefulWidget {
     required this.draft,
     required this.onSelectDay,
     required this.onTapSlot,
+    required this.onTapAppointment,
   });
 
   final List<DateTime> days;
@@ -709,6 +823,8 @@ class _WeekSchedule extends StatefulWidget {
   final ({DateTime day, TimeOfDay starts})? draft;
   final ValueChanged<DateTime> onSelectDay;
   final void Function(DateTime day, TimeOfDay time) onTapSlot;
+  final void Function(({Appointment appointment, Client client}) row)
+      onTapAppointment;
 
   static const _hourH = 66.0;
   static const _gutter = 52.0;
@@ -732,6 +848,7 @@ class _WeekSchedule extends StatefulWidget {
     required double hourH,
     required int defaultMins,
     required ({Appointment appointment, Client client}) row,
+    required VoidCallback onTap,
   }) {
     final c = PelviColors.of(context);
     final dayIndex = days.indexWhere(
@@ -753,7 +870,10 @@ class _WeekSchedule extends StatefulWidget {
       top: top,
       width: colW - 8,
       height: height,
-      child: ClipRRect(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -791,6 +911,7 @@ class _WeekSchedule extends StatefulWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -1017,6 +1138,7 @@ class _WeekScheduleState extends State<_WeekSchedule> {
                               hourH: _WeekSchedule._hourH,
                               defaultMins: widget.defaultMins,
                               row: row,
+                              onTap: () => widget.onTapAppointment(row),
                             ),
                         if (widget.draft != null)
                           _WeekSchedule._draftCard(
@@ -1612,6 +1734,159 @@ class _NewAppointmentPanel extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _ReassignPanel extends StatelessWidget {
+  const _ReassignPanel({
+    required this.row,
+    required this.members,
+    required this.practitionerUid,
+    required this.canReassign,
+    required this.saving,
+    required this.onClose,
+    required this.onPick,
+    required this.onSave,
+  });
+
+  final ({Appointment appointment, Client client}) row;
+  final List<OrgMember> members;
+  final String practitionerUid;
+  final bool canReassign;
+  final bool saving;
+  final VoidCallback onClose;
+  final ValueChanged<String> onPick;
+  final VoidCallback onSave;
+
+  List<OrgMember> get _bookable => [
+        for (final member in members)
+          if (isBookablePractitioner(member)) member,
+      ];
+
+  String _label(String uid) {
+    for (final member in members) {
+      if (member.uid != uid) continue;
+      final name = memberLabel(member);
+      if (!isBookablePractitioner(member)) return '$name (unavailable)';
+      return name;
+    }
+    return uid.isEmpty ? '—' : uid;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final appt = row.appointment;
+    final bookable = _bookable;
+    final changed = practitionerUid != appt.practitionerUid;
+    OrgMember? selected;
+    for (final member in bookable) {
+      if (member.uid == practitionerUid) selected = member;
+    }
+    final canSave = canReassign && changed && selected != null && !saving;
+    final when = appt.endsAt == null
+        ? '${formatNoteDate(appt.startsAt)} · ${formatApptTime(appt.startsAt)}'
+        : '${formatNoteDate(appt.startsAt)} · ${formatApptTime(appt.startsAt)}'
+            '–${formatApptTime(appt.endsAt!)}';
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: c.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Appointment',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: c.ink,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: onClose,
+                icon: Icon(Icons.close, size: 18, color: c.inkMuted),
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Close',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            clientDisplayName(row.client),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: c.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            when,
+            style: TextStyle(fontSize: 12, height: 1.5, color: c.inkMuted),
+          ),
+          const SizedBox(height: 16),
+          Divider(height: 1, color: c.border),
+          const SizedBox(height: 16),
+          const _FieldLabel('Practitioner'),
+          const SizedBox(height: 7),
+          _FieldBox(
+            value: _label(practitionerUid),
+            muted: practitionerUid.isEmpty,
+            onTap: !canReassign || bookable.isEmpty
+                ? null
+                : () async {
+                    final uid = await showPelviPickerSheet<String>(
+                      context: context,
+                      title: 'Practitioner',
+                      selected: practitionerUid,
+                      options: [
+                        for (final member in bookable)
+                          PelviPickerOption(
+                            value: member.uid,
+                            label: memberLabel(member),
+                          ),
+                      ],
+                    );
+                    if (uid != null) onPick(uid);
+                  },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            canReassign
+                ? 'The appointment stays on this clinic.'
+                : 'Owners and admins can move this booking.',
+            style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: canSave ? onSave : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: canSave ? c.pink700 : c.surfaceMuted,
+              foregroundColor: canSave ? c.inkInverse : c.inkMuted,
+              disabledBackgroundColor: c.surfaceMuted,
+              disabledForegroundColor: c.inkMuted,
+              minimumSize: const Size(0, 38),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+              ),
+            ),
+            child: Text(
+              saving ? 'Saving…' : 'Reassign',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }

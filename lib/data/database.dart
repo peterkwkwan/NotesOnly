@@ -1125,16 +1125,29 @@ class AppDatabase extends _$AppDatabase {
     required DateTime startsAt,
     DateTime? endsAt,
     AppointmentStatus? status,
+    String? practitionerUid,
   }) async {
     final existing = await getAppointment(id);
     if (existing == null) return false;
+    final nextUid = (practitionerUid == null || practitionerUid.isEmpty)
+        ? existing.practitionerUid
+        : practitionerUid;
+    if (nextUid != existing.practitionerUid) {
+      final self = NotesAuth.currentUser?.uid ?? '';
+      if (self.isNotEmpty) {
+        final roles = parseOrgRoles(await getSetting(activeOrgRolesKey));
+        if (!mayReassignBooking(roles)) {
+          throw StateError('Only an owner or admin can reassign a booking');
+        }
+      }
+    }
     final nextStatus = status ?? existing.status;
     if (nextStatus != AppointmentStatus.cancelled) {
       final conflict = await findOverlappingAppointment(
         startsAt: startsAt,
         endsAt: endsAt ?? existing.endsAt,
         clientId: existing.clientId,
-        practitionerUid: existing.practitionerUid,
+        practitionerUid: nextUid,
         excludeId: id,
       );
       if (conflict != null) {
@@ -1144,11 +1157,15 @@ class AppDatabase extends _$AppDatabase {
         );
       }
     }
+    // shortcut: note practitionerUid stays with the author, upgrade when rules let an admin move SOAP
     final n = await (update(appointments)..where((t) => t.id.equals(id))).write(
       AppointmentsCompanion(
         startsAt: Value(startsAt),
         endsAt: endsAt == null ? const Value.absent() : Value(endsAt),
         status: status == null ? const Value.absent() : Value(status),
+        practitionerUid: nextUid == existing.practitionerUid
+            ? const Value.absent()
+            : Value(nextUid),
         updatedAt: Value(DateTime.now()),
         syncStatus: const Value(RowSyncStatus.pending),
       ),

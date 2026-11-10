@@ -15,6 +15,7 @@ import '../../widgets/show_snack.dart';
 import '../notes/soap_templates.dart';
 import '../org/org_access_screen.dart';
 import '../shell/desktop_chrome.dart';
+import 'practice_members_panel.dart';
 
 /// Figma `NotesOnly · Practice settings` (`47:22570`) — desktop body only.
 class WebPracticeSettings extends StatefulWidget {
@@ -26,6 +27,7 @@ class WebPracticeSettings extends StatefulWidget {
 
 enum _SettingsSection {
   preferences,
+  members,
   scheduling,
   recall,
   templates,
@@ -35,6 +37,7 @@ enum _SettingsSection {
 class _WebPracticeSettingsState extends State<WebPracticeSettings> {
   final _scroll = ScrollController();
   final _prefKey = GlobalKey();
+  final _membersKey = GlobalKey();
   final _schedKey = GlobalKey();
   final _recallKey = GlobalKey();
   final _tmplKey = GlobalKey();
@@ -228,6 +231,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
     setState(() => _section = section);
     final key = switch (section) {
       _SettingsSection.preferences => _prefKey,
+      _SettingsSection.members => _membersKey,
       _SettingsSection.scheduling => _schedKey,
       _SettingsSection.recall => _recallKey,
       _SettingsSection.templates => _tmplKey,
@@ -430,6 +434,14 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    KeyedSubtree(
+                      key: _membersKey,
+                      child: const _Panel(
+                        title: 'Members',
+                        child: PracticeMembersPanel(),
                       ),
                     ),
                     const SizedBox(height: 22),
@@ -852,6 +864,7 @@ class _Subnav extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         item(_SettingsSection.preferences, 'Practice preferences'),
+        item(_SettingsSection.members, 'Members'),
         item(_SettingsSection.scheduling, 'Scheduling'),
         item(_SettingsSection.recall, 'Recall management'),
         item(_SettingsSection.templates, 'Template defaults'),

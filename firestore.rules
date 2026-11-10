@@ -133,22 +133,7 @@ service cloud.firestore {
       allow create: if memberShape(memberId) && (
         migrationMembership() || joinMembership() || createOrgMembership()
       );
-      allow update: if isOrgOwner(resource.data.orgId)
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.orgId == resource.data.orgId
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.inviteId == resource.data.inviteId
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['roles', 'active', 'updatedAt'])
-        && orgAfter(resource.data.orgId).ownerUids.size() > 0
-        && !(
-          request.resource.data.active == false
-          && request.resource.data.uid in orgAfter(resource.data.orgId).ownerUids
-        )
-        && (
-          request.resource.data.roles.hasAny(['owner'])
-            == (request.resource.data.uid in orgAfter(resource.data.orgId).ownerUids)
-        );
+      allow update: if ownerEditsMember() || adminRemovesMember();
       allow delete: if false;
     }
 
@@ -285,6 +270,40 @@ service cloud.firestore {
         && request.resource.data.acceptedByUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['acceptedAt', 'acceptedByUid']);
+    }
+    function memberIdentityStable() {
+      return request.resource.data.uid == resource.data.uid
+        && request.resource.data.orgId == resource.data.orgId
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.inviteId == resource.data.inviteId;
+    }
+    function ownerEditsMember() {
+      return isOrgOwner(resource.data.orgId)
+        && memberIdentityStable()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['roles', 'active', 'updatedAt'])
+        && orgAfter(resource.data.orgId).ownerUids.size() > 0
+        && !(
+          request.resource.data.active == false
+          && request.resource.data.uid in orgAfter(resource.data.orgId).ownerUids
+        )
+        && (
+          request.resource.data.roles.hasAny(['owner'])
+            == (request.resource.data.uid in orgAfter(resource.data.orgId).ownerUids)
+        );
+    }
+    // Admin can deactivate a non-owner. They cannot grant or revoke owner.
+    function adminRemovesMember() {
+      return isOrgAdmin(resource.data.orgId)
+        && memberIdentityStable()
+        && resource.data.active == true
+        && request.resource.data.active == false
+        && request.resource.data.roles == resource.data.roles
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['active', 'updatedAt'])
+        && !resource.data.roles.hasAny(['owner'])
+        && !(resource.data.uid in orgAfter(resource.data.orgId).ownerUids)
+        && orgAfter(resource.data.orgId).ownerUids.size() > 0;
     }
     function revokeInvite() {
       return signedIn()
