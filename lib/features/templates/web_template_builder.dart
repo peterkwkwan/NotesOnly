@@ -1,14 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
-import '../shell/desktop_chrome.dart';
-
-/// Figma accent for focused field chrome (`#bc718d`).
-const _focusPink = Color(0xFFBC718D);
-
-/// Figma selected nav / outline ink (`#a54d70`).
-const _selectedPink = Color(0xFFA54D70);
 
 enum SoapSection { subjective, objective, assessment, plan }
 
@@ -28,8 +20,6 @@ extension on SoapSection {
         SoapSection.assessment => 'Assessment',
         SoapSection.plan => 'Plan',
       };
-
-  String get heading => '$letter / $label';
 }
 
 extension on FieldType {
@@ -39,14 +29,6 @@ extension on FieldType {
         FieldType.singleChoice => 'Single choice',
         FieldType.multipleChoice => 'Multiple choice',
         FieldType.numeric => 'Numeric',
-      };
-
-  IconData get icon => switch (this) {
-        FieldType.longText => Icons.format_align_left,
-        FieldType.shortText => Icons.text_fields,
-        FieldType.singleChoice => Icons.radio_button_checked_outlined,
-        FieldType.multipleChoice => Icons.checklist_outlined,
-        FieldType.numeric => Icons.tag,
       };
 
   bool get isMultiline => this == FieldType.longText;
@@ -72,7 +54,7 @@ class _DraftField {
   bool required;
 }
 
-/// Figma `NotesOnly · Template builder` (47:22340) — desktop shell supplies chrome.
+/// Quiet web template editor. Shell chrome hides while this is open.
 ///
 /// shortcut: no Drift/Firestore template schema yet — local in-memory draft only;
 /// upgrade when custom templates are modeled.
@@ -102,16 +84,19 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   late final TextEditingController _placeholderCtrl;
 
   late List<_DraftField> _fields;
+  late SoapSection _section;
   String? _selectedId;
   int _idSeq = 0;
   bool _dirty = true;
-  int _version = 2;
+  bool _preview = false;
+  bool _showMore = false;
 
   @override
   void initState() {
     super.initState();
     _fields = widget.seedPostnatal ? _seedPostnatal() : _seedBlank();
     _selectedId = _fields.first.id;
+    _section = _fields.first.section;
     final sel = _fields.first;
     _nameCtrl = TextEditingController(text: widget.initialName);
     _descCtrl = TextEditingController(text: widget.initialDescription);
@@ -120,7 +105,6 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     _placeholderCtrl = TextEditingController(text: sel.placeholder);
     _nameCtrl.addListener(_markDirty);
     _descCtrl.addListener(_markDirty);
-    if (!widget.seedPostnatal) _version = 1;
   }
 
   List<_DraftField> _seedBlank() {
@@ -225,15 +209,8 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     return null;
   }
 
-  void _selectField(_DraftField field) {
-    _syncSelectedControllers();
-    setState(() {
-      _selectedId = field.id;
-      _labelCtrl.text = field.label;
-      _helpCtrl.text = field.helpText;
-      _placeholderCtrl.text = field.placeholder;
-    });
-  }
+  List<_DraftField> _in(SoapSection section) =>
+      _fields.where((f) => f.section == section).toList();
 
   void _syncSelectedControllers() {
     final sel = _selected;
@@ -243,115 +220,95 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     sel.placeholder = _placeholderCtrl.text;
   }
 
-  void _addField(FieldType type) {
+  void _bind(_DraftField? field) {
+    _selectedId = field?.id;
+    _labelCtrl.text = field?.label ?? '';
+    _helpCtrl.text = field?.helpText ?? '';
+    _placeholderCtrl.text = field?.placeholder ?? '';
+    _showMore = false;
+  }
+
+  void _onDraftText() {
     _syncSelectedControllers();
-    final section = _selected?.section ?? SoapSection.subjective;
-    _idSeq += 1;
-    final field = _DraftField(
-      id: 'f$_idSeq',
-      type: type,
-      section: section,
-      label: 'New ${type.label.toLowerCase()}',
-      placeholder: 'Enter value…',
-    );
+    _markDirty();
+  }
+
+  void _selectSection(SoapSection section) {
+    if (section == _section && !_preview) return;
+    _syncSelectedControllers();
+    final inSection = _in(section);
     setState(() {
-      _fields = [..._fields, field];
-      _selectedId = field.id;
-      _labelCtrl.text = field.label;
-      _helpCtrl.text = field.helpText;
-      _placeholderCtrl.text = field.placeholder;
-      _dirty = true;
+      _section = section;
+      _preview = false;
+      if (inSection.every((f) => f.id != _selectedId)) {
+        _bind(inSection.isEmpty ? null : inSection.first);
+      }
     });
   }
 
-  void _duplicateSelected() {
-    final sel = _selected;
-    if (sel == null) return;
+  void _selectField(_DraftField field) {
+    if (field.id == _selectedId && !_preview) return;
+    _syncSelectedControllers();
+    setState(() {
+      _section = field.section;
+      _preview = false;
+      _bind(field);
+    });
+  }
+
+  int _insertIndex(SoapSection section) {
+    var last = -1;
+    for (var i = 0; i < _fields.length; i++) {
+      if (_fields[i].section == section) last = i;
+    }
+    if (last >= 0) return last + 1;
+    final order = SoapSection.values;
+    for (var i = order.indexOf(section) + 1; i < order.length; i++) {
+      final idx = _fields.indexWhere((f) => f.section == order[i]);
+      if (idx >= 0) return idx;
+    }
+    return _fields.length;
+  }
+
+  void _addQuestion() {
     _syncSelectedControllers();
     _idSeq += 1;
-    final copy = _DraftField(
+    final field = _DraftField(
       id: 'f$_idSeq',
-      type: sel.type,
-      section: sel.section,
-      label: '${sel.label} copy',
-      helpText: sel.helpText,
-      placeholder: sel.placeholder,
-      required: sel.required,
+      type: FieldType.longText,
+      section: _section,
+      label: 'New question',
+      placeholder: 'Enter value…',
     );
-    final idx = _fields.indexWhere((f) => f.id == sel.id);
     setState(() {
-      _fields = [..._fields]..insert(idx + 1, copy);
-      _selectedId = copy.id;
-      _labelCtrl.text = copy.label;
-      _helpCtrl.text = copy.helpText;
-      _placeholderCtrl.text = copy.placeholder;
+      _fields = [..._fields]..insert(_insertIndex(_section), field);
+      _preview = false;
+      _bind(field);
       _dirty = true;
     });
   }
 
   void _deleteSelected() {
     final sel = _selected;
-    if (sel == null || _fields.length <= 1) return;
+    if (sel == null) return;
     final idx = _fields.indexWhere((f) => f.id == sel.id);
+    final section = sel.section;
+    final local = _in(section).indexWhere((f) => f.id == sel.id);
     setState(() {
       _fields = [..._fields]..removeAt(idx);
-      final next = _fields[idx.clamp(0, _fields.length - 1)];
-      _selectedId = next.id;
-      _labelCtrl.text = next.label;
-      _helpCtrl.text = next.helpText;
-      _placeholderCtrl.text = next.placeholder;
+      final rest = _in(section);
+      _bind(rest.isEmpty ? null : rest[local.clamp(0, rest.length - 1)]);
       _dirty = true;
     });
   }
 
-  void _reorderInSection(SoapSection section, int oldIndex, int newIndex) {
+  void _save() {
     _syncSelectedControllers();
-    final inSection = _fields.where((f) => f.section == section).toList();
-    // onReorderItem already adjusts newIndex when moving downward.
-    final moved = inSection.removeAt(oldIndex);
-    inSection.insert(newIndex.clamp(0, inSection.length), moved);
-    final rebuilt = <_DraftField>[];
-    for (final s in SoapSection.values) {
-      if (s == section) {
-        rebuilt.addAll(inSection);
-      } else {
-        rebuilt.addAll(_fields.where((f) => f.section == s));
-      }
-    }
-    setState(() {
-      _fields = rebuilt;
-      _dirty = true;
-    });
-  }
-
-  void _newTemplate() {
-    _syncSelectedControllers();
-    _idSeq += 1;
-    final field = _DraftField(
-      id: 'f$_idSeq',
-      type: FieldType.longText,
-      section: SoapSection.subjective,
-      label: 'New field',
-      placeholder: 'Enter value…',
-    );
-    setState(() {
-      _nameCtrl.text = 'Untitled template';
-      _descCtrl.text = '';
-      _fields = [field];
-      _selectedId = field.id;
-      _labelCtrl.text = field.label;
-      _helpCtrl.text = '';
-      _placeholderCtrl.text = field.placeholder;
-      _version = 1;
-      _dirty = true;
-    });
-  }
-
-  void _gapSnack(String action) {
+    setState(() => _dirty = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Text(
-          '$action kept in this session only — custom templates are not saved yet.',
+          'Saved in this session only — custom templates are not stored yet.',
         ),
       ),
     );
@@ -359,6 +316,8 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
 
   @override
   void dispose() {
+    _nameCtrl.removeListener(_markDirty);
+    _descCtrl.removeListener(_markDirty);
     _nameCtrl.dispose();
     _descCtrl.dispose();
     _labelCtrl.dispose();
@@ -370,1024 +329,619 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    final db = AppDatabaseProvider.of(context);
-    final sel = _selected;
-
-    return ColoredBox(
-      color: c.canvas,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final narrow = constraints.maxWidth < 980;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _HeaderRow(
-                  subtitle:
-                      '${_nameCtrl.text.trim().isEmpty ? 'Untitled template' : _nameCtrl.text} · Editing version $_version draft',
-                  onBack: widget.onBackToLibrary,
-                  onNew: _newTemplate,
-                  onSaveDraft: () {
-                    _syncSelectedControllers();
-                    setState(() => _dirty = false);
-                    _gapSnack('Draft');
-                  },
-                  onPublish: () {
-                    _syncSelectedControllers();
-                    setState(() {
-                      _dirty = false;
-                      _version += 1;
-                    });
-                    _gapSnack('Publish');
-                  },
-                ),
-                const SizedBox(height: 26),
-                _StateBanner(dirty: _dirty, name: _nameCtrl.text),
-                const SizedBox(height: 26),
-                if (narrow)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _PaletteOutline(
-                        fields: _fields,
-                        selectedId: _selectedId,
-                        onSelect: _selectField,
-                        onAdd: _addField,
-                        onReorder: _reorderInSection,
-                      ),
-                      const SizedBox(height: 18),
-                      _EditingColumn(
-                        nameCtrl: _nameCtrl,
-                        descCtrl: _descCtrl,
-                        labelCtrl: _labelCtrl,
-                        helpCtrl: _helpCtrl,
-                        placeholderCtrl: _placeholderCtrl,
-                        selected: sel,
-                        version: _version,
-                        practitionerStream: db.watchPractitionerName(),
-                        onFieldChanged: () {
-                          _syncSelectedControllers();
-                          setState(() => _dirty = true);
-                        },
-                        onTypeChanged: (t) {
-                          if (sel == null) return;
-                          setState(() {
-                            sel.type = t;
-                            _dirty = true;
-                          });
-                        },
-                        onSectionChanged: (s) {
-                          if (sel == null) return;
-                          setState(() {
-                            sel.section = s;
-                            _dirty = true;
-                          });
-                        },
-                        onRequiredChanged: (v) {
-                          if (sel == null) return;
-                          setState(() {
-                            sel.required = v;
-                            _dirty = true;
-                          });
-                        },
-                        onDuplicate: _duplicateSelected,
-                        onDelete: _deleteSelected,
-                      ),
-                      const SizedBox(height: 18),
-                      _LivePreview(
-                        name: _nameCtrl.text,
-                        description: _descCtrl.text,
-                        fields: _fields,
-                      ),
-                    ],
-                  )
-                else
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 220,
-                        child: _PaletteOutline(
-                          fields: _fields,
-                          selectedId: _selectedId,
-                          onSelect: _selectField,
-                          onAdd: _addField,
-                          onReorder: _reorderInSection,
-                        ),
-                      ),
-                      const SizedBox(width: 18),
-                      Expanded(
-                        child: _EditingColumn(
-                          nameCtrl: _nameCtrl,
-                          descCtrl: _descCtrl,
-                          labelCtrl: _labelCtrl,
-                          helpCtrl: _helpCtrl,
-                          placeholderCtrl: _placeholderCtrl,
-                          selected: sel,
-                          version: _version,
-                          practitionerStream: db.watchPractitionerName(),
-                          onFieldChanged: () {
-                            _syncSelectedControllers();
-                            setState(() => _dirty = true);
-                          },
-                          onTypeChanged: (t) {
-                            if (sel == null) return;
-                            setState(() {
-                              sel.type = t;
-                              _dirty = true;
-                            });
-                          },
-                          onSectionChanged: (s) {
-                            if (sel == null) return;
-                            setState(() {
-                              sel.section = s;
-                              _dirty = true;
-                            });
-                          },
-                          onRequiredChanged: (v) {
-                            if (sel == null) return;
-                            setState(() {
-                              sel.required = v;
-                              _dirty = true;
-                            });
-                          },
-                          onDuplicate: _duplicateSelected,
-                          onDelete: _deleteSelected,
-                        ),
-                      ),
-                      const SizedBox(width: 18),
-                      SizedBox(
-                        width: 334,
-                        child: _LivePreview(
-                          name: _nameCtrl.text,
-                          description: _descCtrl.text,
-                          fields: _fields,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _HeaderRow extends StatelessWidget {
-  const _HeaderRow({
-    required this.subtitle,
-    required this.onNew,
-    required this.onSaveDraft,
-    required this.onPublish,
-    this.onBack,
-  });
-
-  final String subtitle;
-  final VoidCallback onNew;
-  final VoidCallback onSaveDraft;
-  final VoidCallback onPublish;
-  final VoidCallback? onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const DesktopBreadcrumb(),
-              if (onBack != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: InkWell(
-                    onTap: onBack,
-                    child: Text(
-                      '← Templates',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
-                        color: c.inkMuted,
-                      ),
-                    ),
-                  ),
-                ),
-              Text(
-                'Template builder',
-                style: TextStyle(
-                  fontSize: 29,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 20),
-        OutlinedButton.icon(
-          onPressed: onNew,
-          icon: Icon(Icons.add, size: 16, color: c.ink),
-          label: Text(
-            'New template',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            backgroundColor: c.surface,
-            side: BorderSide(color: c.border),
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        OutlinedButton(
-          onPressed: onSaveDraft,
-          style: OutlinedButton.styleFrom(
-            backgroundColor: c.surface,
-            side: BorderSide(color: c.border),
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: Text(
-            'Save draft',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        FilledButton(
-          onPressed: onPublish,
-          style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: const Text(
-            'Publish',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StateBanner extends StatelessWidget {
-  const _StateBanner({required this.dirty, required this.name});
-
-  final bool dirty;
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final title = name.trim().isEmpty ? 'Untitled template' : name.trim();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: c.purple50,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.account_tree_outlined, size: 16, color: c.purple700),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Editing a draft of $title. Published version 1 stays available until you publish version 2.',
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.5,
-                color: c.purple700,
-              ),
-            ),
-          ),
-          if (dirty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(
-                color: c.purple50,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                'Unpublished changes',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
-                  color: c.purple700,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaletteOutline extends StatelessWidget {
-  const _PaletteOutline({
-    required this.fields,
-    required this.selectedId,
-    required this.onSelect,
-    required this.onAdd,
-    required this.onReorder,
-  });
-
-  final List<_DraftField> fields;
-  final String? selectedId;
-  final ValueChanged<_DraftField> onSelect;
-  final ValueChanged<FieldType> onAdd;
-  final void Function(SoapSection, int, int) onReorder;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border.all(color: c.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
+    return Scaffold(
+      backgroundColor: c.canvas,
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Add a field',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Choose a type to add to a SOAP section.',
-            style: TextStyle(
-              fontSize: 11,
-              height: 1.5,
-              color: c.inkMuted,
-            ),
-          ),
-          const SizedBox(height: 18),
-          for (final type in FieldType.values) ...[
-            _FieldTypeChip(type: type, onTap: () => onAdd(type)),
-            const SizedBox(height: 7),
-          ],
-          Divider(height: 36, color: c.border),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'SOAP outline',
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    fontWeight: FontWeight.w600,
-                    color: c.ink,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${fields.length} fields',
-                style: TextStyle(
-                  fontSize: 10,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          for (final section in SoapSection.values) ...[
-            _OutlineSection(
-              section: section,
-              fields: fields.where((f) => f.section == section).toList(),
-              selectedId: selectedId,
-              onSelect: onSelect,
-              onReorder: (oldI, newI) => onReorder(section, oldI, newI),
-            ),
-            const SizedBox(height: 16),
-          ],
-          Text(
-            'Drag fields within or between sections to reorder.',
-            style: TextStyle(
-              fontSize: 10,
-              height: 1.5,
-              color: c.inkMuted,
+          _bar(context),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 760;
+                final outline = _outline(context);
+                if (!wide) {
+                  return SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        outline,
+                        Divider(height: 1, color: c.border),
+                        _main(context),
+                      ],
+                    ),
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: 248,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border(right: BorderSide(color: c.border)),
+                        ),
+                        child: SingleChildScrollView(child: outline),
+                      ),
+                    ),
+                    Expanded(child: SingleChildScrollView(child: _main(context))),
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _FieldTypeChip extends StatelessWidget {
-  const _FieldTypeChip({required this.type, required this.onTap});
-
-  final FieldType type;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _bar(BuildContext context) {
     final c = PelviColors.of(context);
-    return Material(
-      color: c.canvas,
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(
-            border: Border.all(color: c.border),
-            borderRadius: BorderRadius.circular(6),
-          ),
+    final nameStyle = TextStyle(
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+      color: c.ink,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: c.border)),
+      ),
+      child: SizedBox(
+        height: 64,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              Icon(type.icon, size: 15, color: c.ink),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  type.label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.5,
-                    color: c.ink,
-                  ),
-                ),
+              Image.asset(
+                'assets/brand/notesonly-monogram.png',
+                width: 26,
+                height: 28,
+                filterQuality: FilterQuality.high,
               ),
-              Icon(Icons.add, size: 12, color: c.inkMuted),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OutlineSection extends StatelessWidget {
-  const _OutlineSection({
-    required this.section,
-    required this.fields,
-    required this.selectedId,
-    required this.onSelect,
-    required this.onReorder,
-  });
-
-  final SoapSection section;
-  final List<_DraftField> fields;
-  final String? selectedId;
-  final ValueChanged<_DraftField> onSelect;
-  final ReorderCallback onReorder;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Text(
-              section.letter,
-              style: TextStyle(
-                fontSize: 11,
-                height: 1.5,
-                fontWeight: FontWeight.w600,
-                color: c.purple700,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              section.label,
-              style: TextStyle(
-                fontSize: 11,
-                height: 1.5,
-                fontWeight: FontWeight.w600,
-                color: c.ink,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        if (fields.isEmpty)
-          Text(
-            'No fields',
-            style: TextStyle(fontSize: 10, color: c.inkMuted),
-          )
-        else
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            itemCount: fields.length,
-            onReorderItem: onReorder,
-            itemBuilder: (context, index) {
-              final field = fields[index];
-              final selected = field.id == selectedId;
-              return Padding(
-                key: ValueKey(field.id),
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Material(
-                  color: selected ? c.pink50 : Colors.transparent,
-                  borderRadius: BorderRadius.circular(5),
-                  child: InkWell(
-                    onTap: () => onSelect(field),
-                    borderRadius: BorderRadius.circular(5),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 5,
-                      ),
-                      child: Row(
-                        children: [
-                          ReorderableDragStartListener(
-                            index: index,
-                            child: Icon(
-                              Icons.drag_indicator,
-                              size: 12,
-                              color: c.inkMuted,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              field.label,
-                              style: TextStyle(
-                                fontSize: 10,
-                                height: 1.5,
-                                color: selected ? _selectedPink : c.inkMuted,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
-    );
-  }
-}
-
-class _EditingColumn extends StatelessWidget {
-  const _EditingColumn({
-    required this.nameCtrl,
-    required this.descCtrl,
-    required this.labelCtrl,
-    required this.helpCtrl,
-    required this.placeholderCtrl,
-    required this.selected,
-    required this.version,
-    required this.practitionerStream,
-    required this.onFieldChanged,
-    required this.onTypeChanged,
-    required this.onSectionChanged,
-    required this.onRequiredChanged,
-    required this.onDuplicate,
-    required this.onDelete,
-  });
-
-  final TextEditingController nameCtrl;
-  final TextEditingController descCtrl;
-  final TextEditingController labelCtrl;
-  final TextEditingController helpCtrl;
-  final TextEditingController placeholderCtrl;
-  final _DraftField? selected;
-  final int version;
-  final Stream<String?> practitionerStream;
-  final VoidCallback onFieldChanged;
-  final ValueChanged<FieldType> onTypeChanged;
-  final ValueChanged<SoapSection> onSectionChanged;
-  final ValueChanged<bool> onRequiredChanged;
-  final VoidCallback onDuplicate;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: c.surface,
-            border: Border.all(color: c.border),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+              const SizedBox(width: 10),
               Text(
-                'Template details',
+                'NotesOnly',
                 style: TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
+                  fontSize: 18,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: -0.4,
                   color: c.ink,
                 ),
               ),
-              const SizedBox(height: 15),
-              _LabeledField(
-                label: 'Template name',
-                child: _TextBox(controller: nameCtrl, onChanged: (_) => onFieldChanged()),
+              const SizedBox(width: 20),
+              IconButton(
+                tooltip: 'Templates',
+                onPressed: widget.onBackToLibrary,
+                icon: Icon(Icons.arrow_back, size: 18, color: c.ink),
               ),
-              const SizedBox(height: 15),
-              _LabeledField(
-                label: 'Description',
-                child: _TextBox(controller: descCtrl, onChanged: (_) => onFieldChanged()),
-              ),
-              const SizedBox(height: 15),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: c.purple50,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Version $version · Draft',
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.5,
-                        fontWeight: FontWeight.w500,
-                        color: c.purple700,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  StreamBuilder<String?>(
-                    stream: practitionerStream,
-                    builder: (context, snap) {
-                      final name = (snap.data ?? '').trim();
-                      return Text(
-                        name.isEmpty ? 'Practitioner' : name,
-                        style: TextStyle(
-                          fontSize: 11,
-                          height: 1.5,
-                          color: c.inkMuted,
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (selected != null)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: c.surface,
-              border: Border.all(color: _focusPink),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'Field settings',
-                      style: TextStyle(
-                        fontSize: 14,
-                        height: 1.5,
-                        fontWeight: FontWeight.w600,
-                        color: c.ink,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: onDuplicate,
-                      icon: Icon(Icons.copy_outlined, size: 15, color: c.inkMuted),
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 28,
-                        minHeight: 28,
-                      ),
-                      tooltip: 'Duplicate field',
-                    ),
-                    IconButton(
-                      onPressed: onDelete,
-                      icon: Icon(Icons.delete_outline, size: 15, color: c.inkMuted),
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 28,
-                        minHeight: 28,
-                      ),
-                      tooltip: 'Delete field',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: labelCtrl,
+              Expanded(
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _nameCtrl,
                   builder: (context, value, _) {
+                    final name = value.text.trim();
                     return Text(
-                      '${selected!.section.label} / ${value.text}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        height: 1.5,
-                        color: _selectedPink,
-                      ),
+                      name.isEmpty ? 'Untitled template' : name,
+                      style: nameStyle,
+                      overflow: TextOverflow.ellipsis,
                     );
                   },
                 ),
-                const SizedBox(height: 17),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _LabeledField(
-                        label: 'Field type',
-                        child: _DropdownBox<FieldType>(
-                          value: selected!.type,
-                          items: FieldType.values,
-                          labelOf: (t) => t.label,
-                          onChanged: onTypeChanged,
-                        ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: c.pink700,
+                  foregroundColor: c.inkInverse,
+                  minimumSize: const Size(72, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(PelviRadius.sm),
+                  ),
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _outline(BuildContext context) {
+    final c = PelviColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 22, 12, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 8, bottom: 12),
+            child: Text(
+              'OUTLINE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.8,
+                color: c.inkMuted,
+              ),
+            ),
+          ),
+          for (final section in SoapSection.values)
+            _sectionTile(context, section),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTile(BuildContext context, SoapSection section) {
+    final c = PelviColors.of(context);
+    final selected = section == _section;
+    final count = _in(section).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: selected ? c.pink50 : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: () => _selectSection(section),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected ? c.pink700 : Colors.transparent,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: selected ? c.pink700 : c.border,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _LabeledField(
-                        label: 'SOAP section',
-                        child: _DropdownBox<SoapSection>(
-                          value: selected!.section,
-                          items: SoapSection.values,
-                          labelOf: (s) => s.label,
-                          onChanged: onSectionChanged,
-                        ),
+                    child: Text(
+                      section.letter,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? c.inkInverse : c.inkMuted,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 17),
-                _LabeledField(
-                  label: 'Field label',
-                  child: _TextBox(
-                    controller: labelCtrl,
-                    borderColor: _focusPink,
-                    onChanged: (_) => onFieldChanged(),
                   ),
-                ),
-                const SizedBox(height: 17),
-                _LabeledField(
-                  label: 'Help text',
-                  child: _TextBox(
-                    controller: helpCtrl,
-                    minLines: 3,
-                    onChanged: (_) => onFieldChanged(),
-                  ),
-                ),
-                const SizedBox(height: 17),
-                _LabeledField(
-                  label: 'Placeholder',
-                  child: _TextBox(
-                    controller: placeholderCtrl,
-                    hintStyle: true,
-                    onChanged: (_) => onFieldChanged(),
-                  ),
-                ),
-                const SizedBox(height: 17),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Required field',
-                            style: TextStyle(
-                              fontSize: 12,
-                              height: 1.5,
-                              fontWeight: FontWeight.w500,
-                              color: c.ink,
-                            ),
-                          ),
-                          Text(
-                            'Response needed before completing a note.',
-                            style: TextStyle(
-                              fontSize: 10,
-                              height: 1.5,
-                              color: c.inkMuted,
-                            ),
-                          ),
-                        ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      section.label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.w400,
+                        color: c.ink,
                       ),
                     ),
-                    Switch(
-                      value: selected!.required,
-                      onChanged: onRequiredChanged,
-                      activeThumbColor: c.inkInverse,
-                      activeTrackColor: c.purple700,
-                    ),
-                  ],
-                ),
-                Divider(height: 34, color: c.border),
-                Text(
-                  'Field settings change the template structure, not any existing client note.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.5,
-                    color: c.inkMuted,
                   ),
+                  if (selected)
+                    Text(
+                      '$count',
+                      style: TextStyle(fontSize: 13, color: c.inkMuted),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (selected)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 32),
+              child: TextButton(
+                onPressed: _addQuestion,
+                style: TextButton.styleFrom(
+                  foregroundColor: c.pink700,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-              ],
+                child: const Text(
+                  '+ Add question',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
             ),
           ),
       ],
     );
   }
-}
 
-class _LivePreview extends StatelessWidget {
-  const _LivePreview({
-    required this.name,
-    required this.description,
-    required this.fields,
-  });
-
-  final String name;
-  final String description;
-  final List<_DraftField> fields;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _main(BuildContext context) {
     final c = PelviColors.of(context);
-    final bySection = {
-      for (final s in SoapSection.values)
-        s: fields.where((f) => f.section == s).toList(),
-    };
-
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border.all(color: c.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+    final prompts = _in(_section);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(36, 28, 36, 48),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               Text(
-                'Live preview',
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
+                'Templates / Edit',
+                style: TextStyle(fontSize: 13, color: c.inkMuted),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: c.purple50,
-                  borderRadius: BorderRadius.circular(6),
+              TextButton(
+                onPressed: () {
+                  _syncSelectedControllers();
+                  setState(() => _preview = !_preview);
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: c.pink700,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
                   'Preview',
                   style: TextStyle(
-                    fontSize: 11,
-                    height: 1.5,
-                    fontWeight: FontWeight.w500,
-                    color: c.purple700,
+                    fontSize: 14,
+                    fontWeight: _preview ? FontWeight.w700 : FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            'Empty fields · no client information',
-            style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-          ),
-          Divider(height: 34, color: c.border),
-          Text(
-            name.trim().isEmpty ? 'Untitled template' : name,
+          TextField(
+            controller: _nameCtrl,
+            maxLines: 1,
             style: TextStyle(
-              fontSize: 20,
-              height: 1.5,
+              fontSize: 30,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.6,
+              color: c.ink,
+            ),
+            decoration: InputDecoration(
+              isCollapsed: true,
+              filled: false,
+              contentPadding: EdgeInsets.zero,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              hintText: 'Untitled template',
+              hintStyle: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.6,
+                color: c.inkMuted,
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+          if (_preview)
+            _previewBody(context)
+          else ...[
+            Text(
+              _section.label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: c.ink,
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (prompts.isEmpty)
+              Text(
+                'No questions yet',
+                style: TextStyle(fontSize: 13, color: c.inkMuted),
+              )
+            else
+              for (final field in prompts) ...[
+                _prompt(context, field),
+                const SizedBox(height: 10),
+              ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _promptTitle(PelviPalette c, String raw) {
+    final title = raw.trim();
+    return Text(
+      title.isEmpty ? 'Untitled question' : title,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: c.ink,
+      ),
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  Widget _prompt(BuildContext context, _DraftField field) {
+    final c = PelviColors.of(context);
+    final selected = field.id == _selectedId;
+    final title = field.label.trim();
+    return Material(
+      color: selected ? c.pink50 : c.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: selected ? c.pink50 : c.border),
+      ),
+      child: Stack(
+        children: [
+          if (selected)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 3,
+              child: ColoredBox(color: c.pink700),
+            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              InkWell(
+                onTap: () => _selectField(field),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: selected
+                            ? ValueListenableBuilder<TextEditingValue>(
+                                valueListenable: _labelCtrl,
+                                builder: (context, value, _) => _promptTitle(
+                                  c,
+                                  value.text,
+                                ),
+                              )
+                            : _promptTitle(c, title),
+                      ),
+                      const SizedBox(width: 12),
+                      _TypeChip(label: field.type.label),
+                    ],
+                  ),
+                ),
+              ),
+              if (selected) _promptEditor(context, field),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _promptEditor(BuildContext context, _DraftField field) {
+    final c = PelviColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _LabeledField(
+            label: 'Label',
+            child: _TextBox(controller: _labelCtrl, onChanged: (_) => _onDraftText()),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Type',
+            style: TextStyle(
+              fontSize: 12,
               fontWeight: FontWeight.w500,
               color: c.ink,
             ),
           ),
-          if (description.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              description,
-              style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-            ),
-          ],
-          const SizedBox(height: 18),
-          for (final section in [
-            SoapSection.subjective,
-            SoapSection.objective,
-          ]) ...[
-            Text(
-              section.heading,
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.5,
-                fontWeight: FontWeight.w600,
-                color: c.purple700,
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: PopupMenuButton<FieldType>(
+              tooltip: 'Field type',
+              padding: EdgeInsets.zero,
+              onSelected: (type) {
+                _syncSelectedControllers();
+                setState(() {
+                  field.type = type;
+                  _dirty = true;
+                });
+              },
+              itemBuilder: (context) => [
+                for (final type in FieldType.values)
+                  PopupMenuItem(value: type, child: Text(type.label)),
+              ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    field.type.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: c.purple700,
+                    ),
+                  ),
+                  Icon(Icons.expand_more, size: 18, color: c.purple700),
+                ],
               ),
             ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(() => _showMore = !_showMore),
+              style: TextButton.styleFrom(
+                foregroundColor: c.ink,
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                _showMore ? 'Less' : 'More',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+          if (_showMore) ...[
             const SizedBox(height: 12),
-            for (final field in bySection[section]!) ...[
-              _PreviewField(field: field),
-              const SizedBox(height: 18),
-            ],
-            Divider(height: 1, color: c.border),
-            const SizedBox(height: 18),
-          ],
-          for (final section in [
-            SoapSection.assessment,
-            SoapSection.plan,
-          ]) ...[
+            _LabeledField(
+              label: 'Help text',
+              child: _TextBox(
+                controller: _helpCtrl,
+                minLines: 2,
+                onChanged: (_) => _onDraftText(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _LabeledField(
+              label: 'Placeholder',
+              child: _TextBox(
+                controller: _placeholderCtrl,
+                onChanged: (_) => _onDraftText(),
+              ),
+            ),
+            const SizedBox(height: 14),
             Row(
               children: [
-                Text(
-                  section.heading,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.5,
-                    fontWeight: FontWeight.w600,
-                    color: c.purple700,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Required',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: c.ink,
+                        ),
+                      ),
+                      Text(
+                        'Needed before a note can be completed.',
+                        style: TextStyle(fontSize: 11, color: c.inkMuted),
+                      ),
+                    ],
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  '${bySection[section]!.length} field${bySection[section]!.length == 1 ? '' : 's'}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    height: 1.5,
-                    color: c.inkMuted,
-                  ),
+                Switch(
+                  value: field.required,
+                  onChanged: (value) {
+                    _syncSelectedControllers();
+                    setState(() {
+                      field.required = value;
+                      _dirty = true;
+                    });
+                  },
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _deleteSelected,
+                style: TextButton.styleFrom(
+                  foregroundColor: c.danger,
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'Delete question',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
           ],
-          Divider(height: 1, color: c.border),
-          const SizedBox(height: 18),
-          Text(
-            '* Required. Preview responses are not saved as clinical notes.',
-            style: TextStyle(fontSize: 10, height: 1.5, color: c.inkMuted),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _previewBody(BuildContext context) {
+    final c = PelviColors.of(context);
+    final sections = [
+      for (final section in SoapSection.values)
+        if (_in(section).isNotEmpty) section,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _descCtrl,
+          maxLines: 1,
+          style: TextStyle(fontSize: 13, color: c.inkMuted),
+          decoration: InputDecoration(
+            isCollapsed: true,
+            filled: false,
+            contentPadding: EdgeInsets.zero,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            hintText: 'Description',
+            hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
+          ),
+        ),
+        const SizedBox(height: 22),
+        if (sections.isEmpty)
+          Text(
+            'No questions yet',
+            style: TextStyle(fontSize: 13, color: c.inkMuted),
+          )
+        else
+          for (final section in sections) ...[
+            Text(
+              section.label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: c.ink,
+              ),
+            ),
+            const SizedBox(height: 12),
+            for (final field in _in(section)) ...[
+              _PreviewField(field: field),
+              const SizedBox(height: 16),
+            ],
+          ],
+        const SizedBox(height: 8),
+        Text(
+          'Preview responses are not saved as clinical notes.',
+          style: TextStyle(fontSize: 11, color: c.inkMuted),
+        ),
+      ],
+    );
+  }
+}
+
+class _TypeChip extends StatelessWidget {
+  const _TypeChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: c.purple50,
+        borderRadius: BorderRadius.circular(PelviRadius.full),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.4,
+          fontWeight: FontWeight.w500,
+          color: c.purple700,
+        ),
       ),
     );
   }
@@ -1407,8 +961,7 @@ class _PreviewField extends StatelessWidget {
         Text(
           '${field.label}${field.required ? ' *' : ''}',
           style: TextStyle(
-            fontSize: 12,
-            height: 1.5,
+            fontSize: 13,
             fontWeight: FontWeight.w500,
             color: c.ink,
           ),
@@ -1416,7 +969,9 @@ class _PreviewField extends StatelessWidget {
         const SizedBox(height: 7),
         Container(
           width: double.infinity,
-          constraints: BoxConstraints(minHeight: field.type.isMultiline ? 72 : 40),
+          constraints: BoxConstraints(
+            minHeight: field.type.isMultiline ? 72 : 40,
+          ),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: c.surface,
@@ -1425,11 +980,7 @@ class _PreviewField extends StatelessWidget {
           ),
           child: Text(
             field.placeholder.isEmpty ? ' ' : field.placeholder,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: c.inkMuted,
-            ),
+            style: TextStyle(fontSize: 13, height: 1.5, color: c.inkMuted),
           ),
         ),
         if (field.helpText.isNotEmpty) ...[
@@ -1460,7 +1011,6 @@ class _LabeledField extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 12,
-            height: 1.5,
             fontWeight: FontWeight.w500,
             color: c.ink,
           ),
@@ -1476,15 +1026,11 @@ class _TextBox extends StatelessWidget {
   const _TextBox({
     required this.controller,
     this.minLines = 1,
-    this.borderColor,
-    this.hintStyle = false,
     this.onChanged,
   });
 
   final TextEditingController controller;
   final int minLines;
-  final Color? borderColor;
-  final bool hintStyle;
   final ValueChanged<String>? onChanged;
 
   @override
@@ -1495,11 +1041,7 @@ class _TextBox extends StatelessWidget {
       minLines: minLines,
       maxLines: minLines > 1 ? null : 1,
       onChanged: onChanged,
-      style: TextStyle(
-        fontSize: 13,
-        height: 1.5,
-        color: hintStyle ? c.inkMuted : c.ink,
-      ),
+      style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
       decoration: InputDecoration(
         isDense: true,
         contentPadding: const EdgeInsets.all(12),
@@ -1507,57 +1049,15 @@ class _TextBox extends StatelessWidget {
         fillColor: c.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(PelviRadius.sm),
-          borderSide: BorderSide(color: borderColor ?? c.border),
+          borderSide: BorderSide(color: c.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(PelviRadius.sm),
-          borderSide: BorderSide(color: borderColor ?? c.border),
+          borderSide: BorderSide(color: c.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(PelviRadius.sm),
-          borderSide: BorderSide(color: borderColor ?? c.pink700),
-        ),
-      ),
-    );
-  }
-}
-
-class _DropdownBox<T> extends StatelessWidget {
-  const _DropdownBox({
-    required this.value,
-    required this.items,
-    required this.labelOf,
-    required this.onChanged,
-  });
-
-  final T value;
-  final List<T> items;
-  final String Function(T) labelOf;
-  final ValueChanged<T> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border.all(color: c.border),
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          isExpanded: true,
-          icon: Icon(Icons.expand_more, size: 18, color: c.inkMuted),
-          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
-          items: [
-            for (final item in items)
-              DropdownMenuItem(value: item, child: Text(labelOf(item))),
-          ],
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
+          borderSide: BorderSide(color: c.pink700),
         ),
       ),
     );

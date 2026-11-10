@@ -28,6 +28,7 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
   int? _soapNoteId;
   String? _soapBreadcrumb;
+  bool _templateEditor = false;
   StreamSubscription<List<RecallDueEntry>>? _recallSub;
   StreamSubscription<bool>? _recallNotifSub;
   int _dueCount = 0;
@@ -116,6 +117,11 @@ class _AppShellState extends State<AppShell> {
     setState(() => _soapBreadcrumb = crumb);
   }
 
+  void _setTemplateEditor(bool active) {
+    if (!mounted || _templateEditor == active) return;
+    setState(() => _templateEditor = active);
+  }
+
   List<Widget> get _desktopPages => [
         const TodayScreen(),
         const CalendarScreen(),
@@ -125,7 +131,7 @@ class _AppShellState extends State<AppShell> {
           onBreadcrumb: _onSoapBreadcrumb,
           onOpenNote: _openSoapNote,
         ),
-        const WebTemplatesHost(),
+        WebTemplatesHost(onEditorActive: _setTemplateEditor),
         const WebPracticeSettings(),
       ];
 
@@ -139,6 +145,9 @@ class _AppShellState extends State<AppShell> {
               (_soapBreadcrumb?.isNotEmpty ?? false)
           ? _soapBreadcrumb!
           : DesktopDest.breadcrumbFor(_index);
+      // Editor draws its own bar (back, name, Save) and fills the window.
+      final editor =
+          _templateEditor && _index == DesktopDest.templates;
       return ShellNavigation(
         index: _index,
         goTo: _goTo,
@@ -149,14 +158,15 @@ class _AppShellState extends State<AppShell> {
           body: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              DesktopSidebar(
-                index: _index,
-                onSelect: _goTo,
-              ),
+              if (!editor)
+                DesktopSidebar(
+                  index: _index,
+                  onSelect: _goTo,
+                ),
               Expanded(
                 child: Column(
                   children: [
-                    const DesktopTopBar(),
+                    if (!editor) const DesktopTopBar(),
                     Expanded(
                       child: IndexedStack(
                         index: _index,

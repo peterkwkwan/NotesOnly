@@ -1,14 +1,9 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pelvi_crm/data/database.dart';
-import 'package:pelvi_crm/data/database_provider.dart';
-import 'package:pelvi_crm/data/sync.dart';
-import 'package:pelvi_crm/features/shell/desktop_chrome.dart';
 import 'package:pelvi_crm/features/templates/web_template_builder.dart';
 import 'package:pelvi_crm/theme/colors.dart';
 
@@ -41,67 +36,18 @@ void main() {
     final out = File(
       '/cursor/stores/bc-f9c2cc93-7a91-4da4-99f1-9a25cab0491c/media/web-template-builder-figma.png',
     );
-    final db = AppDatabase(NativeDatabase.memory());
-    await db.ensureDefaults();
-    await db.setPractitionerName('Mandy Shum');
 
     final key = GlobalKey();
-    await tester.binding.setSurfaceSize(const Size(1440, 1203));
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    const breadcrumb = 'Templates / Postnatal Check / Edit draft';
 
     await tester.pumpWidget(
       RepaintBoundary(
         key: key,
-        child: AppDatabaseProvider(
-          database: db,
-          syncEngine: const StubSyncEngine(),
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: _captureTheme(),
-            builder: (context, child) {
-              return MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  size: const Size(1440, 1203),
-                  textScaler: TextScaler.noScaling,
-                  disableAnimations: true,
-                ),
-                child: TickerMode(
-                  enabled: false,
-                  child: child ?? const SizedBox.shrink(),
-                ),
-              );
-            },
-            home: ShellNavigation(
-              index: DesktopDest.templates,
-              goTo: (_) {},
-              breadcrumb: breadcrumb,
-              child: SizedBox(
-                width: 1440,
-                height: 1203,
-                child: Scaffold(
-                  body: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      DesktopSidebar(
-                        index: DesktopDest.templates,
-                        onSelect: _noopSelect,
-                      ),
-                      const Expanded(
-                        child: Column(
-                          children: [
-                            const DesktopTopBar(),
-                            Expanded(child: WebTemplateBuilder()),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: _captureTheme(),
+          home: const WebTemplateBuilder(onBackToLibrary: _noop),
         ),
       ),
     );
@@ -114,27 +60,60 @@ void main() {
       );
     });
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 80));
 
     expect(find.text('NotesOnly'), findsOneWidget);
-    expect(find.text('Template builder'), findsOneWidget);
-    expect(find.text('Add a field'), findsOneWidget);
-    expect(find.text('SOAP outline'), findsOneWidget);
-    expect(find.text('Field settings'), findsOneWidget);
-    expect(find.text('Live preview'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('OUTLINE'), findsOneWidget);
+    expect(find.text('+ Add question'), findsOneWidget);
+    expect(find.text('Preview'), findsOneWidget);
     expect(find.text('Presenting concerns'), findsWidgets);
+    expect(find.text('Client goals'), findsOneWidget);
+    expect(find.text('Live preview'), findsNothing);
+    expect(find.text('Clinical interpretation'), findsNothing);
 
     final boundary =
         key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
     await tester.runAsync(() async {
-      final image = await boundary.toImage(pixelRatio: 1.25);
+      final image = await boundary.toImage(pixelRatio: 1);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
       await out.parent.create(recursive: true);
       await out.writeAsBytes(bytes!.buffer.asUint8List());
     });
     expect(out.lengthSync() > 5000, isTrue);
-    // Drift stream timers trip flutter_test invariants after PNG write (same as Today capture).
+
+    await tester.tap(find.text('Objective'));
+    await tester.pump();
+    expect(find.text('Observations'), findsOneWidget);
+    expect(find.text('Presenting concerns'), findsNothing);
+
+    await tester.tap(find.text('Subjective'));
+    await tester.pump();
+    expect(find.text('Presenting concerns'), findsWidgets);
+    await tester.tap(find.text('More'));
+    await tester.pump();
+    expect(find.text('Help text'), findsOneWidget);
+    expect(find.text('Placeholder'), findsOneWidget);
+    expect(find.text('Required'), findsOneWidget);
+    expect(find.text('Delete question'), findsOneWidget);
+
+    await tester.tap(find.text('Preview'));
+    await tester.pump();
+    expect(find.text('Clinical interpretation'), findsOneWidget);
+    await tester.tap(find.text('Preview'));
+    await tester.pump();
+    expect(find.text('Clinical interpretation'), findsNothing);
+
+    await tester.tap(find.text('+ Add question'));
+    await tester.pump();
+    expect(find.text('New question'), findsWidgets);
+
+    await tester.tap(find.text('Long text').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Short text'), findsWidgets);
+    expect(find.text('Single choice'), findsOneWidget);
+    expect(find.text('Multiple choice'), findsOneWidget);
+    expect(find.text('Numeric'), findsOneWidget);
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
 
-void _noopSelect(int _) {}
+void _noop() {}
