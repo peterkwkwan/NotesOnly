@@ -33,6 +33,13 @@ class _AppShellState extends State<AppShell> {
   int _dueCount = 0;
   bool _recallNotifsOn = true;
 
+  /// Nested content navigators (profile pushes stay in-column). Chrome select
+  /// pops the destination back to root so e.g. Clients shows the list again.
+  final _tabNavKeys = List<GlobalKey<NavigatorState>>.generate(
+    6,
+    (_) => GlobalKey<NavigatorState>(),
+  );
+
   /// Mobile IA: Today · Calendar · Clients · More.
   static const _mobilePages = <Widget>[
     TodayScreen(),
@@ -89,6 +96,10 @@ class _AppShellState extends State<AppShell> {
 
   void _goTo(int desktopIndex) {
     final next = desktopIndex.clamp(0, 5);
+    final nav = _tabNavKeys[next].currentState;
+    if (nav != null && nav.canPop()) {
+      nav.popUntil((route) => route.isFirst);
+    }
     if (next == _index) return;
     setState(() => _index = next);
   }
@@ -153,6 +164,7 @@ class _AppShellState extends State<AppShell> {
                           for (var i = 0; i < _desktopPages.length; i++)
                             _DesktopTabNavigator(
                               key: ValueKey('desktop-tab-$i'),
+                              navigatorKey: _tabNavKeys[i],
                               child: _desktopPages[i],
                             ),
                         ],
@@ -185,13 +197,19 @@ class _AppShellState extends State<AppShell> {
 
 /// Keeps pushes (e.g. Client profile) inside the content column so sidebar/top bar stay.
 class _DesktopTabNavigator extends StatelessWidget {
-  const _DesktopTabNavigator({super.key, required this.child});
+  const _DesktopTabNavigator({
+    super.key,
+    required this.navigatorKey,
+    required this.child,
+  });
 
+  final GlobalKey<NavigatorState> navigatorKey;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Navigator(
+      key: navigatorKey,
       onGenerateRoute: (settings) {
         return MaterialPageRoute<void>(
           settings: settings,
