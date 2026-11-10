@@ -29,7 +29,13 @@ class FirestoreSyncEngine implements SyncEngine {
   int _syncGen = 0;
   StreamSubscription<User?>? _authSub;
 
-  static const _collections = ['clients', 'appointments', 'notes', 'settings'];
+  static const _collections = [
+    'clients',
+    'appointments',
+    'notes',
+    'settings',
+    'templates',
+  ];
   /// Airplane / flaky network: don't leave UI on Syncing forever.
   static const _syncTimeout = Duration(seconds: 12);
 
@@ -267,6 +273,9 @@ class FirestoreSyncEngine implements SyncEngine {
               await _applyNote(doc.id, data, pending: true);
             case 'settings':
               await _applySetting(doc.id, data, pending: true);
+            case 'templates':
+              // Org templates are not imported from users/{uid}.
+              break;
           }
         }
         if (snap.docs.length < 200) break;
@@ -327,7 +336,15 @@ class FirestoreSyncEngine implements SyncEngine {
         .get();
     final cloudSettings =
         settings.where((s) => AppDatabase.isCloudSyncedSetting(s.key));
-    return clients.length + appts.length + notes.length + cloudSettings.length;
+    final templates = await (db.select(db.templates)
+          ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
+              t.syncStatus.equals(RowSyncStatus.error.index)))
+        .get();
+    return clients.length +
+        appts.length +
+        notes.length +
+        cloudSettings.length +
+        templates.length;
   }
 
   CollectionReference<Map<String, dynamic>> _col(String orgId, String name) =>
@@ -338,6 +355,7 @@ class FirestoreSyncEngine implements SyncEngine {
     await _pushClients(orgId);
     await _pushAppointments(orgId, user);
     if (_seesNotes(roles)) await _pushNotes(orgId, user);
+    await _pushTemplates(orgId, user);
     await _pushSettings(orgId, roles);
   }
 
@@ -458,6 +476,42 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
+  Future<void> _pushTemplates(String orgId, User user) async {
+    final rows = await (db.select(db.templates)
+          ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
+              t.syncStatus.equals(RowSyncStatus.error.index)))
+        .get();
+    for (final raw in rows) {
+      final row = await db.ensureTemplateCreator(
+        raw,
+        uid: user.uid,
+        name: user.displayName?.trim() ?? '',
+      );
+      try {
+        await _col(orgId, 'templates').doc(row.remoteId).set({
+          'name': row.name,
+          'description': row.description,
+          'fieldsJson': row.fieldsJson,
+          'createdBy': row.createdBy,
+          'createdByName': row.createdByName,
+          'createdAt': _ts(row.createdAt)!,
+          'updatedAt': _ts(row.updatedAt)!,
+          'deletedAt': _ts(row.deletedAt),
+        });
+        await (db.update(db.templates)..where((t) => t.id.equals(row.id)))
+            .write(
+          const TemplatesCompanion(syncStatus: Value(RowSyncStatus.synced)),
+        );
+      } catch (e) {
+        await (db.update(db.templates)..where((t) => t.id.equals(row.id)))
+            .write(
+          const TemplatesCompanion(syncStatus: Value(RowSyncStatus.error)),
+        );
+        rethrow;
+      }
+    }
+  }
+
   Future<void> _pushSettings(String orgId, Set<String> roles) async {
     final rows = await (db.select(db.settings)
           ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
@@ -545,6 +599,8 @@ class FirestoreSyncEngine implements SyncEngine {
           await _applyNote(doc.id, data);
         case 'settings':
           await _applySetting(doc.id, data);
+        case 'templates':
+          await _applyTemplate(doc.id, data);
       }
     }
     if (maxUpdated != null && maxUpdated.isAfter(cursor)) {
@@ -700,6 +756,27 @@ class FirestoreSyncEngine implements SyncEngine {
       await (db.update(db.notes)..where((t) => t.id.equals(existing.id)))
           .write(companion);
     }
+  }
+
+  Future<void> _applyTemplate(
+    String remoteId,
+    Map<String, dynamic> data, {
+    bool pending = false,
+  }) async {
+    final remoteUpdated = _readTs(data['updatedAt']) ?? DateTime.now().toUtc();
+    final nameRaw = (data['name'] as String?)?.trim() ?? '';
+    await db.applyRemoteOrgTemplate(
+      remoteId: remoteId,
+      name: nameRaw.isEmpty ? 'Untitled template' : nameRaw,
+      description: (data['description'] as String?) ?? '',
+      fieldsJson: (data['fieldsJson'] as String?) ?? '[]',
+      createdBy: (data['createdBy'] as String?) ?? '',
+      createdByName: (data['createdByName'] as String?) ?? '',
+      createdAt: _readTs(data['createdAt']) ?? remoteUpdated,
+      updatedAt: remoteUpdated,
+      deletedAt: _readTs(data['deletedAt']),
+      pending: pending,
+    );
   }
 
   Future<void> _applySetting(

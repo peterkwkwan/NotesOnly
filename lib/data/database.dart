@@ -8,6 +8,7 @@ import 'auth.dart';
 import 'org.dart';
 import 'recall.dart';
 import 'remote_id.dart';
+import 'sync.dart';
 
 export 'recall.dart';
 
@@ -121,7 +122,27 @@ class Settings extends Table {
   Set<Column<Object>> get primaryKey => {key};
 }
 
-@DriftDatabase(tables: [Clients, Appointments, Notes, Settings])
+/// Clinic SOAP template. Shared with the org; [createdBy] is the author uid.
+class Templates extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get remoteId => text().withDefault(const Constant(''))();
+  TextColumn get name => text()();
+  TextColumn get description => text().withDefault(const Constant(''))();
+
+  /// JSON list of builder fields. Opaque to sync.
+  TextColumn get fieldsJson => text().withDefault(const Constant('[]'))();
+  TextColumn get createdBy => text().withDefault(const Constant(''))();
+
+  /// shortcut: display name frozen at save, upgrade when memberships store names
+  TextColumn get createdByName => text().withDefault(const Constant(''))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get syncStatus => intEnum<RowSyncStatus>()
+      .withDefault(Constant(RowSyncStatus.pending.index))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+}
+
+@DriftDatabase(tables: [Clients, Appointments, Notes, Settings, Templates])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
       : super(executor ?? _openConnection());
@@ -132,7 +153,20 @@ class AppDatabase extends _$AppDatabase {
   void _notifyDirty() => onLocalChange?.call();
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
+
+  /// CREATE TABLE when [table] is not already there (half-applied migrate).
+  Future<void> createTableIfMissing(
+    Migrator m,
+    TableInfo<Table, dynamic> table,
+  ) async {
+    final name = table.actualTableName.replaceAll('"', '');
+    final rows = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '$name'",
+    ).get();
+    if (rows.isNotEmpty) return;
+    await m.createTable(table);
+  }
 
   /// True if [column] already exists on [table] (for idempotent migrations).
   Future<bool> hasSqliteColumn(String table, String column) async {
@@ -254,6 +288,9 @@ class AppDatabase extends _$AppDatabase {
               appointments.practitionerUid,
             );
             await _addColumnIfMissing(m, notes, notes.practitionerUid);
+          }
+          if (from < 7) {
+            await createTableIfMissing(m, templates);
           }
         },
       );
@@ -748,6 +785,7 @@ class AppDatabase extends _$AppDatabase {
     await update(appointments)
         .write(const AppointmentsCompanion(syncStatus: pending));
     await update(notes).write(const NotesCompanion(syncStatus: pending));
+    await update(templates).write(const TemplatesCompanion(syncStatus: pending));
     final settingRows = await select(settings).get();
     for (final row in settingRows) {
       if (!isCloudSyncedSetting(row.key)) continue;
@@ -1305,6 +1343,139 @@ class AppDatabase extends _$AppDatabase {
     );
     _notifyDirty();
     return true;
+  }
+
+  Stream<List<Template>> watchOrgTemplates() {
+    return (select(templates)
+          ..where((t) => t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
+        .watch();
+  }
+
+  Future<List<Template>> listOrgTemplates() {
+    return (select(templates)
+          ..where((t) => t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
+        .get();
+  }
+
+  /// Insert, or update the row with [remoteId]. [createdBy] is set only on insert.
+  Future<Template> saveOrgTemplate({
+    String? remoteId,
+    required String name,
+    required String description,
+    required String fieldsJson,
+    required String createdBy,
+    String createdByName = '',
+  }) async {
+    final now = DateTime.now();
+    final trimmed = name.trim().isEmpty ? 'Untitled template' : name.trim();
+    if (remoteId != null && remoteId.isNotEmpty) {
+      final existing = await (select(templates)
+            ..where((t) => t.remoteId.equals(remoteId)))
+          .getSingleOrNull();
+      if (existing != null) {
+        final fillName = existing.createdByName.trim().isEmpty &&
+            existing.createdBy.isNotEmpty &&
+            existing.createdBy == createdBy &&
+            createdByName.trim().isNotEmpty;
+        await (update(templates)..where((t) => t.id.equals(existing.id))).write(
+          TemplatesCompanion(
+            name: Value(trimmed),
+            description: Value(description),
+            fieldsJson: Value(fieldsJson),
+            createdByName: fillName
+                ? Value(createdByName.trim())
+                : const Value.absent(),
+            updatedAt: Value(now),
+            syncStatus: const Value(RowSyncStatus.pending),
+          ),
+        );
+        _notifyDirty();
+        return (select(templates)..where((t) => t.id.equals(existing.id)))
+            .getSingle();
+      }
+    }
+    final id = (remoteId != null && remoteId.isNotEmpty)
+        ? remoteId
+        : newRemoteId();
+    final localId = await into(templates).insert(
+      TemplatesCompanion.insert(
+        remoteId: Value(id),
+        name: trimmed,
+        description: Value(description),
+        fieldsJson: Value(fieldsJson),
+        createdBy: Value(createdBy),
+        createdByName: Value(createdByName.trim()),
+        createdAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    _notifyDirty();
+    return (select(templates)..where((t) => t.id.equals(localId))).getSingle();
+  }
+
+  /// Stamp [uid] onto a row that was saved before we knew the author.
+  /// Does not rewrite an author that is already set.
+  Future<Template> ensureTemplateCreator(
+    Template row, {
+    required String uid,
+    String name = '',
+  }) async {
+    if (uid.isEmpty || row.createdBy.isNotEmpty) return row;
+    final byName =
+        row.createdByName.trim().isNotEmpty ? row.createdByName : name.trim();
+    await (update(templates)..where((t) => t.id.equals(row.id))).write(
+      TemplatesCompanion(createdBy: Value(uid), createdByName: Value(byName)),
+    );
+    return (select(templates)..where((t) => t.id.equals(row.id))).getSingle();
+  }
+
+  /// Pull path. Keeps a stored [createdBy] so a later write cannot reassign it.
+  Future<void> applyRemoteOrgTemplate({
+    required String remoteId,
+    required String name,
+    required String description,
+    required String fieldsJson,
+    required String createdBy,
+    required String createdByName,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    DateTime? deletedAt,
+    required bool pending,
+  }) async {
+    final existing = await (select(templates)
+          ..where((t) => t.remoteId.equals(remoteId)))
+        .getSingleOrNull();
+    if (existing != null &&
+        !remoteWinsLww(existing.updatedAt.toUtc(), updatedAt.toUtc())) {
+      return;
+    }
+    final by = (existing != null && existing.createdBy.isNotEmpty)
+        ? existing.createdBy
+        : createdBy;
+    final byName = (existing != null && existing.createdByName.isNotEmpty)
+        ? existing.createdByName
+        : createdByName;
+    final companion = TemplatesCompanion(
+      remoteId: Value(remoteId),
+      name: Value(name.trim().isEmpty ? 'Untitled template' : name.trim()),
+      description: Value(description),
+      fieldsJson: Value(fieldsJson),
+      createdBy: Value(by),
+      createdByName: Value(byName),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: Value(deletedAt),
+      syncStatus: Value(pending ? RowSyncStatus.pending : RowSyncStatus.synced),
+    );
+    if (existing == null) {
+      await into(templates).insert(companion);
+    } else {
+      await (update(templates)..where((t) => t.id.equals(existing.id)))
+          .write(companion);
+    }
   }
 
   static String? _blankToNull(String? value) {

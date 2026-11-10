@@ -25,6 +25,12 @@ class SoapTemplate {
       objective.isNotEmpty ||
       assessment.isNotEmpty ||
       plan.isNotEmpty;
+
+  @override
+  bool operator ==(Object other) => other is SoapTemplate && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 const blankId = 'blank';

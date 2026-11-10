@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
 
+import '../../data/auth.dart';
+import '../../data/database.dart';
+import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../shell/desktop_chrome.dart';
+import '../templates/template_body.dart';
 import 'soap_templates.dart';
 
 /// Opens the template builder from the library (Edit draft / Create draft).
-typedef OpenTemplateBuilder = void Function({
-  required String name,
-  String description,
-  bool seedPostnatal,
-});
+typedef OpenTemplateBuilder =
+    void Function({
+      required String name,
+      String description,
+      bool seedPostnatal,
+      String? remoteId,
+      String? fieldsJson,
+    });
 
 /// Desktop SOAP template library (Figma `NotesOnly · SOAP template library`).
 ///
-/// Reuses shell chrome; wires built-in [soapTemplates] for names/ids.
-/// Version / publish / field-count / descriptions are presentation stubs
-/// until the template data model grows (builder agent owns editing).
+/// Built-in starters stay in the list. Saved templates are org records.
 class WebSoapTemplatesLibrary extends StatefulWidget {
   const WebSoapTemplatesLibrary({super.key, this.onOpenBuilder});
 
@@ -33,6 +38,9 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   String _query = '';
   String? _selectedId = 'postnatal_check';
   bool _showNewPanel = true;
+  bool _mineOnly = false;
+  Stream<List<Template>>? _orgStream;
+  Stream<String?>? _uidStream;
   final _nameCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _startFromId = blankId;
@@ -44,16 +52,63 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     super.dispose();
   }
 
-  List<_LibraryEntry> get _entries => _libraryEntries;
+  String? _viewerUid(String? boundUid) {
+    final authUid = NotesAuth.currentUser?.uid ?? '';
+    if (authUid.isNotEmpty) return authUid;
+    final bound = boundUid?.trim() ?? '';
+    if (bound.isNotEmpty) return bound;
+    return null;
+  }
 
-  int get _publishedCount =>
-      _entries.where((e) => e.isPublished).length;
+  List<_LibraryEntry> _entriesFor(List<Template> org, String? viewerUid) => [
+    ..._builtinEntries,
+    for (final row in org) _orgEntry(row, viewerUid),
+  ];
 
-  int get _draftCount => _entries.where((e) => e.inDraftsTab).length;
+  List<_LibraryEntry> _scopedFor(List<Template> org, String? viewerUid) {
+    final entries = _entriesFor(org, viewerUid);
+    if (!_mineOnly) return entries;
+    return [
+      for (final entry in entries)
+        if (templateMatchesMine(
+          createdBy: entry.createdBy,
+          viewerUid: viewerUid,
+        ))
+          entry,
+    ];
+  }
 
-  List<_LibraryEntry> get _visible {
+  _LibraryEntry _orgEntry(Template row, String? viewerUid) {
+    final creator = templateCreatorLabel(
+      createdByName: row.createdByName,
+      createdBy: row.createdBy,
+      viewerUid: viewerUid,
+      viewerName: NotesAuth.currentUser?.displayName,
+    );
+    final count = decodeTemplateFields(row.fieldsJson).length;
+    final questions = count == 1 ? '1 question' : '$count questions';
+    return _LibraryEntry(
+      template: SoapTemplate(
+        id: orgTemplateChoiceId(row.remoteId),
+        label: row.name,
+      ),
+      description: row.description,
+      versionLine: 'Shared with the clinic',
+      metaLine: creator == null
+          ? questions
+          : '$questions · Created by $creator',
+      isPublished: true,
+      inDraftsTab: false,
+      editDraftLabel: false,
+      createdBy: row.createdBy,
+      remoteId: row.remoteId,
+      fieldsJson: row.fieldsJson,
+    );
+  }
+
+  List<_LibraryEntry> _visibleFor(List<Template> org, String? viewerUid) {
     final q = _query.trim().toLowerCase();
-    return _entries.where((e) {
+    return _scopedFor(org, viewerUid).where((e) {
       final tabOk = switch (_tab) {
         _LibraryTab.all => true,
         _LibraryTab.published => e.isPublished,
@@ -62,7 +117,8 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       if (!tabOk) return false;
       if (q.isEmpty) return true;
       return e.template.label.toLowerCase().contains(q) ||
-          e.description.toLowerCase().contains(q);
+          e.description.toLowerCase().contains(q) ||
+          e.metaLine.toLowerCase().contains(q);
     }).toList();
   }
 
@@ -80,17 +136,47 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     required String name,
     String description = '',
     bool seedPostnatal = true,
+    String? remoteId,
+    String? fieldsJson,
   }) {
     final open = widget.onOpenBuilder;
     if (open == null) {
       _stubAction('Open builder');
       return;
     }
-    open(name: name, description: description, seedPostnatal: seedPostnatal);
+    open(
+      name: name,
+      description: description,
+      seedPostnatal: seedPostnatal,
+      remoteId: remoteId,
+      fieldsJson: fieldsJson,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final db = AppDatabaseProvider.maybeOf(context);
+    if (db == null) return _page(const [], null);
+    // New stream instances make StreamBuilder resubscribe every rebuild.
+    _orgStream ??= db.watchOrgTemplates();
+    _uidStream ??= db.watchSetting(AppDatabase.syncBoundUidKey);
+    return StreamBuilder<List<Template>>(
+      stream: _orgStream,
+      builder: (context, orgSnap) {
+        return StreamBuilder<String?>(
+          stream: _uidStream,
+          builder: (context, uidSnap) {
+            return _page(orgSnap.data ?? const [], uidSnap.data);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _page(List<Template> org, String? boundUid) {
+    final viewerUid = _viewerUid(boundUid);
+    final scoped = _scopedFor(org, viewerUid);
+    final visible = _visibleFor(org, viewerUid);
     final c = PelviColors.of(context);
     return ColoredBox(
       color: c.canvas,
@@ -107,14 +193,16 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                 ),
                 const SizedBox(height: 26),
                 _SearchRow(
+                  mine: _mineOnly,
                   onQuery: (v) => setState(() => _query = v),
+                  onToggleMine: () => setState(() => _mineOnly = !_mineOnly),
                 ),
                 const SizedBox(height: 26),
                 _ViewTabs(
                   tab: _tab,
-                  allCount: _entries.length,
-                  publishedCount: _publishedCount,
-                  draftCount: _draftCount,
+                  allCount: scoped.length,
+                  publishedCount: scoped.where((e) => e.isPublished).length,
+                  draftCount: scoped.where((e) => e.inDraftsTab).length,
                   onSelect: (t) => setState(() => _tab = t),
                 ),
                 const SizedBox(height: 26),
@@ -122,7 +210,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: _buildList(c)),
+                      Expanded(child: _buildList(c, visible)),
                       const SizedBox(width: 24),
                       SizedBox(
                         width: 378,
@@ -132,8 +220,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                           startFromId: _startFromId,
                           onStartFrom: (id) =>
                               setState(() => _startFromId = id),
-                          onClose: () =>
-                              setState(() => _showNewPanel = false),
+                          onClose: () => setState(() => _showNewPanel = false),
                           onCreateDraft: _createDraft,
                           onNameChanged: () => setState(() {}),
                         ),
@@ -141,7 +228,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                     ],
                   )
                 else ...[
-                  _buildList(c),
+                  _buildList(c, visible),
                   if (_showNewPanel) ...[
                     const SizedBox(height: 24),
                     _NewTemplatePanel(
@@ -163,8 +250,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     );
   }
 
-  Widget _buildList(PelviPalette c) {
-    final items = _visible;
+  Widget _buildList(PelviPalette c, List<_LibraryEntry> items) {
     if (items.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(32),
@@ -186,15 +272,17 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
           _TemplateCard(
             entry: items[i],
             selected: items[i].template.id == _selectedId,
-            onSelect: () =>
-                setState(() => _selectedId = items[i].template.id),
+            onSelect: () => setState(() => _selectedId = items[i].template.id),
             onDuplicate: () => _stubAction('Duplicate'),
             onEdit: () {
               final e = items[i];
               _openBuilder(
                 name: e.template.label,
                 description: e.description,
-                seedPostnatal: e.template.id == 'postnatal_check',
+                seedPostnatal:
+                    e.remoteId == null && e.template.id == 'postnatal_check',
+                remoteId: e.remoteId,
+                fieldsJson: e.fieldsJson,
               );
             },
           ),
@@ -241,11 +329,7 @@ class _Heading extends StatelessWidget {
               ),
               Text(
                 'A familiar structure, shaped around the way you write',
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
+                style: TextStyle(fontSize: 13, height: 1.5, color: c.inkMuted),
               ),
             ],
           ),
@@ -274,9 +358,15 @@ class _Heading extends StatelessWidget {
 }
 
 class _SearchRow extends StatelessWidget {
-  const _SearchRow({required this.onQuery});
+  const _SearchRow({
+    required this.onQuery,
+    required this.mine,
+    required this.onToggleMine,
+  });
 
   final ValueChanged<String> onQuery;
+  final bool mine;
+  final VoidCallback onToggleMine;
 
   @override
   Widget build(BuildContext context) {
@@ -293,12 +383,16 @@ class _SearchRow extends StatelessWidget {
                 hintText: 'Search templates by name or description',
                 hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
                 prefixIcon: Icon(Icons.search, size: 18, color: c.inkMuted),
-                prefixIconConstraints:
-                    const BoxConstraints(minWidth: 40, minHeight: 44),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 44,
+                ),
                 filled: true,
                 fillColor: c.surface,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(PelviRadius.sm),
                   borderSide: BorderSide(color: c.border),
@@ -316,25 +410,24 @@ class _SearchRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 18),
-        OutlinedButton.icon(
-          onPressed: null,
-          icon: Icon(Icons.keyboard_arrow_down, size: 16, color: c.ink),
-          label: Text(
-            'Recently edited',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          ),
+        OutlinedButton(
+          onPressed: onToggleMine,
           style: OutlinedButton.styleFrom(
-            backgroundColor: c.surface,
-            disabledForegroundColor: c.ink,
-            side: BorderSide(color: c.border),
+            backgroundColor: mine ? c.pink50 : c.surface,
+            foregroundColor: mine ? c.pink700 : c.ink,
+            side: BorderSide(color: mine ? c.pink700 : c.border),
             minimumSize: const Size(0, 38),
             padding: const EdgeInsets.symmetric(horizontal: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(PelviRadius.sm),
+            ),
+          ),
+          child: Text(
+            mine ? 'Mine' : 'Created by',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: mine ? c.pink700 : c.ink,
             ),
           ),
         ),
@@ -437,9 +530,7 @@ class _TemplateCard extends StatelessWidget {
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected ? c.pink700 : c.border,
-            ),
+            border: Border.all(color: selected ? c.pink700 : c.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -492,12 +583,10 @@ class _TemplateCard extends StatelessWidget {
               ),
               const SizedBox(height: 15),
               Text(
-                entry.description,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
+                entry.description.trim().isEmpty
+                    ? 'Shared with the clinic.'
+                    : entry.description,
+                style: TextStyle(fontSize: 12, height: 1.5, color: c.inkMuted),
               ),
               const SizedBox(height: 15),
               Row(
@@ -522,14 +611,21 @@ class _TemplateCard extends StatelessWidget {
                     ),
                     child: const Text(
                       'Duplicate',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),
                   if (entry.editDraftLabel)
                     FilledButton.icon(
                       onPressed: onEdit,
-                      icon: Icon(Icons.edit_outlined, size: 16, color: c.pink700),
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        size: 16,
+                        color: c.pink700,
+                      ),
                       label: Text(
                         'Edit draft',
                         style: TextStyle(
@@ -631,8 +727,7 @@ class _NewTemplatePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
     final canCreate = nameCtrl.text.trim().isNotEmpty;
-    final startLabel =
-        soapTemplateById(startFromId).label;
+    final startLabel = soapTemplateById(startFromId).label;
 
     return Container(
       width: double.infinity,
@@ -834,11 +929,19 @@ class _NewTemplatePanel extends StatelessWidget {
                 ]) ...[
                   Row(
                     children: [
-                      Icon(Icons.format_align_left, size: 14, color: c.inkMuted),
+                      Icon(
+                        Icons.format_align_left,
+                        size: 14,
+                        color: c.inkMuted,
+                      ),
                       const SizedBox(width: 10),
                       Text(
                         section,
-                        style: TextStyle(fontSize: 12, height: 1.5, color: c.ink),
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: c.ink,
+                        ),
                       ),
                     ],
                   ),
@@ -895,6 +998,9 @@ class _LibraryEntry {
     required this.inDraftsTab,
     required this.editDraftLabel,
     this.draftOnly = false,
+    this.createdBy,
+    this.remoteId,
+    this.fieldsJson,
   });
 
   final SoapTemplate template;
@@ -905,12 +1011,15 @@ class _LibraryEntry {
   final bool inDraftsTab;
   final bool editDraftLabel;
   final bool draftOnly;
+  final String? createdBy;
+  final String? remoteId;
+  final String? fieldsJson;
 
   String get statusLabel => draftOnly ? 'Draft' : 'Published';
 }
 
 /// shortcut: version/publish/field counts are Figma stubs, upgrade when template model persists them
-final _libraryEntries = <_LibraryEntry>[
+final _builtinEntries = <_LibraryEntry>[
   _LibraryEntry(
     template: soapTemplateBlank,
     description: 'Four open SOAP sections for free-form documentation.',

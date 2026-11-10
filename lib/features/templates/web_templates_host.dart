@@ -16,17 +16,25 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
   String _builderName = 'Postnatal Check';
   String _builderDescription = 'Guided prompts for a postnatal review.';
   bool _seedPostnatal = true;
+  String? _remoteId;
+  String? _fieldsJson;
+  int _openGen = 0;
 
   void _openBuilder({
     required String name,
     String description = '',
     bool seedPostnatal = true,
+    String? remoteId,
+    String? fieldsJson,
   }) {
     setState(() {
+      _openGen += 1;
       _inBuilder = true;
       _builderName = name;
       _builderDescription = description;
       _seedPostnatal = seedPostnatal;
+      _remoteId = remoteId;
+      _fieldsJson = fieldsJson;
     });
   }
 
@@ -38,24 +46,32 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
   Widget build(BuildContext context) {
     if (_inBuilder) {
       return WebTemplateBuilder(
+        key: ValueKey(_openGen),
         initialName: _builderName,
         initialDescription: _builderDescription,
         seedPostnatal: _seedPostnatal,
+        remoteId: _remoteId,
+        fieldsJson: _fieldsJson,
         onBackToLibrary: _closeBuilder,
       );
     }
     return WebSoapTemplatesLibrary(
-      onOpenBuilder: ({
-        required String name,
-        String description = '',
-        bool seedPostnatal = true,
-      }) {
-        _openBuilder(
-          name: name,
-          description: description,
-          seedPostnatal: seedPostnatal,
-        );
-      },
+      onOpenBuilder:
+          ({
+            required String name,
+            String description = '',
+            bool seedPostnatal = true,
+            String? remoteId,
+            String? fieldsJson,
+          }) {
+            _openBuilder(
+              name: name,
+              description: description,
+              seedPostnatal: seedPostnatal,
+              remoteId: remoteId,
+              fieldsJson: fieldsJson,
+            );
+          },
     );
   }
 }

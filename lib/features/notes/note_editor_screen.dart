@@ -12,6 +12,7 @@ import '../clients/client_format.dart';
 import '../clients/client_profile_screen.dart';
 import 'dictation_apply_sheet.dart';
 import 'note_format.dart';
+import '../templates/template_body.dart';
 import 'soap_dictation.dart';
 import 'soap_templates.dart';
 
@@ -148,13 +149,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _plan.text.trim().isNotEmpty;
 
   Future<void> _pickTemplate() async {
+    final choices = await soapTemplateChoices(AppDatabaseProvider.of(context));
+    if (!mounted) return;
     final picked = await showPelviPickerSheet<SoapTemplate>(
       context: context,
       title: 'Template',
       selected: _template,
       options: [
-        for (final t in soapTemplates)
-          PelviPickerOption(value: t, label: t.label),
+        for (final t in choices) PelviPickerOption(value: t, label: t.label),
       ],
     );
     if (!mounted || picked == null) return;

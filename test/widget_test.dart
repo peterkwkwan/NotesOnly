@@ -23,6 +23,9 @@ import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 import 'package:pelvi_crm/features/notes/note_format.dart';
 import 'package:pelvi_crm/features/notes/soap_dictation.dart';
 import 'package:pelvi_crm/features/notes/soap_templates.dart';
+import 'package:pelvi_crm/features/notes/web_soap_templates_library.dart';
+import 'package:pelvi_crm/features/templates/template_body.dart';
+import 'package:pelvi_crm/features/templates/web_template_builder.dart';
 import 'package:pelvi_crm/features/notifications/notifications_sheet.dart';
 import 'package:pelvi_crm/theme/theme.dart';
 import 'package:pelvi_crm/widgets/show_snack.dart';
@@ -202,6 +205,152 @@ void main() {
     expect(dram.objective, contains('C-section scar -'));
     expect(dram.assessment, isEmpty);
     expect(dram.plan, isEmpty);
+  });
+
+  test('template fields round-trip and fill SOAP by section', () {
+    final raw = encodeTemplateFields([
+      TemplateField(
+        id: 'f1',
+        type: FieldType.longText,
+        section: SoapSection.subjective,
+        label: 'Concerns',
+        required: true,
+      ),
+      TemplateField(
+        id: 'f2',
+        type: FieldType.shortText,
+        section: SoapSection.plan,
+        label: 'Follow-up',
+      ),
+    ]);
+    final back = decodeTemplateFields(raw);
+    expect(back, hasLength(2));
+    expect(back.first.required, isTrue);
+    expect(back.first.type, FieldType.longText);
+    final fill = soapFillFromFields(back);
+    expect(fill.subjective, 'Concerns');
+    expect(fill.plan, 'Follow-up');
+    expect(fill.objective, isEmpty);
+    expect(fill.assessment, isEmpty);
+    expect(decodeTemplateFields('nope'), isEmpty);
+    expect(templateMatchesMine(createdBy: 'a', viewerUid: 'a'), isTrue);
+    expect(templateMatchesMine(createdBy: 'a', viewerUid: 'b'), isFalse);
+    expect(templateMatchesMine(createdBy: null, viewerUid: 'a'), isFalse);
+    expect(
+      templateCreatorLabel(
+        createdByName: 'Ada',
+        createdBy: 'a',
+        viewerUid: 'b',
+      ),
+      'Ada',
+    );
+    expect(
+      templateCreatorLabel(createdByName: '', createdBy: 'a', viewerUid: 'b'),
+      isNull,
+    );
+    expect(
+      templateCreatorLabel(
+        createdByName: '',
+        createdBy: 'a',
+        viewerUid: 'a',
+        viewerName: 'Ada',
+      ),
+      'Ada',
+    );
+  });
+
+  test('org template keeps createdBy and stamps a missing author', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final saved = await db.saveOrgTemplate(
+      name: 'Evening',
+      description: 'd',
+      fieldsJson: '[]',
+      createdBy: 'uid-a',
+      createdByName: 'Ada',
+    );
+    expect(saved.remoteId, isNotEmpty);
+    expect(saved.createdBy, 'uid-a');
+    expect(saved.syncStatus, RowSyncStatus.pending);
+
+    final updated = await db.saveOrgTemplate(
+      remoteId: saved.remoteId,
+      name: 'Evening 2',
+      description: 'd2',
+      fieldsJson:
+          '[{"id":"f1","type":"longText","section":"subjective","label":"Concerns","helpText":"","placeholder":"","required":false}]',
+      createdBy: 'uid-b',
+      createdByName: 'Bea',
+    );
+    expect(updated.id, saved.id);
+    expect(updated.name, 'Evening 2');
+    expect(updated.createdBy, 'uid-a');
+    expect(updated.createdByName, 'Ada');
+    expect(await db.listOrgTemplates(), hasLength(1));
+
+    await db.applyRemoteOrgTemplate(
+      remoteId: saved.remoteId,
+      name: 'From cloud',
+      description: '',
+      fieldsJson: '[]',
+      createdBy: 'uid-b',
+      createdByName: 'Bea',
+      createdAt: saved.createdAt,
+      updatedAt: saved.updatedAt.add(const Duration(seconds: 1)),
+      pending: false,
+    );
+    final pulled = (await db.listOrgTemplates()).single;
+    expect(pulled.name, 'From cloud');
+    expect(pulled.createdBy, 'uid-a');
+    expect(pulled.createdByName, 'Ada');
+    expect(pulled.syncStatus, RowSyncStatus.synced);
+
+    await db.applyRemoteOrgTemplate(
+      remoteId: saved.remoteId,
+      name: 'Stale',
+      description: '',
+      fieldsJson: '[]',
+      createdBy: 'uid-b',
+      createdByName: 'Bea',
+      createdAt: saved.createdAt,
+      updatedAt: pulled.updatedAt.subtract(const Duration(seconds: 5)),
+      pending: false,
+    );
+    expect((await db.listOrgTemplates()).single.name, 'From cloud');
+
+    final unclaimed = await db.saveOrgTemplate(
+      name: 'Later',
+      description: '',
+      fieldsJson: '[]',
+      createdBy: '',
+    );
+    final claimed = await db.ensureTemplateCreator(
+      unclaimed,
+      uid: 'uid-a',
+      name: 'Ada',
+    );
+    expect(claimed.createdBy, 'uid-a');
+    expect(claimed.createdByName, 'Ada');
+    final kept = await db.ensureTemplateCreator(
+      claimed,
+      uid: 'uid-b',
+      name: 'Bea',
+    );
+    expect(kept.createdBy, 'uid-a');
+    expect(kept.createdByName, 'Ada');
+  });
+
+  test('v7 templates table create is idempotent', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    expect(await db.hasSqliteColumn('templates', 'created_by'), isTrue);
+    await db.customStatement('DROP TABLE templates');
+    final m = Migrator(db);
+    await db.migration.onUpgrade(m, 6, 7);
+    await db.migration.onUpgrade(m, 6, 7);
+    expect(await db.hasSqliteColumn('templates', 'created_by'), isTrue);
+    expect(await db.hasSqliteColumn('templates', 'fields_json'), isTrue);
   });
 
   test('nextWholeHour rounds past the hour, keeps exact hour', () {
@@ -670,6 +819,8 @@ void main() {
   testWidgets('Calendar tab shows month grid and day list', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
+    await tester.binding.setSurfaceSize(const Size(800, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final clientId = await db.insertClient(
       firstName: 'Ada',
@@ -703,6 +854,8 @@ void main() {
       (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
+    await tester.binding.setSurfaceSize(const Size(800, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
       AppDatabaseProvider(
@@ -1256,6 +1409,29 @@ void main() {
     expect(find.byType(FloatingActionButton), findsOneWidget);
     expect(find.byType(OutlinedButton), findsOneWidget);
     expect(find.byType(FilledButton), findsOneWidget);
+
+    await db.saveOrgTemplate(
+      name: 'Evening review',
+      description: 'Shared',
+      fieldsJson: encodeTemplateFields([
+        TemplateField(
+          id: 'f1',
+          type: FieldType.longText,
+          section: SoapSection.subjective,
+          label: 'Concerns',
+        ),
+      ]),
+      createdBy: 'uid-a',
+      createdByName: 'Ada',
+    );
+    await tester.tap(find.byTooltip('Choose template'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Evening review'), findsOneWidget);
+    expect(find.text('Postnatal Check'), findsOneWidget);
+    await tester.tap(find.text('Blank').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
   });
 
   testWidgets('profile appointments multi-delete mode', (tester) async {
@@ -1509,6 +1685,108 @@ void main() {
     expect(saved.notes, 'updated note');
     expect(saved.phone, '11234951');
     expect(saved.emergencyContact, 'Becca Chambers');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
+  testWidgets('template builder saves an org template once', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-me');
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: const MaterialApp(
+          home: WebTemplateBuilder(
+            initialName: 'Evening review',
+            initialDescription: 'Short',
+            seedPostnatal: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final rows = await db.listOrgTemplates();
+    expect(rows, hasLength(1));
+    expect(rows.single.name, 'Evening review');
+    expect(rows.single.description, 'Short');
+    expect(rows.single.createdBy, 'uid-me');
+    expect(rows.single.syncStatus, RowSyncStatus.pending);
+    expect(decodeTemplateFields(rows.single.fieldsJson), isNotEmpty);
+    expect(find.text('Saved for the clinic.'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('template list shows created by and filters to mine',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-me');
+    await db.saveOrgTemplate(
+      name: 'My review',
+      description: 'Mine desc',
+      fieldsJson: encodeTemplateFields([
+        TemplateField(
+          id: 'f1',
+          type: FieldType.longText,
+          section: SoapSection.subjective,
+          label: 'Concerns',
+        ),
+      ]),
+      createdBy: 'uid-me',
+      createdByName: 'Ada',
+    );
+    await db.saveOrgTemplate(
+      name: 'Their review',
+      description: 'Theirs',
+      fieldsJson: '[]',
+      createdBy: 'uid-other',
+      createdByName: 'Bea',
+    );
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: const MaterialApp(
+          home: Scaffold(body: WebSoapTemplatesLibrary()),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('All templates (6)'), findsOneWidget);
+    expect(find.text('My review'), findsOneWidget);
+    expect(find.text('Their review'), findsOneWidget);
+    expect(find.textContaining('Created by Ada'), findsOneWidget);
+    expect(find.textContaining('Created by Bea'), findsOneWidget);
+
+    await tester.tap(find.text('Created by'));
+    await tester.pump();
+
+    expect(find.text('Mine'), findsOneWidget);
+    expect(find.text('All templates (1)'), findsOneWidget);
+    expect(find.text('My review'), findsOneWidget);
+    expect(find.text('Their review'), findsNothing);
+    expect(find.text('Postnatal Check'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));

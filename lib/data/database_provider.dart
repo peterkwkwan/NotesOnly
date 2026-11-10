@@ -22,6 +22,13 @@ class AppDatabaseProvider extends InheritedWidget {
     return provider!.database;
   }
 
+  /// Null in widget captures that mount a screen without the app shell.
+  static AppDatabase? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<AppDatabaseProvider>()
+        ?.database;
+  }
+
   static SyncEngine syncOf(BuildContext context) {
     final provider =
         context.dependOnInheritedWidgetOfExactType<AppDatabaseProvider>();

@@ -1,75 +1,42 @@
 import 'package:flutter/material.dart';
 
+import '../../data/auth.dart';
+import '../../data/database.dart';
+import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
-
-enum SoapSection { subjective, objective, assessment, plan }
-
-enum FieldType { longText, shortText, singleChoice, multipleChoice, numeric }
+import '../notes/soap_dictation.dart';
+import 'template_body.dart';
 
 extension on SoapSection {
   String get letter => switch (this) {
-        SoapSection.subjective => 'S',
-        SoapSection.objective => 'O',
-        SoapSection.assessment => 'A',
-        SoapSection.plan => 'P',
-      };
-
-  String get label => switch (this) {
-        SoapSection.subjective => 'Subjective',
-        SoapSection.objective => 'Objective',
-        SoapSection.assessment => 'Assessment',
-        SoapSection.plan => 'Plan',
-      };
-}
-
-extension on FieldType {
-  String get label => switch (this) {
-        FieldType.longText => 'Long text',
-        FieldType.shortText => 'Short text',
-        FieldType.singleChoice => 'Single choice',
-        FieldType.multipleChoice => 'Multiple choice',
-        FieldType.numeric => 'Numeric',
-      };
-
-  bool get isMultiline => this == FieldType.longText;
-}
-
-class _DraftField {
-  _DraftField({
-    required this.id,
-    required this.type,
-    required this.section,
-    required this.label,
-    this.helpText = '',
-    this.placeholder = '',
-    this.required = false,
-  });
-
-  final String id;
-  FieldType type;
-  SoapSection section;
-  String label;
-  String helpText;
-  String placeholder;
-  bool required;
+    SoapSection.subjective => 'S',
+    SoapSection.objective => 'O',
+    SoapSection.assessment => 'A',
+    SoapSection.plan => 'P',
+  };
 }
 
 /// Quiet web template editor, shown in the desktop content pane.
-///
-/// shortcut: no Drift/Firestore template schema yet — local in-memory draft only;
-/// upgrade when custom templates are modeled.
 class WebTemplateBuilder extends StatefulWidget {
   const WebTemplateBuilder({
     super.key,
     this.initialName = 'Postnatal Check',
     this.initialDescription = 'Guided prompts for a postnatal review.',
     this.seedPostnatal = true,
+    this.remoteId,
+    this.fieldsJson,
     this.onBackToLibrary,
   });
 
   final String initialName;
   final String initialDescription;
   final bool seedPostnatal;
+
+  /// Set when editing an org template. Null starts a new org record on save.
+  final String? remoteId;
+
+  /// Saved builder fields. Null uses the postnatal or blank starter.
+  final String? fieldsJson;
   final VoidCallback? onBackToLibrary;
 
   @override
@@ -83,34 +50,54 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   late final TextEditingController _helpCtrl;
   late final TextEditingController _placeholderCtrl;
 
-  late List<_DraftField> _fields;
+  late List<TemplateField> _fields;
   late SoapSection _section;
   String? _selectedId;
+  String? _remoteId;
   int _idSeq = 0;
   bool _dirty = true;
   bool _preview = false;
   bool _showMore = false;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _fields = widget.seedPostnatal ? _seedPostnatal() : _seedBlank();
-    _selectedId = _fields.first.id;
-    _section = _fields.first.section;
-    final sel = _fields.first;
+    final saved = widget.fieldsJson;
+    _remoteId = widget.remoteId;
+    if (saved != null) {
+      _fields = decodeTemplateFields(saved);
+      _idSeq = _maxFieldSeq(_fields);
+      _dirty = false;
+    } else {
+      _fields = widget.seedPostnatal ? _seedPostnatal() : _seedBlank();
+    }
+    final sel = _fields.isEmpty ? null : _fields.first;
+    _selectedId = sel?.id;
+    _section = sel?.section ?? SoapSection.subjective;
     _nameCtrl = TextEditingController(text: widget.initialName);
     _descCtrl = TextEditingController(text: widget.initialDescription);
-    _labelCtrl = TextEditingController(text: sel.label);
-    _helpCtrl = TextEditingController(text: sel.helpText);
-    _placeholderCtrl = TextEditingController(text: sel.placeholder);
+    _labelCtrl = TextEditingController(text: sel?.label ?? '');
+    _helpCtrl = TextEditingController(text: sel?.helpText ?? '');
+    _placeholderCtrl = TextEditingController(text: sel?.placeholder ?? '');
     _nameCtrl.addListener(_markDirty);
     _descCtrl.addListener(_markDirty);
   }
 
-  List<_DraftField> _seedBlank() {
+  int _maxFieldSeq(List<TemplateField> fields) {
+    var max = 0;
+    for (final field in fields) {
+      final match = RegExp(r'^f(\d+)$').firstMatch(field.id);
+      final n = int.tryParse(match?.group(1) ?? '') ?? 0;
+      if (n > max) max = n;
+    }
+    return max;
+  }
+
+  List<TemplateField> _seedBlank() {
     _idSeq += 1;
     return [
-      _DraftField(
+      TemplateField(
         id: 'f$_idSeq',
         type: FieldType.longText,
         section: SoapSection.subjective,
@@ -120,8 +107,8 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     ];
   }
 
-  List<_DraftField> _seedPostnatal() {
-    _DraftField f({
+  List<TemplateField> _seedPostnatal() {
+    TemplateField f({
       required FieldType type,
       required SoapSection section,
       required String label,
@@ -130,7 +117,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
       bool required = false,
     }) {
       _idSeq += 1;
-      return _DraftField(
+      return TemplateField(
         id: 'f$_idSeq',
         type: type,
         section: section,
@@ -200,7 +187,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     if (!_dirty) setState(() => _dirty = true);
   }
 
-  _DraftField? get _selected {
+  TemplateField? get _selected {
     final id = _selectedId;
     if (id == null) return null;
     for (final f in _fields) {
@@ -209,7 +196,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     return null;
   }
 
-  List<_DraftField> _in(SoapSection section) =>
+  List<TemplateField> _in(SoapSection section) =>
       _fields.where((f) => f.section == section).toList();
 
   void _syncSelectedControllers() {
@@ -220,7 +207,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     sel.placeholder = _placeholderCtrl.text;
   }
 
-  void _bind(_DraftField? field) {
+  void _bind(TemplateField? field) {
     _selectedId = field?.id;
     _labelCtrl.text = field?.label ?? '';
     _helpCtrl.text = field?.helpText ?? '';
@@ -246,7 +233,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     });
   }
 
-  void _selectField(_DraftField field) {
+  void _selectField(TemplateField field) {
     if (field.id == _selectedId && !_preview) return;
     _syncSelectedControllers();
     setState(() {
@@ -273,7 +260,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   void _addQuestion() {
     _syncSelectedControllers();
     _idSeq += 1;
-    final field = _DraftField(
+    final field = TemplateField(
       id: 'f$_idSeq',
       type: FieldType.longText,
       section: _section,
@@ -302,16 +289,43 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     _syncSelectedControllers();
-    setState(() => _dirty = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Saved in this session only — custom templates are not stored yet.',
-        ),
-      ),
-    );
+    final db = AppDatabaseProvider.maybeOf(context);
+    if (db == null) return;
+    setState(() => _saving = true);
+    final authUser = NotesAuth.currentUser;
+    final bound = await db.getSetting(AppDatabase.syncBoundUidKey);
+    if (!mounted) return;
+    final authUid = authUser?.uid ?? '';
+    final uid = authUid.isNotEmpty ? authUid : (bound ?? '');
+    final liveName = authUser?.displayName?.trim() ?? '';
+    try {
+      final saved = await db.saveOrgTemplate(
+        remoteId: _remoteId,
+        name: _nameCtrl.text,
+        description: _descCtrl.text.trim(),
+        fieldsJson: encodeTemplateFields(_fields),
+        createdBy: uid,
+        createdByName: liveName,
+      );
+      if (!mounted) return;
+      setState(() {
+        _remoteId = saved.remoteId;
+        _dirty = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved for the clinic.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save template: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -435,8 +449,9 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
                       section.label,
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w400,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
                         color: c.ink,
                       ),
                     ),
@@ -556,7 +571,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
               ),
               const SizedBox(width: 12),
               FilledButton(
-                onPressed: _save,
+                onPressed: _saving ? null : _save,
                 style: FilledButton.styleFrom(
                   backgroundColor: c.pink700,
                   foregroundColor: c.inkInverse,
@@ -607,16 +622,12 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     final title = raw.trim();
     return Text(
       title.isEmpty ? 'Untitled question' : title,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: c.ink,
-      ),
+      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.ink),
       overflow: TextOverflow.ellipsis,
     );
   }
 
-  Widget _prompt(BuildContext context, _DraftField field) {
+  Widget _prompt(BuildContext context, TemplateField field) {
     final c = PelviColors.of(context);
     final selected = field.id == _selectedId;
     final title = field.label.trim();
@@ -650,10 +661,8 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
                         child: selected
                             ? ValueListenableBuilder<TextEditingValue>(
                                 valueListenable: _labelCtrl,
-                                builder: (context, value, _) => _promptTitle(
-                                  c,
-                                  value.text,
-                                ),
+                                builder: (context, value, _) =>
+                                    _promptTitle(c, value.text),
                               )
                             : _promptTitle(c, title),
                       ),
@@ -671,7 +680,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     );
   }
 
-  Widget _promptEditor(BuildContext context, _DraftField field) {
+  Widget _promptEditor(BuildContext context, TemplateField field) {
     final c = PelviColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -680,7 +689,10 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
         children: [
           _LabeledField(
             label: 'Label',
-            child: _TextBox(controller: _labelCtrl, onChanged: (_) => _onDraftText()),
+            child: _TextBox(
+              controller: _labelCtrl,
+              onChanged: (_) => _onDraftText(),
+            ),
           ),
           const SizedBox(height: 14),
           Text(
@@ -737,7 +749,10 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
               ),
               child: Text(
                 _showMore ? 'Less' : 'More',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),
@@ -901,7 +916,7 @@ class _TypeChip extends StatelessWidget {
 class _PreviewField extends StatelessWidget {
   const _PreviewField({required this.field});
 
-  final _DraftField field;
+  final TemplateField field;
 
   @override
   Widget build(BuildContext context) {
@@ -974,11 +989,7 @@ class _LabeledField extends StatelessWidget {
 }
 
 class _TextBox extends StatelessWidget {
-  const _TextBox({
-    required this.controller,
-    this.minLines = 1,
-    this.onChanged,
-  });
+  const _TextBox({required this.controller, this.minLines = 1, this.onChanged});
 
   final TextEditingController controller;
   final int minLines;
