@@ -273,6 +273,13 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                             : _selected,
                                         onToday: _goToday,
                                         onAdd: () => _openPanel(day: _selected),
+                                        // Mirror panel Save when a client is picked.
+                                        showSave:
+                                            _panelOpen && _clientId != null,
+                                        canSave: _clientId != null && !_saving,
+                                        saving: _saving,
+                                        onSave: () =>
+                                            _save(db, defaultMins),
                                       ),
                                       const SizedBox(height: 26),
                                       _Controls(
@@ -458,11 +465,19 @@ class _Header extends StatelessWidget {
     required this.subtitleMonth,
     required this.onToday,
     required this.onAdd,
+    required this.showSave,
+    required this.canSave,
+    required this.saving,
+    required this.onSave,
   });
 
   final DateTime subtitleMonth;
   final VoidCallback onToday;
   final VoidCallback onAdd;
+  final bool showSave;
+  final bool canSave;
+  final bool saving;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -517,15 +532,21 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         FilledButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add, size: 16),
-          label: const Text(
-            'Add appointment',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          onPressed: showSave ? (canSave ? onSave : null) : onAdd,
+          icon: Icon(showSave ? Icons.save_outlined : Icons.add, size: 16),
+          label: Text(
+            showSave
+                ? (saving ? 'Saving…' : 'Save appointment')
+                : 'Add appointment',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
+            backgroundColor:
+                showSave && !canSave ? c.surfaceMuted : c.pink700,
+            foregroundColor:
+                showSave && !canSave ? c.inkMuted : c.inkInverse,
+            disabledBackgroundColor: c.surfaceMuted,
+            disabledForegroundColor: c.inkMuted,
             minimumSize: const Size(0, 38),
             padding: const EdgeInsets.symmetric(horizontal: 14),
             shape: RoundedRectangleBorder(
