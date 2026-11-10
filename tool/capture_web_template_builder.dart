@@ -61,7 +61,8 @@ void main() {
     });
     await tester.pump();
 
-    expect(find.text('NotesOnly'), findsOneWidget);
+    expect(find.text('NotesOnly'), findsNothing);
+    expect(find.byTooltip('Templates'), findsOneWidget);
     expect(find.text('Save'), findsOneWidget);
     expect(find.text('OUTLINE'), findsOneWidget);
     expect(find.text('+ Add question'), findsOneWidget);
@@ -83,7 +84,7 @@ void main() {
 
     await tester.tap(find.text('Objective'));
     await tester.pump();
-    expect(find.text('Observations'), findsOneWidget);
+    expect(find.text('Observations'), findsWidgets);
     expect(find.text('Presenting concerns'), findsNothing);
 
     await tester.tap(find.text('Subjective'));

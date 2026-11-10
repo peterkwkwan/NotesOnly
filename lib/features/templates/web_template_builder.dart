@@ -331,122 +331,37 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     final c = PelviColors.of(context);
     return Scaffold(
       backgroundColor: c.canvas,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _bar(context),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth >= 760;
-                final outline = _outline(context);
-                if (!wide) {
-                  return SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        outline,
-                        Divider(height: 1, color: c.border),
-                        _main(context),
-                      ],
-                    ),
-                  );
-                }
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      width: 248,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          border: Border(right: BorderSide(color: c.border)),
-                        ),
-                        child: SingleChildScrollView(child: outline),
-                      ),
-                    ),
-                    Expanded(child: SingleChildScrollView(child: _main(context))),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _bar(BuildContext context) {
-    final c = PelviColors.of(context);
-    final nameStyle = TextStyle(
-      fontSize: 15,
-      fontWeight: FontWeight.w600,
-      color: c.ink,
-    );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: c.border)),
-      ),
-      child: SizedBox(
-        height: 64,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 760;
+          final outline = _outline(context);
+          if (!wide) {
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  outline,
+                  Divider(height: 1, color: c.border),
+                  _main(context),
+                ],
+              ),
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Image.asset(
-                'assets/brand/notesonly-monogram.png',
-                width: 26,
-                height: 28,
-                filterQuality: FilterQuality.high,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'NotesOnly',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.4,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(width: 20),
-              IconButton(
-                tooltip: 'Templates',
-                onPressed: widget.onBackToLibrary,
-                icon: Icon(Icons.arrow_back, size: 18, color: c.ink),
-              ),
-              Expanded(
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _nameCtrl,
-                  builder: (context, value, _) {
-                    final name = value.text.trim();
-                    return Text(
-                      name.isEmpty ? 'Untitled template' : name,
-                      style: nameStyle,
-                      overflow: TextOverflow.ellipsis,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton(
-                onPressed: _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: c.pink700,
-                  foregroundColor: c.inkInverse,
-                  minimumSize: const Size(72, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(PelviRadius.sm),
+              SizedBox(
+                width: 248,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(right: BorderSide(color: c.border)),
                   ),
-                ),
-                child: const Text(
-                  'Save',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  child: SingleChildScrollView(child: outline),
                 ),
               ),
+              Expanded(child: SingleChildScrollView(child: _main(context))),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -597,31 +512,67 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
             ],
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: _nameCtrl,
-            maxLines: 1,
-            style: TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.6,
-              color: c.ink,
-            ),
-            decoration: InputDecoration(
-              isCollapsed: true,
-              filled: false,
-              contentPadding: EdgeInsets.zero,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              disabledBorder: InputBorder.none,
-              hintText: 'Untitled template',
-              hintStyle: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.6,
-                color: c.inkMuted,
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Templates',
+                onPressed: widget.onBackToLibrary,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
+                icon: Icon(Icons.chevron_left, size: 22, color: c.ink),
               ),
-            ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: TextField(
+                  controller: _nameCtrl,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.6,
+                    color: c.ink,
+                  ),
+                  decoration: InputDecoration(
+                    isCollapsed: true,
+                    filled: false,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    hintText: 'Untitled template',
+                    hintStyle: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.6,
+                      color: c.inkMuted,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: c.pink700,
+                  foregroundColor: c.inkInverse,
+                  minimumSize: const Size(72, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(PelviRadius.sm),
+                  ),
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 22),
           if (_preview)
