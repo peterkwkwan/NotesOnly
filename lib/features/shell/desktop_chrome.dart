@@ -204,13 +204,6 @@ class DesktopSidebar extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 _NavItem(
-                  icon: Icons.edit_note_outlined,
-                  label: 'SOAP notes',
-                  selected: index == DesktopDest.soapNotes,
-                  onTap: () => onSelect(DesktopDest.soapNotes),
-                ),
-                const SizedBox(height: 6),
-                _NavItem(
                   icon: Icons.dashboard_outlined,
                   label: 'Templates',
                   selected: index == DesktopDest.templates,
