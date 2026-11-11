@@ -715,6 +715,9 @@ class AppDatabase extends _$AppDatabase {
     if (raw == null) return null;
     final digits = raw.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return null;
+    // shortcut: HK numbers are 8 digits, so a local number matches its +852 form.
+    // Upgrade when a clinic outside HK needs its own national length.
+    if (digits.length == 8) return '852$digits';
     return digits;
   }
 

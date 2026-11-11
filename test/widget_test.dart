@@ -17,6 +17,7 @@ import 'package:pelvi_crm/features/appointments/appointment_agenda_row.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
 import 'package:pelvi_crm/features/calendar/calendar_screen.dart';
 import 'package:pelvi_crm/features/clients/client_format.dart';
+import 'package:pelvi_crm/features/clients/phone_field.dart';
 import 'package:pelvi_crm/features/clients/client_profile_screen.dart';
 import 'package:pelvi_crm/features/clients/clients_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
@@ -638,6 +639,10 @@ void main() {
     expect(byPhone?.lastName, 'Lovelace');
     expect(byEmail?.id, byPhone?.id);
     expect(await db.findDuplicateClient(phone: '000'), isNull);
+    expect(
+      AppDatabase.normalizePhone('11234951'),
+      AppDatabase.normalizePhone('+85211234951'),
+    );
     expect(
       await db.findDuplicateClient(phone: '85255550101', excludeId: byPhone!.id),
       isNull,
@@ -1688,14 +1693,29 @@ void main() {
     expect(find.text('New appointment'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
 
+    final readHeading =
+        tester.getSize(find.byKey(const Key('client-profile-heading'))).height;
+    final readCard =
+        tester.getSize(find.byKey(const Key('client-identity-card'))).height;
+
     await tester.tap(find.text('Edit details'));
     await tester.pump();
+
+    expect(
+      tester.getSize(find.byKey(const Key('client-profile-heading'))).height,
+      readHeading,
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('client-identity-card'))).height,
+      readCard,
+    );
+    expect(find.textContaining('+852'), findsWidgets);
 
     expect(find.text('Edit client'), findsNothing);
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Save'), findsOneWidget);
     expect(find.text('New appointment'), findsOneWidget);
-    expect(find.text('FIRST NAME'), findsOneWidget);
+    expect(find.byType(PhoneField), findsOneWidget);
     expect(find.text('EMERGENCY PHONE'), findsOneWidget);
     expect(find.text('All history'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(7));
@@ -1730,7 +1750,7 @@ void main() {
     final saved = await db.getClient(clientId);
     expect(saved!.firstName, 'Stewart');
     expect(saved.notes, 'updated note');
-    expect(saved.phone, '11234951');
+    expect(saved.phone, '+85211234951');
     expect(saved.emergencyContact, 'Becca Chambers');
 
     await tester.pumpWidget(const SizedBox.shrink());

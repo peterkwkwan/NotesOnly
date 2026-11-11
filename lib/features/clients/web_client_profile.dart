@@ -9,6 +9,7 @@ import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
 import 'client_format.dart';
+import 'phone_field.dart';
 
 enum _HistoryTab { all, appointments, notes }
 
@@ -357,6 +358,7 @@ class _PageHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
     return Row(
+      key: const Key('client-profile-heading'),
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
@@ -393,6 +395,8 @@ class _PageHeading extends StatelessWidget {
               foregroundColor: c.ink,
               side: BorderSide(color: c.border),
               minimumSize: const Size(0, 38),
+              maximumSize: const Size(double.infinity, 38),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(PelviRadius.sm),
@@ -410,6 +414,8 @@ class _PageHeading extends StatelessWidget {
               backgroundColor: c.pink700,
               foregroundColor: c.inkInverse,
               minimumSize: const Size(0, 38),
+              maximumSize: const Size(double.infinity, 38),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(PelviRadius.sm),
@@ -436,6 +442,8 @@ class _PageHeading extends StatelessWidget {
               backgroundColor: c.surface,
               side: BorderSide(color: c.border),
               minimumSize: const Size(0, 38),
+              maximumSize: const Size(double.infinity, 38),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(PelviRadius.sm),
@@ -454,6 +462,8 @@ class _PageHeading extends StatelessWidget {
             backgroundColor: c.pink700,
             foregroundColor: c.inkInverse,
             minimumSize: const Size(0, 38),
+            maximumSize: const Size(double.infinity, 38),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(PelviRadius.sm),
@@ -492,6 +502,7 @@ class _OverviewCard extends StatelessWidget {
     final name = clientDisplayName(client);
 
     return Container(
+      key: const Key('client-identity-card'),
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -554,7 +565,7 @@ class _OverviewCard extends StatelessWidget {
                             InkWell(
                               onTap: onPhone,
                               child: Text(
-                                client.phone!,
+                                displayPhone(client.phone!),
                                 style: TextStyle(
                                   fontSize: 13,
                                   height: 1.5,
@@ -1408,60 +1419,160 @@ class _IdentityFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final c = PelviColors.of(context);
+    final firstError = _required(draft.first);
+    final lastError = _required(draft.last);
+    final showError = firstError != null || lastError != null;
+    // Same band as the read-only name + contact lines (the 64px avatar).
+    final fields = Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _ProfileField(
-                label: 'FIRST NAME',
-                controller: draft.first,
-                error: _required(draft.first),
-                capitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
+        SizedBox(
+          height: 30,
+          child: Row(
+            children: [
+              Expanded(
+                child: _CompactField(
+                  controller: draft.first,
+                  hint: 'First name',
+                  danger: firstError != null,
+                  capitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ProfileField(
-                label: 'LAST NAME',
-                controller: draft.last,
-                error: _required(draft.last),
-                capitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
+              const SizedBox(width: 8),
+              Expanded(
+                child: _CompactField(
+                  controller: draft.last,
+                  hint: 'Last name',
+                  danger: lastError != null,
+                  capitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _ProfileField(
-                label: 'PHONE',
-                controller: draft.phone,
-                hint: 'Optional',
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-              ),
+        if (showError) ...[
+          const SizedBox(height: 2),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Required',
+              style: TextStyle(fontSize: 11, height: 1.2, color: c.danger),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ProfileField(
-                label: 'EMAIL',
-                controller: draft.email,
-                hint: 'Optional',
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
+          ),
+        ],
+        const SizedBox(height: 4),
+        SizedBox(
+          height: 30,
+          child: Row(
+            children: [
+              Expanded(
+                child: PhoneField(
+                  controller: draft.phone,
+                  compact: true,
+                  textInputAction: TextInputAction.next,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: _CompactField(
+                  controller: draft.email,
+                  hint: 'Email',
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
+    );
+    if (showError) return fields;
+    return SizedBox(height: 64, child: fields);
+  }
+}
+
+class _CompactField extends StatefulWidget {
+  const _CompactField({
+    required this.controller,
+    required this.hint,
+    this.danger = false,
+    this.keyboardType,
+    this.capitalization = TextCapitalization.none,
+    this.textInputAction,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final bool danger;
+  final TextInputType? keyboardType;
+  final TextCapitalization capitalization;
+  final TextInputAction? textInputAction;
+
+  @override
+  State<_CompactField> createState() => _CompactFieldState();
+}
+
+class _CompactFieldState extends State<_CompactField> {
+  late final FocusNode _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus = FocusNode()
+      ..addListener(() {
+        if (mounted) setState(() {});
+      });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(PelviRadius.sm),
+        border: Border.all(
+          color: widget.danger
+              ? c.danger
+              : _focus.hasFocus
+                  ? c.pink700
+                  : c.border,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: TextField(
+            controller: widget.controller,
+            focusNode: _focus,
+            keyboardType: widget.keyboardType,
+            textCapitalization: widget.capitalization,
+            textInputAction: widget.textInputAction,
+            style: TextStyle(fontSize: 13, height: 1.2, color: c.ink),
+            cursorColor: c.pink700,
+            decoration: InputDecoration(
+              isCollapsed: true,
+              border: InputBorder.none,
+              hintText: widget.hint,
+              hintStyle: TextStyle(
+                fontSize: 13,
+                height: 1.2,
+                color: c.inkMuted,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1471,7 +1582,6 @@ class _ProfileField extends StatelessWidget {
     required this.controller,
     this.label,
     this.hint,
-    this.error,
     this.keyboardType,
     this.capitalization = TextCapitalization.none,
     this.textInputAction,
@@ -1482,7 +1592,6 @@ class _ProfileField extends StatelessWidget {
   final TextEditingController controller;
   final String? label;
   final String? hint;
-  final String? error;
   final TextInputType? keyboardType;
   final TextCapitalization capitalization;
   final TextInputAction? textInputAction;
@@ -1523,7 +1632,6 @@ class _ProfileField extends StatelessWidget {
           decoration: InputDecoration(
             isDense: true,
             hintText: hint,
-            errorText: error,
             hintStyle: TextStyle(fontSize: 13, height: 1.5, color: c.inkMuted),
             filled: true,
             fillColor: c.surface,
@@ -1535,12 +1643,6 @@ class _ProfileField extends StatelessWidget {
             enabledBorder: border,
             focusedBorder: border.copyWith(
               borderSide: BorderSide(color: c.pink700, width: 1.5),
-            ),
-            errorBorder: border.copyWith(
-              borderSide: BorderSide(color: c.danger),
-            ),
-            focusedErrorBorder: border.copyWith(
-              borderSide: BorderSide(color: c.danger, width: 1.5),
             ),
           ),
         ),

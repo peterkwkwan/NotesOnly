@@ -4,6 +4,7 @@ import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import 'client_format.dart';
+import 'phone_field.dart';
 
 /// Create or edit a client (name, phone, email; optional emergency name/phone).
 class ClientFormScreen extends StatefulWidget {
@@ -182,11 +183,9 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
             const SizedBox(height: PelviSpace.md),
             Text('PHONE', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),
-            TextFormField(
+            PhoneField(
               controller: _phone,
-              keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(hintText: 'Optional'),
             ),
             const SizedBox(height: PelviSpace.md),
             Text('EMAIL', style: text.labelMedium),
