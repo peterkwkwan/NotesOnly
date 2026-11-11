@@ -35,6 +35,62 @@ bool remoteWinsLww(DateTime localUpdatedAt, DateTime remoteUpdatedAt) {
   return !remoteUpdatedAt.isBefore(localUpdatedAt);
 }
 
+/// Org pulls page this many documents, then continue while the page is full.
+const syncPullPageSize = 200;
+
+/// Pull cursor: `updatedAt`, then the last document id.
+///
+/// A bare ISO-8601 timestamp is a cursor from before tie-breaks. Those resume
+/// with `updatedAt >= t` so rows stamped on that instant are not dropped.
+class SyncPullCursor {
+  const SyncPullCursor(this.updatedAt, [this.docId]);
+
+  final DateTime updatedAt;
+  final String? docId;
+
+  static SyncPullCursor? decode(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final tab = raw.indexOf('\t');
+    final stamp = tab < 0 ? raw : raw.substring(0, tab);
+    final at = DateTime.parse(stamp).toUtc();
+    if (tab < 0) return SyncPullCursor(at);
+    final id = raw.substring(tab + 1);
+    return id.isEmpty ? SyncPullCursor(at) : SyncPullCursor(at, id);
+  }
+
+  String encode() {
+    final stamp = updatedAt.toUtc().toIso8601String();
+    final id = docId;
+    if (id == null || id.isEmpty) return stamp;
+    return '$stamp\t$id';
+  }
+}
+
+/// `afterId` null includes every row at [notBefore] (legacy timestamp cursors).
+({DateTime? notBefore, String? afterId}) syncPullBound(SyncPullCursor? cursor) {
+  final id = cursor?.docId;
+  return (
+    notBefore: cursor?.updatedAt,
+    afterId: (id == null || id.isEmpty) ? null : id,
+  );
+}
+
+/// Pull order is `updatedAt`, then document id.
+/// A cursor with no document id is before every row at that timestamp.
+bool syncPullCursorBefore(
+  SyncPullCursor cursor,
+  DateTime updatedAt,
+  String docId,
+) {
+  final at = updatedAt.toUtc();
+  final prev = cursor.updatedAt.toUtc();
+  if (at.isAfter(prev)) return true;
+  if (at.isBefore(prev)) return false;
+  final prevId = cursor.docId;
+  if (prevId == null || prevId.isEmpty) return true;
+  return docId.compareTo(prevId) > 0;
+}
+
 /// Timeouts / unavailable / socket failures — UI should show pending, not Syncing.
 bool isTransientSyncFailure(Object error) {
   if (error is TimeoutException) return true;

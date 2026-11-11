@@ -74,6 +74,53 @@ void main() {
     expect(remoteWinsLww(newer, newer), isTrue);
   });
 
+  test('legacy pull cursor includes equal updatedAt; document id resumes after it', () {
+    final t = DateTime.utc(2026, 11, 11);
+    final legacy = syncPullBound(SyncPullCursor.decode(t.toIso8601String()));
+    expect(legacy.notBefore, t);
+    expect(legacy.afterId, isNull);
+
+    final saved = SyncPullCursor(t, 'client-200').encode();
+    final tied = syncPullBound(SyncPullCursor.decode(saved));
+    expect(tied.notBefore, t);
+    expect(tied.afterId, 'client-200');
+    expect(syncPullBound(null).notBefore, isNull);
+    expect(syncPullBound(SyncPullCursor.decode('')).notBefore, isNull);
+  });
+
+  test('equal updatedAt pages through 501 rows and does not repeat', () {
+    final t = DateTime.utc(2026, 11, 11);
+    final ids = [
+      for (var i = 0; i < 501; i++) 'c${i.toString().padLeft(4, '0')}',
+    ];
+    // One-page pull parked the cursor on the shared import timestamp.
+    SyncPullCursor? cursor = SyncPullCursor(t);
+    final seen = <String>[];
+    for (var guard = 0; guard < 10; guard++) {
+      final page = [
+        for (final id in ids)
+          if (syncPullCursorBefore(cursor!, t, id)) id,
+      ].take(syncPullPageSize).toList();
+      if (page.isEmpty) break;
+      final last = page.last;
+      if (!syncPullCursorBefore(cursor!, t, last)) break;
+      seen.addAll(page);
+      cursor = SyncPullCursor(t, last);
+      if (page.length < syncPullPageSize) break;
+    }
+    expect(seen, ids);
+    expect(SyncPullCursor.decode(cursor!.encode())!.docId, ids.last);
+    final again = [
+      for (final id in ids)
+        if (syncPullCursorBefore(cursor!, t, id)) id,
+    ];
+    expect(again, isEmpty);
+    expect(
+      syncPullCursorBefore(cursor!, t.add(const Duration(seconds: 1)), 'a'),
+      isTrue,
+    );
+  });
+
   test('transient sync failures include timeout and unavailable', () {
     expect(isTransientSyncFailure(TimeoutException('sync')), isTrue);
     expect(isTransientSyncFailure(Exception('UNAVAILABLE')), isTrue);

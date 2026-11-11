@@ -11,7 +11,7 @@ import 'org.dart';
 import 'org_directory.dart';
 import 'sync.dart';
 
-/// Drift-first sync: write local → pending → push; pull `updatedAt` > cursor; LWW.
+/// Drift-first sync: write local → pending → push; pull after the cursor; LWW.
 class FirestoreSyncEngine implements SyncEngine {
   FirestoreSyncEngine(this.db, {FirebaseFirestore? firestore})
       : _fs = firestore ?? FirebaseFirestore.instance;
@@ -570,42 +570,72 @@ class FirestoreSyncEngine implements SyncEngine {
     String? practitionerUid,
   }) async {
     final cursorKey = AppDatabase.syncCursorKey(name);
-    final cursorRaw = await db.getSetting(cursorKey);
-    final cursor = cursorRaw == null || cursorRaw.isEmpty
-        ? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true)
-        : DateTime.parse(cursorRaw).toUtc();
+    var cursor = SyncPullCursor.decode(await db.getSetting(cursorKey));
 
-    Query<Map<String, dynamic>> q = _col(orgId, name);
+    while (true) {
+      final snap = await _pullPage(
+        orgId,
+        name,
+        practitionerUid: practitionerUid,
+        cursor: cursor,
+      ).get();
+      if (snap.docs.isEmpty) return;
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        switch (name) {
+          case 'clients':
+            await _applyClient(doc.id, data);
+          case 'appointments':
+            await _applyAppointment(doc.id, data);
+          case 'notes':
+            await _applyNote(doc.id, data);
+          case 'settings':
+            await _applySetting(doc.id, data);
+          case 'templates':
+            await _applyTemplate(doc.id, data);
+        }
+      }
+
+      final last = snap.docs.last;
+      final updated = _readTs(last.data()['updatedAt']);
+      if (updated == null) return;
+      // Repeated page: stop so a tie we failed to pass cannot spin.
+      if (cursor != null && !syncPullCursorBefore(cursor, updated, last.id)) {
+        return;
+      }
+      cursor = SyncPullCursor(updated, last.id);
+      await db.setSetting(cursorKey, cursor.encode());
+      if (snap.docs.length < syncPullPageSize) return;
+    }
+  }
+
+  /// Pages in [syncPullCursorBefore] order. A legacy cursor (no document id)
+  /// uses `updatedAt >= t` so equal stamps are included once, then resumed by id.
+  Query<Map<String, dynamic>> _pullPage(
+    String orgId,
+    String name, {
+    String? practitionerUid,
+    SyncPullCursor? cursor,
+  }) {
+    var q = _col(orgId, name);
     if (practitionerUid != null) {
       q = q.where('practitionerUid', isEqualTo: practitionerUid);
     }
-    q = q
-        .where('updatedAt', isGreaterThan: Timestamp.fromDate(cursor))
-        .orderBy('updatedAt');
-
-    // shortcut: single page of 200, upgrade when a practice exceeds that delta
-    final snap = await q.limit(200).get();
-    DateTime? maxUpdated = cursor;
-    for (final doc in snap.docs) {
-      final data = doc.data();
-      final updated = _readTs(data['updatedAt']) ?? cursor;
-      if (updated.isAfter(maxUpdated!)) maxUpdated = updated;
-      switch (name) {
-        case 'clients':
-          await _applyClient(doc.id, data);
-        case 'appointments':
-          await _applyAppointment(doc.id, data);
-        case 'notes':
-          await _applyNote(doc.id, data);
-        case 'settings':
-          await _applySetting(doc.id, data);
-        case 'templates':
-          await _applyTemplate(doc.id, data);
-      }
+    final bound = syncPullBound(cursor);
+    final notBefore = bound.notBefore;
+    if (notBefore != null) {
+      q = q.where(
+        'updatedAt',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(notBefore),
+      );
     }
-    if (maxUpdated != null && maxUpdated.isAfter(cursor)) {
-      await db.setSetting(cursorKey, maxUpdated.toIso8601String());
+    q = q.orderBy('updatedAt').orderBy(FieldPath.documentId);
+    final afterId = bound.afterId;
+    if (notBefore != null && afterId != null) {
+      q = q.startAfter([Timestamp.fromDate(notBefore), afterId]);
     }
+    return q.limit(syncPullPageSize);
   }
 
   Future<void> _applyClient(
