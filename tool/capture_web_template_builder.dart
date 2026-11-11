@@ -64,13 +64,20 @@ void main() {
     expect(find.text('NotesOnly'), findsNothing);
     expect(find.byTooltip('Templates'), findsOneWidget);
     expect(find.text('Save'), findsOneWidget);
-    expect(find.text('OUTLINE'), findsOneWidget);
-    expect(find.text('+ Add question'), findsOneWidget);
+    expect(find.text('Draft'), findsOneWidget);
+    expect(find.text('Sections'), findsOneWidget);
+    expect(find.text('Add question'), findsOneWidget);
     expect(find.text('Preview'), findsOneWidget);
+    expect(find.text('What the client reports'), findsOneWidget);
     expect(find.text('Presenting concerns'), findsWidgets);
     expect(find.text('Client goals'), findsOneWidget);
+    expect(
+      find.text('Required · needed before the note is completed'),
+      findsOneWidget,
+    );
     expect(find.text('Live preview'), findsNothing);
     expect(find.text('Clinical interpretation'), findsNothing);
+    expect(find.text('Publish'), findsNothing);
 
     final boundary =
         key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
@@ -90,21 +97,27 @@ void main() {
     await tester.tap(find.text('Subjective'));
     await tester.pump();
     expect(find.text('Presenting concerns'), findsWidgets);
-    await tester.tap(find.text('More'));
-    await tester.pump();
-    expect(find.text('Help text'), findsOneWidget);
-    expect(find.text('Placeholder'), findsOneWidget);
-    expect(find.text('Required'), findsOneWidget);
     expect(find.text('Delete question'), findsOneWidget);
 
     await tester.tap(find.text('Preview'));
     await tester.pump();
-    expect(find.text('Clinical interpretation'), findsOneWidget);
+    expect(find.text('Clinical interpretation'), findsNothing);
+    expect(
+      find.text(
+        'Describe the client’s concerns and priorities in their own words.',
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Preview'));
     await tester.pump();
-    expect(find.text('Clinical interpretation'), findsNothing);
+    expect(
+      find.text(
+        'Describe the client’s concerns and priorities in their own words.',
+      ),
+      findsNothing,
+    );
 
-    await tester.tap(find.text('+ Add question'));
+    await tester.tap(find.text('Add question'));
     await tester.pump();
     expect(find.text('New question'), findsWidgets);
 

@@ -1779,6 +1779,13 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.text('Sections'), findsOneWidget);
+    expect(find.text('Add question'), findsOneWidget);
+    expect(find.text('Preview'), findsOneWidget);
+    expect(find.text('New field'), findsOneWidget);
+    expect(find.text('OUTLINE'), findsNothing);
+    expect(find.text('Publish'), findsNothing);
+
     await tester.tap(find.text('Save'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
