@@ -700,7 +700,7 @@ class FirestoreSyncEngine implements SyncEngine {
     SyncPullCursor? cursor,
     QueryDocumentSnapshot<Map<String, dynamic>>? afterDoc,
   }) {
-    var q = _col(orgId, name);
+    Query<Map<String, dynamic>> q = _col(orgId, name);
     if (practitionerUid != null) {
       q = q.where('practitionerUid', isEqualTo: practitionerUid);
     }
