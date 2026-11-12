@@ -715,6 +715,23 @@ class AppDatabase extends _$AppDatabase {
     return (await (select(notes)..limit(1)).get()).isNotEmpty;
   }
 
+  /// Wipe clinic rows and settings so another Google account starts clean.
+  /// Keeps [themeModeKey] only.
+  Future<void> clearLocalClinicForAccountSwitch() async {
+    await transaction(() async {
+      await delete(clients).go();
+      await delete(appointments).go();
+      await delete(notes).go();
+      await delete(templates).go();
+      final rows = await select(settings).get();
+      for (final row in rows) {
+        if (row.key == themeModeKey) continue;
+        await (delete(settings)..where((t) => t.key.equals(row.key))).go();
+      }
+    });
+    await ensureDefaults();
+  }
+
   static String? normalizePhone(String? raw) {
     if (raw == null) return null;
     final digits = raw.replaceAll(RegExp(r'\D'), '');

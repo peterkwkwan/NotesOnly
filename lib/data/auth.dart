@@ -31,7 +31,9 @@ class NotesAuth {
   static Future<bool> signInWithGoogle() async {
     if (kIsWeb) {
       try {
-        await _auth.signInWithPopup(GoogleAuthProvider());
+        final provider = GoogleAuthProvider()
+          ..setCustomParameters({'prompt': 'select_account'});
+        await _auth.signInWithPopup(provider);
         return true;
       } on FirebaseAuthException catch (e) {
         if (e.code == 'popup-closed-by-user' ||

@@ -140,16 +140,7 @@ class FirestoreSyncEngine implements SyncEngine {
   Future<void> _runSync(User user) async {
     final bound = await db.getSetting(AppDatabase.syncBoundUidKey);
     if (bound != null && bound.isNotEmpty && bound != user.uid) {
-      final hasData = (await db.select(db.clients).get()).isNotEmpty;
-      if (hasData) {
-        _setStatus(
-          SyncStatus.error,
-          error:
-              'This device has data for another Google account. '
-              'Export a backup, clear app data, then sign in again.',
-        );
-        return;
-      }
+      await db.clearLocalClinicForAccountSwitch();
     }
     await db.setSetting(AppDatabase.syncBoundUidKey, user.uid);
 
@@ -204,6 +195,8 @@ class FirestoreSyncEngine implements SyncEngine {
       });
       final picked = active.first;
       final orgId = picked.data()['orgId'] as String;
+      // Settings before bind so the home gate sees practitioner name.
+      await _pullCollection(orgId, 'settings');
       await _bindOrg(orgId, _roleList(picked).join(','));
       return orgId;
     }

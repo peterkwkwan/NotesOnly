@@ -508,7 +508,8 @@ Future<void> _signOutFromDesktop(BuildContext context) async {
     builder: (ctx) => AlertDialog(
       title: const Text('Sign out?'),
       content: const Text(
-        'Sign out does not wipe clinic data on this device.',
+        'Clears this clinic from the device so another Google account '
+        'starts empty. Cloud data stays in Firestore.',
       ),
       actions: [
         TextButton(
@@ -524,6 +525,7 @@ Future<void> _signOutFromDesktop(BuildContext context) async {
   );
   if (ok != true) return;
   try {
+    await AppDatabaseProvider.of(context).clearLocalClinicForAccountSwitch();
     await NotesAuth.signOut();
   } catch (e) {
     if (context.mounted) {

@@ -18,6 +18,28 @@ OrgMember _member(
 }
 
 void main() {
+  test('clearLocalClinicForAccountSwitch wipes clinic and keeps theme', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setSetting(AppDatabase.themeModeKey, 'dark');
+    await db.setSetting(AppDatabase.activeOrgIdKey, 'org-amber');
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-peter');
+    await db.setSetting(AppDatabase.practitionerNameKey, 'Peter');
+    await db.into(db.clients).insert(
+          ClientsCompanion.insert(firstName: 'Ada', lastName: 'Client'),
+        );
+
+    await db.clearLocalClinicForAccountSwitch();
+
+    expect(await db.getSetting(AppDatabase.themeModeKey), 'dark');
+    expect(await db.getSetting(AppDatabase.activeOrgIdKey), isNull);
+    expect(await db.getSetting(AppDatabase.syncBoundUidKey), isNull);
+    expect(await db.getSetting(AppDatabase.practitionerNameKey), isNull);
+    expect(await db.hasClinicalRows(), isFalse);
+    expect(await db.getSetting(AppDatabase.recallDaysKey), isNotNull);
+  });
+
   test('clinic invites allow owner and admin but never owner role for admin', () {
     expect(canSendClinicInvite(const [OrgRole.owner]), isTrue);
     expect(canSendClinicInvite(const [OrgRole.admin]), isTrue);

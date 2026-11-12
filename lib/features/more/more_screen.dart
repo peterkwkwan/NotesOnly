@@ -422,7 +422,7 @@ class MoreScreen extends StatelessWidget {
               const Divider(height: 1),
               _TappableRow(
                 title: 'Sign out',
-                subtitle: 'Keeps clinic data on this device',
+                subtitle: 'Clears this clinic from the device',
                 onTap: () => _signOut(context),
               ),
             ],
@@ -438,7 +438,8 @@ class MoreScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Sign out?'),
         content: const Text(
-          'Sign out does not wipe clinic data on this device.',
+          'Clears this clinic from the device so another Google account '
+          'starts empty. Cloud data stays in Firestore.',
         ),
         actions: [
           TextButton(
@@ -454,6 +455,7 @@ class MoreScreen extends StatelessWidget {
     );
     if (ok != true) return;
     try {
+      await AppDatabaseProvider.of(context).clearLocalClinicForAccountSwitch();
       await NotesAuth.signOut();
     } catch (e) {
       if (context.mounted) {

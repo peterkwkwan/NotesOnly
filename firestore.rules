@@ -138,12 +138,13 @@ service cloud.firestore {
     }
 
     match /invites/{inviteId} {
+      // Owner/admin orgId query must not require kind — list rules need the
+      // query constraint to match one full OR branch (orgId alone).
       allow read: if signedIn() && (
         resource.data.email == request.auth.token.email
         || resource.data.issuedByUid == request.auth.uid
         || (
-          resource.data.kind == 'join'
-          && resource.data.orgId is string
+          resource.data.orgId is string
           && (isOrgOwner(resource.data.orgId) || isOrgAdmin(resource.data.orgId))
         )
       );

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -45,6 +47,8 @@ class PelviApp extends StatefulWidget {
 
 class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
   late Future<_HomeGate> _gate;
+  StreamSubscription<User?>? _authSub;
+  String? _authUid;
 
   @override
   void initState() {
@@ -52,10 +56,21 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _gate = _loadGate();
     widget.syncEngine.start();
+    _authSub = NotesAuth.authStateChanges().listen((user) {
+      final uid = user?.uid;
+      if (uid == _authUid) return;
+      _authUid = uid;
+      setState(() {
+        _gate = uid == null
+            ? Future.value(const _HomeGate.waiting())
+            : _loadGate();
+      });
+    });
   }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     widget.syncEngine.stop();
     super.dispose();
