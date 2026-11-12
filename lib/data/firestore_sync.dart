@@ -37,7 +37,8 @@ class FirestoreSyncEngine implements SyncEngine {
     'templates',
   ];
   /// Airplane / flaky network: don't leave UI on Syncing forever.
-  static const _syncTimeout = Duration(seconds: 12);
+  /// Large CSV imports (~500 clients) need more than one 200-row page.
+  static const _syncTimeout = Duration(seconds: 60);
 
   @override
   String? get lastError => _lastError;
@@ -152,6 +153,7 @@ class FirestoreSyncEngine implements SyncEngine {
       return;
     }
     await _pushAll(orgId, user);
+    await _resetClientsCursorOnce();
     await _pullAll(orgId, user);
     if (await db.getSetting(AppDatabase.legacyImportedKey) != '1') {
       await _importLegacy(user);
@@ -552,6 +554,16 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
+  /// Clears a clients cursor parked on a shared CSV import timestamp so the
+  /// next pull walks the whole collection again (once per install).
+  Future<void> _resetClientsCursorOnce() async {
+    if (await db.getSetting(AppDatabase.clientsCursorResetV1Key) == '1') {
+      return;
+    }
+    await db.setSetting(AppDatabase.syncCursorKey('clients'), '');
+    await db.setSetting(AppDatabase.clientsCursorResetV1Key, '1');
+  }
+
   Future<void> _pullAll(String orgId, User user) async {
     final roles = await _roleNames();
     for (final name in _collections) {
@@ -571,13 +583,16 @@ class FirestoreSyncEngine implements SyncEngine {
   }) async {
     final cursorKey = AppDatabase.syncCursorKey(name);
     var cursor = SyncPullCursor.decode(await db.getSetting(cursorKey));
+    QueryDocumentSnapshot<Map<String, dynamic>>? afterDoc;
+    var unstuckOnce = false;
 
     while (true) {
       final snap = await _pullPage(
         orgId,
         name,
         practitionerUid: practitionerUid,
-        cursor: cursor,
+        cursor: afterDoc == null ? cursor : null,
+        afterDoc: afterDoc,
       ).get();
       if (snap.docs.isEmpty) return;
 
@@ -600,27 +615,45 @@ class FirestoreSyncEngine implements SyncEngine {
       final last = snap.docs.last;
       final updated = _readTs(last.data()['updatedAt']);
       if (updated == null) return;
-      // Repeated page: stop so a tie we failed to pass cannot spin.
+      // Non-advancing page: clear cursor once, then stop (no silent forever stall).
       if (cursor != null && !syncPullCursorBefore(cursor, updated, last.id)) {
+        if (!unstuckOnce) {
+          unstuckOnce = true;
+          cursor = null;
+          afterDoc = null;
+          await db.setSetting(cursorKey, '');
+          continue;
+        }
         return;
       }
       cursor = SyncPullCursor(updated, last.id);
       await db.setSetting(cursorKey, cursor.encode());
       if (snap.docs.length < syncPullPageSize) return;
+      // Full page: keep going from the last doc (exact Timestamp, not re-encoded).
+      afterDoc = last;
     }
   }
 
   /// Pages in [syncPullCursorBefore] order. A legacy cursor (no document id)
   /// uses `updatedAt >= t` so equal stamps are included once, then resumed by id.
+  /// [afterDoc] continues a full page without re-encoding `updatedAt`.
   Query<Map<String, dynamic>> _pullPage(
     String orgId,
     String name, {
     String? practitionerUid,
     SyncPullCursor? cursor,
+    QueryDocumentSnapshot<Map<String, dynamic>>? afterDoc,
   }) {
     var q = _col(orgId, name);
     if (practitionerUid != null) {
       q = q.where('practitionerUid', isEqualTo: practitionerUid);
+    }
+    if (afterDoc != null) {
+      return q
+          .orderBy('updatedAt')
+          .orderBy(FieldPath.documentId)
+          .startAfterDocument(afterDoc)
+          .limit(syncPullPageSize);
     }
     final bound = syncPullBound(cursor);
     final notBefore = bound.notBefore;

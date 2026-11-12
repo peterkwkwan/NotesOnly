@@ -122,6 +122,44 @@ void main() {
     );
   });
 
+  test('non-advancing page clears cursor once then pages from start', () {
+    final t = DateTime.utc(2026, 11, 11);
+    final ids = [
+      for (var i = 0; i < 50; i++) 'c${i.toString().padLeft(4, '0')}',
+    ];
+    // Stuck resume: query keeps returning the same last id.
+    SyncPullCursor? cursor = SyncPullCursor(t, ids.last);
+    var unstuckOnce = false;
+    final seen = <String>{};
+    for (var guard = 0; guard < 5; guard++) {
+      final List<String> page;
+      if (cursor == null) {
+        page = [
+          for (final id in ids)
+            if (!seen.contains(id)) id,
+        ].take(syncPullPageSize).toList();
+      } else {
+        page = [cursor.docId!];
+      }
+      if (page.isEmpty) break;
+      final last = page.last;
+      if (cursor != null && !syncPullCursorBefore(cursor, t, last)) {
+        if (!unstuckOnce) {
+          unstuckOnce = true;
+          cursor = null;
+          continue;
+        }
+        break;
+      }
+      seen.addAll(page);
+      cursor = SyncPullCursor(t, last);
+      if (page.length < syncPullPageSize) break;
+    }
+    expect(unstuckOnce, isTrue);
+    expect(seen, ids.toSet());
+    expect(AppDatabase.clientsCursorResetV1Key, 'sync_clients_cursor_reset_v1');
+  });
+
   test('transient sync failures include timeout and unavailable', () {
     expect(isTransientSyncFailure(TimeoutException('sync')), isTrue);
     expect(isTransientSyncFailure(Exception('UNAVAILABLE')), isTrue);

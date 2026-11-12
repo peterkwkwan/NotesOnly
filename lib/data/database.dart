@@ -331,6 +331,9 @@ class AppDatabase extends _$AppDatabase {
   static const activeOrgRolesKey = 'sync_org_roles';
   /// One-shot copy from `users/{uid}` into the org.
   static const legacyImportedKey = 'sync_legacy_imported';
+  /// One-shot clear of [syncCursorKey](`clients`) after the shared-import
+  /// `updatedAt > cursor` stall (many rows, one timestamp).
+  static const clientsCursorResetV1Key = 'sync_clients_cursor_reset_v1';
   static String syncCursorKey(String collection) => 'sync_cursor_$collection';
 
   /// Settings that mirror to Firestore (excludes device-local id lists + sync meta).
