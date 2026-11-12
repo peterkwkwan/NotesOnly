@@ -18,6 +18,8 @@ class PracticeMembersPanel extends StatefulWidget {
   State<PracticeMembersPanel> createState() => _PracticeMembersPanelState();
 }
 
+enum _MembersTab { active, pending }
+
 class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
   final _email = TextEditingController();
   bool _loaded = false;
@@ -29,6 +31,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
   List<OrgMember> _members = const [];
   List<OrgInvite> _pending = const [];
   OrgRole _inviteRole = OrgRole.practitioner;
+  _MembersTab _tab = _MembersTab.active;
 
   @override
   void didChangeDependencies() {
@@ -123,6 +126,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
       _email.clear();
       await Clipboard.setData(ClipboardData(text: id));
       if (!mounted) return;
+      setState(() => _tab = _MembersTab.pending);
       showPelviSnackBar(context, 'Invite created. Code copied.');
       await _reload();
     } catch (e) {
@@ -411,67 +415,210 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
               child: const Text('Send invite'),
             ),
           ),
-          if (_pending.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Divider(height: 1, color: c.border),
-            const SizedBox(height: 18),
-            Text(
-              'Pending',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: c.ink,
-                height: 1.5,
-              ),
+          const SizedBox(height: 18),
+          _MembersTabBar(
+            tab: _tab,
+            onChanged: (tab) => setState(() => _tab = tab),
+          ),
+          const SizedBox(height: 14),
+          if (_tab == _MembersTab.pending)
+            _PendingList(
+              pending: _pending,
+              busy: _busy,
+              onCopy: _copyInvite,
+              onRevoke: _revokeInvite,
+            )
+          else
+            _ActiveMembersList(
+              members: _members,
+              actor: _actor,
+              owners: owners,
+              canEditRoles: canEditRoles,
+              busy: _busy,
+              onChange: _changeRole,
+              onRemove: _remove,
             ),
-            const SizedBox(height: 12),
-            for (var i = 0; i < _pending.length; i++) ...[
-              if (i > 0) const SizedBox(height: 12),
-              _PendingRow(
-                invite: _pending[i],
-                busy: _busy,
-                onCopy: () => _copyInvite(_pending[i]),
-                onRevoke: () => _revokeInvite(_pending[i]),
-              ),
-            ],
-          ],
-          const SizedBox(height: 18),
-          Divider(height: 1, color: c.border),
-          const SizedBox(height: 18),
-          Text(
-            'People in this clinic',
+        ] else ...[
+          const SizedBox(height: 14),
+          _ActiveMembersList(
+            members: _members,
+            actor: _actor,
+            owners: owners,
+            canEditRoles: canEditRoles,
+            busy: _busy,
+            onChange: _changeRole,
+            onRemove: _remove,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MembersTabBar extends StatelessWidget {
+  const _MembersTabBar({
+    required this.tab,
+    required this.onChanged,
+  });
+
+  final _MembersTab tab;
+  final ValueChanged<_MembersTab> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: c.border)),
+      ),
+      child: Row(
+        children: [
+          _MembersTabButton(
+            label: 'Active members',
+            selected: tab == _MembersTab.active,
+            onTap: () => onChanged(_MembersTab.active),
+          ),
+          const SizedBox(width: 18),
+          _MembersTabButton(
+            label: 'Pending',
+            selected: tab == _MembersTab.pending,
+            onTap: () => onChanged(_MembersTab.pending),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MembersTabButton extends StatelessWidget {
+  const _MembersTabButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: selected ? c.pink700 : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            label,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: c.ink,
-              height: 1.5,
+              height: 20 / 13,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? c.pink700 : c.inkMuted,
             ),
           ),
-          const SizedBox(height: 12),
-        ] else
-          const SizedBox(height: 14),
-        if (_members.isEmpty)
-          Text(
-            'No members yet.',
-            style: TextStyle(fontSize: 13, color: c.ink),
-          ),
-        for (var i = 0; i < _members.length; i++) ...[
+        ),
+      ),
+    );
+  }
+}
+
+class _ActiveMembersList extends StatelessWidget {
+  const _ActiveMembersList({
+    required this.members,
+    required this.actor,
+    required this.owners,
+    required this.canEditRoles,
+    required this.busy,
+    required this.onChange,
+    required this.onRemove,
+  });
+
+  final List<OrgMember> members;
+  final List<OrgRole> actor;
+  final int owners;
+  final bool canEditRoles;
+  final bool busy;
+  final ValueChanged<OrgMember> onChange;
+  final ValueChanged<OrgMember> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    if (members.isEmpty) {
+      return Text(
+        'No members yet.',
+        style: TextStyle(fontSize: 13, color: c.ink),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < members.length; i++) ...[
           if (i > 0) ...[
             const SizedBox(height: 12),
             Divider(height: 1, color: c.border),
             const SizedBox(height: 12),
           ],
           _MemberRow(
-            member: _members[i],
-            canChange: canEditRoles && _members[i].active && !_busy,
+            member: members[i],
+            canChange: canEditRoles && members[i].active && !busy,
             canRemove: canRemoveMember(
-                  actor: _actor,
-                  target: _members[i],
+                  actor: actor,
+                  target: members[i],
                   owners: owners,
                 ) &&
-                !_busy,
-            onChange: () => _changeRole(_members[i]),
-            onRemove: () => _remove(_members[i]),
+                !busy,
+            onChange: () => onChange(members[i]),
+            onRemove: () => onRemove(members[i]),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PendingList extends StatelessWidget {
+  const _PendingList({
+    required this.pending,
+    required this.busy,
+    required this.onCopy,
+    required this.onRevoke,
+  });
+
+  final List<OrgInvite> pending;
+  final bool busy;
+  final ValueChanged<OrgInvite> onCopy;
+  final ValueChanged<OrgInvite> onRevoke;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    if (pending.isEmpty) {
+      return Text(
+        'No pending invites.',
+        style: TextStyle(fontSize: 13, color: c.inkMuted),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < pending.length; i++) ...[
+          if (i > 0) const SizedBox(height: 12),
+          _PendingRow(
+            invite: pending[i],
+            busy: busy,
+            onCopy: () => onCopy(pending[i]),
+            onRevoke: () => onRevoke(pending[i]),
           ),
         ],
       ],
