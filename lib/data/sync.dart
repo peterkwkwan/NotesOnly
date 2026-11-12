@@ -38,6 +38,9 @@ bool remoteWinsLww(DateTime localUpdatedAt, DateTime remoteUpdatedAt) {
 /// Org pulls page this many documents, then continue while the page is full.
 const syncPullPageSize = 200;
 
+/// Curl-able marker so hosting deploys can be verified (`main.dart.js`).
+const syncPullMarker = 'notesonly_sync_pull_v2';
+
 /// Pull cursor: `updatedAt`, then the last document id.
 ///
 /// A bare ISO-8601 timestamp is a cursor from before tie-breaks. Those resume

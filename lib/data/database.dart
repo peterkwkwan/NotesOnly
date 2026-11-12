@@ -333,6 +333,7 @@ class AppDatabase extends _$AppDatabase {
   static const legacyImportedKey = 'sync_legacy_imported';
   /// One-shot clear of [syncCursorKey](`clients`) after the shared-import
   /// `updatedAt > cursor` stall (many rows, one timestamp).
+  /// Value is [syncPullMarker] once the catch-up has been scheduled.
   static const clientsCursorResetV1Key = 'sync_clients_cursor_reset_v1';
   static String syncCursorKey(String collection) => 'sync_cursor_$collection';
 

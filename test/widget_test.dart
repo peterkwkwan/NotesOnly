@@ -158,6 +158,26 @@ void main() {
     expect(unstuckOnce, isTrue);
     expect(seen, ids.toSet());
     expect(AppDatabase.clientsCursorResetV1Key, 'sync_clients_cursor_reset_v1');
+    expect(syncPullMarker, 'notesonly_sync_pull_v2');
+  });
+
+  test('document-id pages cover every client when updatedAt ties', () {
+    final ids = [
+      for (var i = 0; i < 501; i++) 'c${i.toString().padLeft(4, '0')}',
+    ];
+    String? after;
+    final seen = <String>[];
+    for (var guard = 0; guard < 10; guard++) {
+      final page = [
+        for (final id in ids)
+          if (after == null || id.compareTo(after!) > 0) id,
+      ].take(syncPullPageSize).toList();
+      if (page.isEmpty) break;
+      seen.addAll(page);
+      after = page.last;
+      if (page.length < syncPullPageSize) break;
+    }
+    expect(seen, ids);
   });
 
   test('transient sync failures include timeout and unavailable', () {

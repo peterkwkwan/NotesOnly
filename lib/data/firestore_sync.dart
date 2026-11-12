@@ -37,8 +37,9 @@ class FirestoreSyncEngine implements SyncEngine {
     'templates',
   ];
   /// Airplane / flaky network: don't leave UI on Syncing forever.
-  /// Large CSV imports (~500 clients) need more than one 200-row page.
   static const _syncTimeout = Duration(seconds: 60);
+  /// First clients catch-up after a stuck cursor (~500 rows × Drift applies).
+  static const _clientsCatchUpTimeout = Duration(minutes: 3);
 
   @override
   String? get lastError => _lastError;
@@ -110,7 +111,12 @@ class FirestoreSyncEngine implements SyncEngine {
     _running = true;
     _setStatus(SyncStatus.syncing);
     try {
-      await _runSync(user).timeout(_syncTimeout);
+      final catchUpClients =
+          await db.getSetting(AppDatabase.clientsCursorResetV1Key) !=
+              syncPullMarker;
+      await _runSync(user).timeout(
+        catchUpClients ? _clientsCatchUpTimeout : _syncTimeout,
+      );
       if (gen != _syncGen) return _status;
       return _status;
     } on TimeoutException catch (e, st) {
@@ -153,8 +159,11 @@ class FirestoreSyncEngine implements SyncEngine {
       return;
     }
     await _pushAll(orgId, user);
-    await _resetClientsCursorOnce();
+    final catchUpClients = await _resetClientsCursorOnce();
     await _pullAll(orgId, user);
+    if (catchUpClients) {
+      await db.setSetting(AppDatabase.clientsCursorResetV1Key, syncPullMarker);
+    }
     if (await db.getSetting(AppDatabase.legacyImportedKey) != '1') {
       await _importLegacy(user);
       await db.backfillPractitionerUid(user.uid);
@@ -556,12 +565,14 @@ class FirestoreSyncEngine implements SyncEngine {
 
   /// Clears a clients cursor parked on a shared CSV import timestamp so the
   /// next pull walks the whole collection again (once per install).
-  Future<void> _resetClientsCursorOnce() async {
-    if (await db.getSetting(AppDatabase.clientsCursorResetV1Key) == '1') {
-      return;
+  /// Returns true when catch-up must run; marker is written only after pull.
+  Future<bool> _resetClientsCursorOnce() async {
+    if (await db.getSetting(AppDatabase.clientsCursorResetV1Key) ==
+        syncPullMarker) {
+      return false;
     }
     await db.setSetting(AppDatabase.syncCursorKey('clients'), '');
-    await db.setSetting(AppDatabase.clientsCursorResetV1Key, '1');
+    return true;
   }
 
   Future<void> _pullAll(String orgId, User user) async {
@@ -583,6 +594,13 @@ class FirestoreSyncEngine implements SyncEngine {
   }) async {
     final cursorKey = AppDatabase.syncCursorKey(name);
     var cursor = SyncPullCursor.decode(await db.getSetting(cursorKey));
+
+    // Empty clients cursor: page by document id only (same updatedAt is fine).
+    if (name == 'clients' && cursor == null) {
+      await _pullAllClientsByDocumentId(orgId, cursorKey);
+      return;
+    }
+
     QueryDocumentSnapshot<Map<String, dynamic>>? afterDoc;
     var unstuckOnce = false;
 
@@ -622,6 +640,10 @@ class FirestoreSyncEngine implements SyncEngine {
           cursor = null;
           afterDoc = null;
           await db.setSetting(cursorKey, '');
+          if (name == 'clients') {
+            await _pullAllClientsByDocumentId(orgId, cursorKey);
+            return;
+          }
           continue;
         }
         return;
@@ -631,6 +653,40 @@ class FirestoreSyncEngine implements SyncEngine {
       if (snap.docs.length < syncPullPageSize) return;
       // Full page: keep going from the last doc (exact Timestamp, not re-encoded).
       afterDoc = last;
+    }
+  }
+
+  /// Full clients download by `__name__` — ignores shared CSV `updatedAt` ties.
+  Future<void> _pullAllClientsByDocumentId(
+    String orgId,
+    String cursorKey,
+  ) async {
+    QueryDocumentSnapshot<Map<String, dynamic>>? after;
+    SyncPullCursor? maxCursor;
+    while (true) {
+      Query<Map<String, dynamic>> q = _col(orgId, 'clients')
+          .orderBy(FieldPath.documentId)
+          .limit(syncPullPageSize);
+      if (after != null) {
+        q = q.startAfterDocument(after);
+      }
+      final snap = await q.get();
+      if (snap.docs.isEmpty) break;
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        await _applyClient(doc.id, data);
+        final updated = _readTs(data['updatedAt']);
+        if (updated == null) continue;
+        if (maxCursor == null ||
+            syncPullCursorBefore(maxCursor, updated, doc.id)) {
+          maxCursor = SyncPullCursor(updated, doc.id);
+        }
+      }
+      after = snap.docs.last;
+      if (snap.docs.length < syncPullPageSize) break;
+    }
+    if (maxCursor != null) {
+      await db.setSetting(cursorKey, maxCursor.encode());
     }
   }
 
