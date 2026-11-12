@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/database_provider.dart';
+import '../shell/desktop_chrome.dart';
 import '../../theme/theme.dart';
 
 /// Tiny first-run: capture practitioner / clinic name, then enter the shell.
@@ -39,68 +40,78 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    // Match sign-in auth panel width on wide viewports (≥960).
+    final maxFormWidth =
+        isDesktopShell(context) ? 380.0 : double.infinity;
 
     return Scaffold(
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(PelviSpace.lg),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Spacer(),
-                Text(
-                  'NotesOnly',
-                  textAlign: TextAlign.center,
-                  style: text.titleLarge?.copyWith(
-                    color: PelviColors.of(context).pink700,
-                  ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxFormWidth),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Spacer(),
+                    Text(
+                      'NotesOnly',
+                      textAlign: TextAlign.center,
+                      style: text.titleLarge?.copyWith(
+                        color: PelviColors.of(context).pink700,
+                      ),
+                    ),
+                    const SizedBox(height: PelviSpace.sm),
+                    Text(
+                      'What should we call your practice?',
+                      textAlign: TextAlign.center,
+                      style: text.titleMedium,
+                    ),
+                    const SizedBox(height: PelviSpace.sm),
+                    Text(
+                      'This appears in settings and exports. You can change it later.',
+                      textAlign: TextAlign.center,
+                      style: text.bodyMedium?.copyWith(
+                        color: PelviColors.of(context).inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: PelviSpace.xl),
+                    TextFormField(
+                      controller: _controller,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _continue(),
+                      decoration: const InputDecoration(
+                        hintText: 'Clinic or practitioner name',
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Enter a name to continue';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: PelviSpace.md),
+                    FilledButton(
+                      onPressed: _saving ? null : _continue,
+                      child: _saving
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: PelviColors.of(context).inkInverse,
+                              ),
+                            )
+                          : const Text('Continue'),
+                    ),
+                    const Spacer(flex: 2),
+                  ],
                 ),
-                const SizedBox(height: PelviSpace.sm),
-                Text(
-                  'What should we call your practice?',
-                  textAlign: TextAlign.center,
-                  style: text.titleMedium,
-                ),
-                const SizedBox(height: PelviSpace.sm),
-                Text(
-                  'This appears in settings and exports. You can change it later.',
-                  textAlign: TextAlign.center,
-                  style: text.bodyMedium?.copyWith(color: PelviColors.of(context).inkMuted),
-                ),
-                const SizedBox(height: PelviSpace.xl),
-                TextFormField(
-                  controller: _controller,
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _continue(),
-                  decoration: const InputDecoration(
-                    hintText: 'Clinic or practitioner name',
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Enter a name to continue';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: PelviSpace.md),
-                FilledButton(
-                  onPressed: _saving ? null : _continue,
-                  child: _saving
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: PelviColors.of(context).inkInverse,
-                          ),
-                        )
-                      : const Text('Continue'),
-                ),
-                const Spacer(flex: 2),
-              ],
+              ),
             ),
           ),
         ),
