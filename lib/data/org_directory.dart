@@ -174,6 +174,36 @@ class OrgDirectory {
     return orgRef.id;
   }
 
+  /// Open join invites for this clinic. Callers must be owner or admin.
+  Future<List<OrgInvite>> listPendingInvites(String orgId) async {
+    final snap =
+        await _fs.collection('invites').where('orgId', isEqualTo: orgId).get();
+    final now = DateTime.now().toUtc();
+    final pending = <OrgInvite>[];
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      if (data['kind'] != 'join') continue;
+      final expires = _time(data['expiresAt']);
+      if (expires == null) continue;
+      if (!inviteStillOpen(
+        now: now,
+        expiresAt: expires,
+        accepted: data['acceptedAt'] != null,
+        revoked: data['revokedAt'] != null,
+      )) {
+        continue;
+      }
+      pending.add(OrgInvite(
+        id: doc.id,
+        email: data['email'] as String? ?? '',
+        role: orgRoleFromName('${data['role'] ?? ''}'),
+        expiresAt: expires,
+      ));
+    }
+    pending.sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
+    return pending;
+  }
+
   Future<List<OrgMember>> listMembers(String orgId) async {
     final snap = await _fs
         .collection('memberships')

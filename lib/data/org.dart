@@ -105,6 +105,42 @@ bool canSetMemberRoles({
   return true;
 }
 
+/// Owner or admin may send a clinic join invite from Practice settings.
+bool canSendClinicInvite(Iterable<OrgRole> actor) {
+  return actor.contains(OrgRole.owner) || actor.contains(OrgRole.admin);
+}
+
+/// Roles the Members Send invite UI offers. Owner grants stay off this panel.
+List<OrgRole> clinicInviteRolesFor(Iterable<OrgRole> actor) {
+  if (!canSendClinicInvite(actor)) return const [];
+  return const [OrgRole.practitioner, OrgRole.admin];
+}
+
+bool canInviteWithRole({
+  required Iterable<OrgRole> actor,
+  required OrgRole role,
+}) {
+  if (role == OrgRole.owner) return actor.contains(OrgRole.owner);
+  if (role == OrgRole.admin || role == OrgRole.practitioner) {
+    return canSendClinicInvite(actor);
+  }
+  return false;
+}
+
+class OrgInvite {
+  const OrgInvite({
+    required this.id,
+    required this.email,
+    required this.role,
+    required this.expiresAt,
+  });
+
+  final String id;
+  final String email;
+  final OrgRole? role;
+  final DateTime expiresAt;
+}
+
 /// Owner or admin may deactivate. Admin cannot revoke owner. Last owner stays.
 bool canRemoveMember({
   required List<OrgRole> actor,

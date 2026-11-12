@@ -18,6 +18,42 @@ OrgMember _member(
 }
 
 void main() {
+  test('clinic invites allow owner and admin but never owner role for admin', () {
+    expect(canSendClinicInvite(const [OrgRole.owner]), isTrue);
+    expect(canSendClinicInvite(const [OrgRole.admin]), isTrue);
+    expect(canSendClinicInvite(const [OrgRole.practitioner]), isFalse);
+    expect(
+      clinicInviteRolesFor(const [OrgRole.owner]),
+      [OrgRole.practitioner, OrgRole.admin],
+    );
+    expect(
+      clinicInviteRolesFor(const [OrgRole.admin]),
+      [OrgRole.practitioner, OrgRole.admin],
+    );
+    expect(clinicInviteRolesFor(const [OrgRole.practitioner]), isEmpty);
+    expect(
+      canInviteWithRole(
+        actor: const [OrgRole.admin],
+        role: OrgRole.owner,
+      ),
+      isFalse,
+    );
+    expect(
+      canInviteWithRole(
+        actor: const [OrgRole.admin],
+        role: OrgRole.admin,
+      ),
+      isTrue,
+    );
+    expect(
+      canInviteWithRole(
+        actor: const [OrgRole.owner],
+        role: OrgRole.owner,
+      ),
+      isTrue,
+    );
+  });
+
   test('owner role edits keep the last owner and block admins', () {
     final owner = _member('o1', const [OrgRole.owner, OrgRole.practitioner]);
     final second = _member('o2', const [OrgRole.owner]);

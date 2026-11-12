@@ -144,7 +144,7 @@ service cloud.firestore {
         || (
           resource.data.kind == 'join'
           && resource.data.orgId is string
-          && isOrgOwner(resource.data.orgId)
+          && (isOrgOwner(resource.data.orgId) || isOrgAdmin(resource.data.orgId))
         )
       );
       allow create: if signedIn() && inviteShape() && (
@@ -316,7 +316,7 @@ service cloud.firestore {
           || (
             resource.data.kind == 'join'
             && resource.data.orgId is string
-            && isOrgOwner(resource.data.orgId)
+            && (isOrgOwner(resource.data.orgId) || isOrgAdmin(resource.data.orgId))
           )
         );
     }
