@@ -155,16 +155,21 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 7;
 
+  /// True if [table] exists (half-applied migrate / never-created templates).
+  Future<bool> hasSqliteTable(String table) async {
+    final name = table.replaceAll('"', '');
+    final rows = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '$name'",
+    ).get();
+    return rows.isNotEmpty;
+  }
+
   /// CREATE TABLE when [table] is not already there (half-applied migrate).
   Future<void> createTableIfMissing(
     Migrator m,
     TableInfo<Table, dynamic> table,
   ) async {
-    final name = table.actualTableName.replaceAll('"', '');
-    final rows = await customSelect(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '$name'",
-    ).get();
-    if (rows.isNotEmpty) return;
+    if (await hasSqliteTable(table.actualTableName)) return;
     await m.createTable(table);
   }
 
@@ -743,12 +748,17 @@ class AppDatabase extends _$AppDatabase {
 
   /// Wipe clinic rows and settings so another Google account starts clean.
   /// Keeps [themeModeKey] only.
+  ///
+  /// Skips [templates] when the table was never migrated (e.g. web Incognito
+  /// half-applied schema) so sign-out still succeeds.
   Future<void> clearLocalClinicForAccountSwitch() async {
     await transaction(() async {
       await delete(clients).go();
       await delete(appointments).go();
       await delete(notes).go();
-      await delete(templates).go();
+      if (await hasSqliteTable('templates')) {
+        await delete(templates).go();
+      }
       final rows = await select(settings).get();
       for (final row in rows) {
         if (row.key == themeModeKey) continue;

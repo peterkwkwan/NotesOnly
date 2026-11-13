@@ -43,6 +43,27 @@ void main() {
     expect(await db.getSetting(AppDatabase.recallDaysKey), isNotNull);
   });
 
+  test('clearLocalClinicForAccountSwitch skips missing templates table',
+      () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setSetting(AppDatabase.themeModeKey, 'dark');
+    await db.setSetting(AppDatabase.activeOrgIdKey, 'org-amber');
+    await db.into(db.clients).insert(
+          ClientsCompanion.insert(firstName: 'Ada', lastName: 'Client'),
+        );
+    await db.customStatement('DROP TABLE templates');
+    expect(await db.hasSqliteTable('templates'), isFalse);
+
+    await db.clearLocalClinicForAccountSwitch();
+
+    expect(await db.getSetting(AppDatabase.themeModeKey), 'dark');
+    expect(await db.getSetting(AppDatabase.activeOrgIdKey), isNull);
+    expect(await db.hasClinicalRows(), isFalse);
+    expect(await db.hasSqliteTable('templates'), isFalse);
+  });
+
   test('ensureDefaults migrates legacy practitioner_name into clinic_name',
       () async {
     final db = AppDatabase(NativeDatabase.memory());
