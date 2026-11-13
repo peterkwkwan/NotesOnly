@@ -185,7 +185,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
 
   int get _publishedCount => soapTemplates.where((t) => !t.isBlank).length;
 
-  Widget _sectionBody(PelviColors c, String displayName) {
+  Widget _sectionBody(PelviPalette c, String displayName) {
     return switch (_section) {
       _AccountSection.profile => _Panel(
           title: 'Practitioner name',

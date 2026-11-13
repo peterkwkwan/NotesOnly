@@ -146,7 +146,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
     setState(() => _section = section);
   }
 
-  Widget _sectionBody(PelviColors c, String clinicLabel) {
+  Widget _sectionBody(PelviPalette c, String clinicLabel) {
     return switch (_section) {
       _SettingsSection.preferences => _Panel(
           title: 'Clinic name',

@@ -27,7 +27,8 @@ if [[ ! -d "$web/assets" ]]; then
   missing=1
 fi
 if [[ "$missing" -ne 0 ]]; then
-  echo "error: run: flutter build web --release" >&2
+  echo "error: build/web incomplete (often a failed flutter build)." >&2
+  echo "error: fix compile errors, then: flutter build web --release" >&2
   exit 1
 fi
 # Catch the SPA-rewrite footgun if someone deploys a stub.
