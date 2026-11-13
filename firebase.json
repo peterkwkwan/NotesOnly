@@ -10,6 +10,9 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "predeploy": [
+      "bash tool/verify_web_hosting.sh"
+    ],
     "rewrites": [
       {
         "source": "**",
@@ -56,10 +59,6 @@
       {
         "source": "**/*.wasm",
         "headers": [
-          {
-            "key": "Content-Type",
-            "value": "application/wasm"
-          },
           {
             "key": "Cache-Control",
             "value": "public,max-age=31536000,immutable"

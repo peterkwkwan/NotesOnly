@@ -72,13 +72,29 @@ Same engine on Android and web.
 
 ## Web Hosting deploy
 
+Incomplete `build/web` deploys white-screen: Firebase rewrites missing files to
+`index.html`, so the browser loads HTML as `main.dart.js` and throws
+`Uncaught SyntaxError: Unexpected token '<'`. Always rebuild, then deploy:
+
 ```bash
 flutter build web --release
+# must be real JS (not HTML) and typically a few MB:
+file build/web/main.dart.js && wc -c build/web/main.dart.js
+bash tool/verify_web_hosting.sh
 firebase deploy --only hosting
 # or both: firebase deploy --only firestore:rules,hosting
 ```
 
-Requires Firebase CLI logged in as a project owner (`firebase login`). Public dir is `build/web` (see `firebase.json`). After first deploy, open `https://notesonly-e4829.web.app` and confirm it is listed under Auth authorized domains.
+`firebase.json` runs `tool/verify_web_hosting.sh` as a hosting predeploy check.
+Requires Firebase CLI logged in as a project owner (`firebase login`). Public dir
+is `build/web`. After deploy, confirm:
+
+```bash
+curl -sI https://notesonly-e4829.web.app/main.dart.js | grep -i content-type
+# expect: content-type: text/javascript  (NOT text/html)
+```
+
+Open `https://notesonly-e4829.web.app` and confirm it is listed under Auth authorized domains.
 
 ## Project layout
 
