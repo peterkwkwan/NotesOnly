@@ -11,6 +11,7 @@ import '../../data/org_directory.dart';
 import '../../data/sync.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
+import '../shell/desktop_chrome.dart';
 
 /// Paste an invite, or send one. Not an admin console.
 class OrgAccessScreen extends StatefulWidget {
@@ -200,129 +201,138 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final email = NotesAuth.currentUser?.email;
+    // Match create-practice / sign-in auth panel on wide viewports (≥960).
+    final maxFormWidth = widget.waiting && isDesktopShell(context)
+        ? 380.0
+        : double.infinity;
 
     return Scaffold(
       appBar: widget.waiting ? null : AppBar(title: const Text('Invites')),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(PelviSpace.lg),
-          children: [
-            if (widget.waiting) ...[
-              Text(
-                'Waiting for a clinic',
-                textAlign: TextAlign.center,
-                style: text.titleLarge,
-              ),
-              const SizedBox(height: PelviSpace.sm),
-              Text(
-                email == null
-                    ? 'Sign-in does not create a clinic. Paste an invite code.'
-                    : 'Signed in as $email. Paste an invite code to join or create a clinic.',
-                textAlign: TextAlign.center,
-                style: text.bodyMedium?.copyWith(
-                  color: PelviColors.of(context).inkMuted,
-                ),
-              ),
-              const SizedBox(height: PelviSpace.md),
-              const _SyncLine(),
-              const SizedBox(height: PelviSpace.lg),
-            ],
-            if (!widget.waiting && !_canSend)
-              Text(
-                'An owner sends invites for this clinic.',
-                style: text.bodyMedium?.copyWith(
-                  color: PelviColors.of(context).inkMuted,
-                ),
-              ),
-            if (widget.waiting || _canSend) ...[
-              Text('INVITE CODE', style: text.labelMedium),
-              const SizedBox(height: PelviSpace.xs),
-              TextField(
-                controller: _code,
-                decoration: const InputDecoration(hintText: 'Paste code'),
-              ),
-            ],
-            if (widget.waiting) ...[
-              const SizedBox(height: PelviSpace.md),
-              FilledButton(
-                onPressed: _busy ? null : _accept,
-                child: const Text('Accept invite'),
-              ),
-            ],
-            if (_canSend) ...[
-              const SizedBox(height: PelviSpace.sm),
-              TextButton(
-                onPressed: _busy ? null : _revoke,
-                child: const Text('Revoke unused invite'),
-              ),
-              const SizedBox(height: PelviSpace.lg),
-              Text('Send an invite', style: text.titleMedium),
-              const SizedBox(height: PelviSpace.sm),
-              TextField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(hintText: 'Google account email'),
-              ),
-              if (_platformAdmin) ...[
-                const SizedBox(height: PelviSpace.sm),
-                DropdownButtonFormField<String>(
-                  initialValue: _kind,
-                  items: const [
-                    DropdownMenuItem(value: 'create-org', child: Text('Create a clinic')),
-                    DropdownMenuItem(value: 'join', child: Text('Join a clinic')),
-                  ],
-                  onChanged: _busy
-                      ? null
-                      : (value) {
-                          if (value == null) return;
-                          setState(() => _kind = value);
-                        },
-                ),
-              ],
-              if (_kind == 'join') ...[
-                const SizedBox(height: PelviSpace.sm),
-                TextField(
-                  controller: _orgId,
-                  decoration: const InputDecoration(hintText: 'Clinic id'),
-                ),
-                const SizedBox(height: PelviSpace.sm),
-                DropdownButtonFormField<String>(
-                  initialValue: _role,
-                  items: [
-                    if (_grantOwner)
-                      const DropdownMenuItem(value: 'owner', child: Text('Owner')),
-                    const DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                    const DropdownMenuItem(
-                      value: 'practitioner',
-                      child: Text('Practitioner'),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxFormWidth),
+            child: ListView(
+              padding: const EdgeInsets.all(PelviSpace.lg),
+              children: [
+                if (widget.waiting) ...[
+                  Text(
+                    'Waiting for a clinic',
+                    textAlign: TextAlign.center,
+                    style: text.titleLarge,
+                  ),
+                  const SizedBox(height: PelviSpace.sm),
+                  Text(
+                    email == null
+                        ? 'Sign-in does not create a clinic. Paste an invite code.'
+                        : 'Signed in as $email. Paste an invite code to join or create a clinic.',
+                    textAlign: TextAlign.center,
+                    style: text.bodyMedium?.copyWith(
+                      color: PelviColors.of(context).inkMuted,
+                    ),
+                  ),
+                  const SizedBox(height: PelviSpace.md),
+                  const _SyncLine(),
+                  const SizedBox(height: PelviSpace.lg),
+                ],
+                if (!widget.waiting && !_canSend)
+                  Text(
+                    'An owner sends invites for this clinic.',
+                    style: text.bodyMedium?.copyWith(
+                      color: PelviColors.of(context).inkMuted,
+                    ),
+                  ),
+                if (widget.waiting || _canSend) ...[
+                  Text('INVITE CODE', style: text.labelMedium),
+                  const SizedBox(height: PelviSpace.xs),
+                  TextField(
+                    controller: _code,
+                    decoration: const InputDecoration(hintText: 'Paste code'),
+                  ),
+                ],
+                if (widget.waiting) ...[
+                  const SizedBox(height: PelviSpace.md),
+                  FilledButton(
+                    onPressed: _busy ? null : _accept,
+                    child: const Text('Accept invite'),
+                  ),
+                ],
+                if (_canSend) ...[
+                  const SizedBox(height: PelviSpace.sm),
+                  TextButton(
+                    onPressed: _busy ? null : _revoke,
+                    child: const Text('Revoke unused invite'),
+                  ),
+                  const SizedBox(height: PelviSpace.lg),
+                  Text('Send an invite', style: text.titleMedium),
+                  const SizedBox(height: PelviSpace.sm),
+                  TextField(
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(hintText: 'Google account email'),
+                  ),
+                  if (_platformAdmin) ...[
+                    const SizedBox(height: PelviSpace.sm),
+                    DropdownButtonFormField<String>(
+                      initialValue: _kind,
+                      items: const [
+                        DropdownMenuItem(value: 'create-org', child: Text('Create a clinic')),
+                        DropdownMenuItem(value: 'join', child: Text('Join a clinic')),
+                      ],
+                      onChanged: _busy
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setState(() => _kind = value);
+                            },
                     ),
                   ],
-                  onChanged: _busy
-                      ? null
-                      : (value) {
-                          if (value == null) return;
-                          setState(() => _role = value);
-                        },
-                ),
+                  if (_kind == 'join') ...[
+                    const SizedBox(height: PelviSpace.sm),
+                    TextField(
+                      controller: _orgId,
+                      decoration: const InputDecoration(hintText: 'Clinic id'),
+                    ),
+                    const SizedBox(height: PelviSpace.sm),
+                    DropdownButtonFormField<String>(
+                      initialValue: _role,
+                      items: [
+                        if (_grantOwner)
+                          const DropdownMenuItem(value: 'owner', child: Text('Owner')),
+                        const DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                        const DropdownMenuItem(
+                          value: 'practitioner',
+                          child: Text('Practitioner'),
+                        ),
+                      ],
+                      onChanged: _busy
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setState(() => _role = value);
+                            },
+                    ),
+                  ],
+                  const SizedBox(height: PelviSpace.md),
+                  FilledButton(
+                    onPressed: _busy ? null : _send,
+                    child: const Text('Create invite'),
+                  ),
+                  if (_issuedCode != null) ...[
+                    const SizedBox(height: PelviSpace.md),
+                    SelectableText(_issuedCode!),
+                    TextButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: _issuedCode!));
+                        showPelviSnackBar(context, 'Code copied');
+                      },
+                      child: const Text('Copy code'),
+                    ),
+                  ],
+                ],
               ],
-              const SizedBox(height: PelviSpace.md),
-              FilledButton(
-                onPressed: _busy ? null : _send,
-                child: const Text('Create invite'),
-              ),
-              if (_issuedCode != null) ...[
-                const SizedBox(height: PelviSpace.md),
-                SelectableText(_issuedCode!),
-                TextButton(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: _issuedCode!));
-                    showPelviSnackBar(context, 'Code copied');
-                  },
-                  child: const Text('Copy code'),
-                ),
-              ],
-            ],
-          ],
+            ),
+          ),
         ),
       ),
     );
