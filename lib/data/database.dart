@@ -295,7 +295,7 @@ class AppDatabase extends _$AppDatabase {
         },
       );
 
-  /// Org clinic label (Practice settings). Cloud-synced; owners also push orgs.name.
+  /// Org clinic label (Practice settings). Cloud-synced; owner/admin also push orgs.name.
   static const clinicNameKey = 'clinic_name';
   /// Signed-in user's display name (Account settings). Device-local only.
   static const practitionerNameKey = 'practitioner_name';

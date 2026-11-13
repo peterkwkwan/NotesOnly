@@ -535,7 +535,8 @@ class FirestoreSyncEngine implements SyncEngine {
           'updatedAt': _ts(row.updatedAt)!,
           'deletedAt': _ts(row.deletedAt),
         });
-        if (row.key == AppDatabase.clinicNameKey && roles.contains('owner')) {
+        if (row.key == AppDatabase.clinicNameKey &&
+            (roles.contains('owner') || roles.contains('admin'))) {
           await _fs.collection('orgs').doc(orgId).update({
             'name': row.value,
             'updatedAt': FieldValue.serverTimestamp(),

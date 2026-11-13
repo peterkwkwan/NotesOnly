@@ -760,9 +760,10 @@ void main() {
     );
   });
 
-  testWidgets('first-run shows when practitioner name missing', (tester) async {
+  testWidgets('first-run asks clinic name when clinic unnamed', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     await db.setSetting(AppDatabase.activeOrgIdKey, 'org-test');
+    await db.setSetting(AppDatabase.activeOrgRolesKey, 'owner,practitioner');
 
     await tester.pumpWidget(
       PelviApp(
@@ -774,8 +775,32 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('NotesOnly'), findsOneWidget);
-    expect(find.text('What should we call your practice?'), findsOneWidget);
+    expect(find.text('What should we call this clinic?'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
+  testWidgets('first-run asks display name for joining practitioner',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    await db.setSetting(AppDatabase.activeOrgIdKey, 'org-test');
+    await db.setSetting(AppDatabase.activeOrgRolesKey, 'practitioner');
+    await db.setClinicName('Amber Health');
+
+    await tester.pumpWidget(
+      PelviApp(
+        database: db,
+        signedInOverride: Stream.value(true),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('What should we call you?'), findsOneWidget);
+    expect(find.text('Shown to colleagues in this clinic.'), findsOneWidget);
+    expect(find.text('Today'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));

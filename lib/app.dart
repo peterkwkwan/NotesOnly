@@ -90,17 +90,22 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     final orgReady = orgId != null && orgId.isNotEmpty;
     final clinical = orgReady || await db.hasClinicalRows();
     if (!clinical) return const _HomeGate.waiting();
-    final name = await db.getClinicName();
-    if (name != null && name.trim().isNotEmpty) return const _HomeGate.shell();
-    final roles = parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
-    // Joining practitioner: the clinic name arrives with org settings.
-    final firstRun = roles.isEmpty || roles.contains(OrgRole.owner);
-    return _HomeGate(showClinic: true, firstRun: firstRun);
+    final roles =
+        parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
+    final clinic = (await db.getClinicName())?.trim() ?? '';
+    final display = (await db.getPractitionerName())?.trim() ?? '';
+    final canNameClinic = roles.isEmpty ||
+        roles.contains(OrgRole.owner) ||
+        roles.contains(OrgRole.admin);
+    final needClinic = canNameClinic && clinic.isEmpty;
+    final needDisplay = display.isEmpty;
+    if (!needClinic && !needDisplay) return const _HomeGate.shell();
+    return const _HomeGate(showClinic: true, firstRun: true);
   }
 
   void _refreshGate() {
     setState(() {
-      _gate = Future.value(const _HomeGate.shell());
+      _gate = _loadGate();
     });
   }
 
