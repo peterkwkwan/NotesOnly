@@ -171,6 +171,11 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
               }
             }
 
+            final emails = parseClinicInviteEmails(emailCtrl.text);
+            final canSendInvite = !sending &&
+                emails.isNotEmpty &&
+                emails.every(isClinicInviteEmail);
+
             return AlertDialog(
               title: const Text('Send invite'),
               content: SizedBox(
@@ -194,17 +199,9 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
                       enabled: !sending,
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
+                      onChanged: (_) => setLocal(() {}),
                       decoration: const InputDecoration(
                         hintText: 'friend@gmail.com; other@gmail.com',
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'They must sign in with this Google email. Separate multiple with semicolons.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.5,
-                        color: c.inkMuted,
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -232,15 +229,6 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Admins can invite Practitioner or Admin only — not Owner.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.5,
-                        color: c.inkMuted,
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -250,7 +238,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: sending ? null : send,
+                  onPressed: canSendInvite ? send : null,
                   child: const Text('Send invite'),
                 ),
               ],

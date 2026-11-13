@@ -593,25 +593,6 @@ class _Subnav extends StatelessWidget {
         item(_SettingsSection.members, 'Members'),
         item(_SettingsSection.recall, 'Recall management'),
         item(_SettingsSection.data, 'Data & backup'),
-        const SizedBox(height: 18),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.tune, size: 18, color: c.inkMuted),
-              const SizedBox(height: 10),
-              Text(
-                'Clinic settings for owners and admins. Personal defaults live under Account settings.',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }

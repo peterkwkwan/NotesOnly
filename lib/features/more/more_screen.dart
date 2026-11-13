@@ -437,10 +437,6 @@ class MoreScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Sign out?'),
-        content: const Text(
-          'Clears this clinic from the device so another Google account '
-          'starts empty. Cloud data stays in Firestore.',
-        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),

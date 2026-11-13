@@ -523,25 +523,6 @@ class _Subnav extends StatelessWidget {
         item(_AccountSection.profile, 'Practitioner name'),
         item(_AccountSection.scheduling, 'Scheduling'),
         item(_AccountSection.templates, 'Template defaults'),
-        const SizedBox(height: 18),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.person_outline, size: 18, color: c.inkMuted),
-              const SizedBox(height: 10),
-              Text(
-                'Personal defaults for your signed-in account. Clinic roster and backup live under Practice settings.',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
