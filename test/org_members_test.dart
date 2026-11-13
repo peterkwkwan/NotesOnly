@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/data/database.dart';
@@ -104,6 +106,17 @@ void main() {
     );
     expect(isClinicInviteEmail('ada@gmail.com'), isTrue);
     expect(isClinicInviteEmail('not-an-email'), isFalse);
+  });
+
+  test('invite codes are 6 chars from the unambiguous alphabet', () {
+    final code = newInviteCode(Random(1));
+    expect(code.length, inviteCodeLength);
+    expect(code, matches(RegExp('^[$inviteCodeAlphabet]{$inviteCodeLength}\$')));
+    expect(normalizeInviteCode('  ab3k7f  '), 'AB3K7F');
+    expect(inviteCodeAlphabet.contains('0'), isFalse);
+    expect(inviteCodeAlphabet.contains('O'), isFalse);
+    expect(inviteCodeAlphabet.contains('1'), isFalse);
+    expect(inviteCodeAlphabet.contains('I'), isFalse);
   });
 
   test('owner role edits keep the last owner and block admins', () {

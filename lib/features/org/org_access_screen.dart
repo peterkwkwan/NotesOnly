@@ -265,7 +265,15 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
         const SizedBox(height: PelviSpace.xs),
         TextField(
           controller: _code,
-          decoration: const InputDecoration(hintText: 'Paste code'),
+          textCapitalization: TextCapitalization.characters,
+          autocorrect: false,
+          enableSuggestions: false,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9-]')),
+          ],
+          decoration: const InputDecoration(
+            hintText: 'Paste 6-character code',
+          ),
         ),
       ],
       if (widget.waiting) ...[
@@ -343,7 +351,13 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
         ),
         if (_issuedCode != null) ...[
           const SizedBox(height: PelviSpace.md),
-          SelectableText(_issuedCode!),
+          SelectableText(
+            _issuedCode!,
+            style: text.headlineSmall?.copyWith(
+              letterSpacing: 4,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           TextButton(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: _issuedCode!));

@@ -760,8 +760,13 @@ class _PendingRow extends StatelessWidget {
                 ),
               ),
               Text(
-                '$role · $expiry',
-                style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
+                '$role · $expiry · ${invite.id}',
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.5,
+                  color: c.inkMuted,
+                  letterSpacing: invite.id.length == 6 ? 1.2 : 0,
+                ),
               ),
             ],
           ),

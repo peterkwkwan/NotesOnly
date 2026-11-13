@@ -1,9 +1,27 @@
+import 'dart:math';
+
 /// Clinic roles. One person may hold more than one (Owner + Practitioner).
 enum OrgRole { owner, admin, practitioner }
 
 const platformAdminEmail = 'peterkwkwan@gmail.com';
 
 const inviteTtl = Duration(days: 14);
+
+/// Invite doc ids: 6 chars, A–Z / 2–9 (no 0/O/1/I). Stored uppercase.
+const inviteCodeLength = 6;
+const inviteCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+String newInviteCode([Random? random]) {
+  final r = random ?? Random.secure();
+  final chars = List<String>.generate(
+    inviteCodeLength,
+    (_) => inviteCodeAlphabet[r.nextInt(inviteCodeAlphabet.length)],
+  );
+  return chars.join();
+}
+
+/// Trim + uppercase so accept is case-insensitive. Legacy UUID invites still match.
+String normalizeInviteCode(String raw) => raw.trim().toUpperCase();
 
 bool isPlatformAdminEmail(String? email) {
   return email?.trim().toLowerCase() == platformAdminEmail;

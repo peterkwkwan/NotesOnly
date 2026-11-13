@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'org.dart';
-import 'remote_id.dart';
 
 /// Firestore orgs, memberships, and invites. Clinical rows stay on the org.
 class OrgDirectory {
@@ -22,9 +21,8 @@ class OrgDirectory {
     String? role,
     required bool issuedByPlatformAdmin,
   }) async {
-    final id = newRemoteId();
     final normalized = email.trim().toLowerCase();
-    await _fs.collection('invites').doc(id).set({
+    final payload = <String, dynamic>{
       'kind': kind,
       'email': normalized,
       'role': kind == 'join' ? role : null,
@@ -36,20 +34,29 @@ class OrgDirectory {
       'revokedAt': null,
       'acceptedAt': null,
       'acceptedByUid': null,
-    });
-    return id;
+    };
+    for (var attempt = 0; attempt < 8; attempt++) {
+      final id = newInviteCode();
+      final ref = _fs.collection('invites').doc(id);
+      final existing = await ref.get();
+      if (existing.exists) continue;
+      await ref.set(payload);
+      return id;
+    }
+    throw StateError('Could not allocate an invite code');
   }
 
   Future<void> revokeInvite({
     required String inviteId,
   }) async {
-    await _fs.collection('invites').doc(inviteId.trim()).update({
+    await _fs.collection('invites').doc(normalizeInviteCode(inviteId)).update({
       'revokedAt': FieldValue.serverTimestamp(),
     });
   }
 
   Future<Map<String, dynamic>> peekInvite(String inviteId) async {
-    final snap = await _fs.collection('invites').doc(inviteId.trim()).get();
+    final snap =
+        await _fs.collection('invites').doc(normalizeInviteCode(inviteId)).get();
     if (!snap.exists) {
       throw StateError('Invite not found');
     }
@@ -66,7 +73,7 @@ class OrgDirectory {
     if (email.isEmpty) {
       throw StateError('This Google account has no email');
     }
-    final ref = _fs.collection('invites').doc(inviteId.trim());
+    final ref = _fs.collection('invites').doc(normalizeInviteCode(inviteId));
     final peeked = await ref.get();
     if (!peeked.exists) throw StateError('Invite not found');
     final preview = peeked.data()!;
