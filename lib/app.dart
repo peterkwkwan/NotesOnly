@@ -90,7 +90,7 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     final orgReady = orgId != null && orgId.isNotEmpty;
     final clinical = orgReady || await db.hasClinicalRows();
     if (!clinical) return const _HomeGate.waiting();
-    final name = await db.getPractitionerName();
+    final name = await db.getClinicName();
     if (name != null && name.trim().isNotEmpty) return const _HomeGate.shell();
     final roles = parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
     // Joining practitioner: the clinic name arrives with org settings.

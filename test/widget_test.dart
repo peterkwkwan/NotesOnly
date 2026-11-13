@@ -801,10 +801,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
-  testWidgets('shell opens when practitioner name is set', (tester) async {
+  testWidgets('shell opens when clinic name is set', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     await db.setSetting(AppDatabase.activeOrgIdKey, 'org-test');
-    await db.setPractitionerName('Test Clinic');
+    await db.setClinicName('Test Clinic');
+    await db.setPractitionerName('Test Practitioner');
 
     await tester.pumpWidget(
       PelviApp(
@@ -826,7 +827,7 @@ void main() {
 
   testWidgets('signed-out shows Google sign-in gate', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
-    await db.setPractitionerName('Test Clinic');
+    await db.setClinicName('Test Clinic');
     await tester.binding.setSurfaceSize(const Size(412, 892));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -1405,7 +1406,8 @@ void main() {
     expect(await db.getRecallNotificationsEnabled(), isTrue);
     expect(await db.getDarkModeEnabled(), isFalse);
 
-    await db.setPractitionerName('Pelvi Clinic');
+    await db.setClinicName('Pelvi Clinic');
+    await db.setPractitionerName('Ada Practitioner');
     await db.setDefaultAppointmentMinutes(45);
     await db.setClinicHoursStart('08:30');
     await db.setClinicHoursEnd('17:00');
@@ -1444,11 +1446,13 @@ void main() {
     final other = AppDatabase(NativeDatabase.memory());
     addTearDown(other.close);
     await other.ensureDefaults();
+    await other.setClinicName('Temp');
     await other.setPractitionerName('Temp');
     await other.insertClient(firstName: 'Temp', lastName: 'Client');
 
     await restoreBackupMap(other, decodeBackupJson(json));
-    expect(await other.getPractitionerName(), 'Pelvi Clinic');
+    expect(await other.getClinicName(), 'Pelvi Clinic');
+    expect(await other.getPractitionerName(), 'Ada Practitioner');
     expect(await other.getDefaultAppointmentMinutes(), 45);
     expect(await other.getClinicHoursStart(), '08:30');
     expect(await other.getTimezone(), 'America/Toronto');

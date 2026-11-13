@@ -12,12 +12,11 @@ import '../../data/online.dart';
 import '../../data/sync.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
-import '../notes/soap_templates.dart';
 import '../org/org_access_screen.dart';
 import '../shell/desktop_chrome.dart';
 import 'practice_members_panel.dart';
 
-/// Figma `NotesOnly · Practice settings` (`47:22570`) — desktop body only.
+/// Figma `NotesOnly · Practice settings` — Owner/Admin clinic settings.
 class WebPracticeSettings extends StatefulWidget {
   const WebPracticeSettings({super.key});
 
@@ -28,47 +27,30 @@ class WebPracticeSettings extends StatefulWidget {
 enum _SettingsSection {
   preferences,
   members,
-  scheduling,
   recall,
-  templates,
   data,
 }
 
 class _WebPracticeSettingsState extends State<WebPracticeSettings> {
   final _scroll = ScrollController();
 
-  late final TextEditingController _name;
-  late final TextEditingController _duration;
-  late final TextEditingController _opens;
-  late final TextEditingController _closes;
-  late final TextEditingController _timezone;
+  late final TextEditingController _clinicName;
   late final TextEditingController _recallDays;
 
   bool _loaded = false;
   bool _applying = false;
   bool _dirty = false;
   bool _recallNotifs = true;
-  String _templateId = blankId;
   _SettingsSection _section = _SettingsSection.preferences;
 
-  // Snapshots for Discard.
-  String _snapName = '';
-  String _snapDuration = '';
-  String _snapOpens = '';
-  String _snapCloses = '';
-  String _snapTimezone = '';
+  String _snapClinicName = '';
   String _snapRecallDays = '';
   bool _snapRecallNotifs = true;
-  String _snapTemplateId = blankId;
 
   @override
   void initState() {
     super.initState();
-    _name = TextEditingController()..addListener(_onFieldChanged);
-    _duration = TextEditingController()..addListener(_onFieldChanged);
-    _opens = TextEditingController()..addListener(_onFieldChanged);
-    _closes = TextEditingController()..addListener(_onFieldChanged);
-    _timezone = TextEditingController()..addListener(_onFieldChanged);
+    _clinicName = TextEditingController()..addListener(_onFieldChanged);
     _recallDays = TextEditingController()..addListener(_onFieldChanged);
   }
 
@@ -84,11 +66,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
   @override
   void dispose() {
     _scroll.dispose();
-    _name.dispose();
-    _duration.dispose();
-    _opens.dispose();
-    _closes.dispose();
-    _timezone.dispose();
+    _clinicName.dispose();
     _recallDays.dispose();
     super.dispose();
   }
@@ -100,23 +78,14 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
 
   Future<void> _loadFromDb() async {
     final db = AppDatabaseProvider.of(context);
-    final name = (await db.getPractitionerName()) ?? '';
-    final mins = await db.getDefaultAppointmentMinutes();
-    final hours = await db.watchClinicHours().first;
-    final tz = await db.getTimezone();
+    final name = (await db.getClinicName()) ?? '';
     final recall = await db.getRecallDays();
     final notifs = await db.getRecallNotificationsEnabled();
-    final tmpl = await db.getSetting('default_soap_template') ?? blankId;
     if (!mounted) return;
     setState(() {
-      _snapName = name;
-      _snapDuration = '$mins minutes';
-      _snapOpens = hours.$1;
-      _snapCloses = hours.$2;
-      _snapTimezone = tz.replaceAll('_', ' ');
+      _snapClinicName = name;
       _snapRecallDays = recall <= 0 ? 'Never' : '$recall days';
       _snapRecallNotifs = notifs;
-      _snapTemplateId = soapTemplateById(tmpl).id;
       _applySnapshot();
       _dirty = false;
     });
@@ -124,14 +93,9 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
 
   void _applySnapshot() {
     _applying = true;
-    _name.text = _snapName;
-    _duration.text = _snapDuration;
-    _opens.text = _snapOpens;
-    _closes.text = _snapCloses;
-    _timezone.text = _snapTimezone;
+    _clinicName.text = _snapClinicName;
     _recallDays.text = _snapRecallDays;
     _recallNotifs = _snapRecallNotifs;
-    _templateId = _snapTemplateId;
     _applying = false;
   }
 
@@ -144,20 +108,9 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
 
   Future<void> _save() async {
     final db = AppDatabaseProvider.of(context);
-    final name = _name.text.trim();
+    final name = _clinicName.text.trim();
     if (name.isEmpty) {
-      showPelviSnackBar(context, 'Practitioner name cannot be empty');
-      return;
-    }
-    final mins = _parseMinutes(_duration.text);
-    if (mins == null) {
-      showPelviSnackBar(context, 'Default duration must be a number of minutes');
-      return;
-    }
-    final opens = _normalizeHhmm(_opens.text);
-    final closes = _normalizeHhmm(_closes.text);
-    if (opens == null || closes == null) {
-      showPelviSnackBar(context, 'Clinic hours must look like 09:00');
+      showPelviSnackBar(context, 'Clinic name cannot be empty');
       return;
     }
     final recall = _parseRecallDays(_recallDays.text);
@@ -165,42 +118,20 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
       showPelviSnackBar(context, 'Recall window must be Never or N days');
       return;
     }
-    final tzRaw = _timezone.text.trim().replaceAll(' ', '_');
-    if (tzRaw.isEmpty) {
-      showPelviSnackBar(context, 'Timezone cannot be empty');
-      return;
-    }
 
-    await db.setPractitionerName(name);
-    await db.setDefaultAppointmentMinutes(mins);
-    await db.setClinicHoursStart(opens);
-    await db.setClinicHoursEnd(closes);
-    await db.setTimezone(tzRaw);
+    await db.setClinicName(name);
     await db.setRecallDays(recall);
     await db.setRecallNotificationsEnabled(_recallNotifs);
-    // shortcut: key not in ensureDefaults; note editor does not read it yet
-    await db.setSetting('default_soap_template', _templateId);
 
     if (!mounted) return;
     setState(() {
-      _snapName = name;
-      _snapDuration = '$mins minutes';
-      _snapOpens = opens;
-      _snapCloses = closes;
-      _snapTimezone = tzRaw.replaceAll('_', ' ');
+      _snapClinicName = name;
       _snapRecallDays = recall <= 0 ? 'Never' : '$recall days';
       _snapRecallNotifs = _recallNotifs;
-      _snapTemplateId = _templateId;
       _applySnapshot();
       _dirty = false;
     });
     showPelviSnackBar(context, 'Practice settings saved');
-  }
-
-  static int? _parseMinutes(String raw) {
-    final m = RegExp(r'(\d+)').firstMatch(raw.trim());
-    if (m == null) return null;
-    return int.tryParse(m.group(1)!);
   }
 
   static int? _parseRecallDays(String raw) {
@@ -211,24 +142,14 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
     return int.tryParse(m.group(1)!);
   }
 
-  static String? _normalizeHhmm(String raw) {
-    final t = raw.trim();
-    final m = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(t);
-    if (m == null) return null;
-    final h = int.tryParse(m.group(1)!);
-    final min = int.tryParse(m.group(2)!);
-    if (h == null || min == null || h > 23 || min > 59) return null;
-    return '${h.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
-  }
-
   void _goSection(_SettingsSection section) {
     setState(() => _section = section);
   }
 
-  Widget _sectionBody(PelviColors c, String displayName) {
+  Widget _sectionBody(PelviColors c, String clinicLabel) {
     return switch (_section) {
       _SettingsSection.preferences => _Panel(
-          title: 'Practice preferences',
+          title: 'Clinic name',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -243,7 +164,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      practitionerInitials(displayName),
+                      practitionerInitials(clinicLabel),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w500,
@@ -256,7 +177,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        displayName,
+                        clinicLabel,
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
@@ -265,7 +186,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                         ),
                       ),
                       Text(
-                        'Practitioner',
+                        'Organization',
                         style: TextStyle(
                           fontSize: 11,
                           color: c.inkMuted,
@@ -278,8 +199,9 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
               ),
               const SizedBox(height: 18),
               _Field(
-                label: 'Practitioner name',
-                controller: _name,
+                label: 'Clinic name',
+                controller: _clinicName,
+                helper: 'Shown in the sidebar for everyone in this clinic.',
               ),
             ],
           ),
@@ -287,72 +209,6 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
       _SettingsSection.members => const _Panel(
           title: 'Members',
           child: PracticeMembersPanel(),
-        ),
-      _SettingsSection.scheduling => _Panel(
-          title: 'Scheduling defaults',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Field(
-                label: 'Default duration',
-                controller: _duration,
-                helper: 'Used when the appointment end time is unset.',
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: _Field(
-                      label: 'Clinic opens',
-                      controller: _opens,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _Field(
-                      label: 'Clinic closes',
-                      controller: _closes,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Divider(height: 1, color: c.border),
-              const SizedBox(height: 18),
-              _Field(
-                label: 'Timezone',
-                controller: _timezone,
-                helper: 'Label only (device clock).',
-              ),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: c.canvas,
-                  borderRadius: BorderRadius.circular(PelviRadius.sm),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.schedule, size: 16, color: c.inkMuted),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'The week view uses your clinic hours, '
-                        '${_opens.text.trim().isEmpty ? '09:00' : _opens.text.trim()}–'
-                        '${_closes.text.trim().isEmpty ? '18:00' : _closes.text.trim()}.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          height: 1.5,
-                          color: c.inkMuted,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       _SettingsSection.recall => _Panel(
           title: 'Recall management',
@@ -362,8 +218,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
               _Field(
                 label: 'Recall window',
                 controller: _recallDays,
-                helper:
-                    'Clients with no visit in the window appear in Due.',
+                helper: 'Clients with no visit in the window appear in Due.',
               ),
               const SizedBox(height: 18),
               Divider(height: 1, color: c.border),
@@ -432,80 +287,6 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                 label: 'Open recall management',
                 onPressed: () =>
                     ShellNavigation.of(context).goTo(DesktopDest.clients),
-              ),
-            ],
-          ),
-        ),
-      _SettingsSection.templates => _Panel(
-          title: 'Template defaults',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Default SOAP template',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: c.ink,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 7),
-              _TemplateDropdown(
-                value: _templateId,
-                onChanged: (id) {
-                  setState(() {
-                    _templateId = id;
-                    _dirty = true;
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Start with four open SOAP sections. You can choose another published template when writing a note.',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  InkWell(
-                    onTap: () =>
-                        ShellNavigation.of(context).goTo(DesktopDest.templates),
-                    child: Text(
-                      'Manage SOAP templates →',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: c.pink700,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: c.purple50,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '$_publishedCount published',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: c.purple700,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -602,7 +383,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Exports are separate from practice preference changes.',
+              'Exports are separate from clinic preference changes.',
               style: TextStyle(
                 fontSize: 11,
                 height: 1.5,
@@ -672,14 +453,13 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
     }
   }
 
-  int get _publishedCount =>
-      soapTemplates.where((t) => !t.isBlank).length;
-
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    final displayName =
-        _name.text.trim().isEmpty ? 'Practitioner' : _name.text.trim();
+    final clinicLabel =
+        _clinicName.text.trim().isEmpty ? 'Clinic' : _clinicName.text.trim();
+    final showSave = _section != _SettingsSection.members &&
+        _section != _SettingsSection.data;
 
     return ColoredBox(
       color: c.canvas,
@@ -708,7 +488,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        'The small defaults that keep your day running smoothly',
+                        'Clinic-wide preferences for owners and admins',
                         style: TextStyle(
                           fontSize: 13,
                           height: 1.5,
@@ -718,15 +498,17 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                     ],
                   ),
                 ),
-                _OutlineAction(
-                  label: 'Discard changes',
-                  onPressed: _dirty ? _discard : null,
-                ),
-                const SizedBox(width: 10),
-                _FilledAction(
-                  label: 'Save changes',
-                  onPressed: _dirty ? () => unawaited(_save()) : null,
-                ),
+                if (showSave) ...[
+                  _OutlineAction(
+                    label: 'Discard changes',
+                    onPressed: _dirty ? _discard : null,
+                  ),
+                  const SizedBox(width: 10),
+                  _FilledAction(
+                    label: 'Save changes',
+                    onPressed: _dirty ? () => unawaited(_save()) : null,
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 26),
@@ -740,7 +522,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                     onSelect: _goSection,
                   ),
                 );
-                final body = _sectionBody(c, displayName);
+                final body = _sectionBody(c, clinicLabel);
                 if (!wide) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -807,11 +589,9 @@ class _Subnav extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        item(_SettingsSection.preferences, 'Practice preferences'),
+        item(_SettingsSection.preferences, 'Clinic name'),
         item(_SettingsSection.members, 'Members'),
-        item(_SettingsSection.scheduling, 'Scheduling'),
         item(_SettingsSection.recall, 'Recall management'),
-        item(_SettingsSection.templates, 'Template defaults'),
         item(_SettingsSection.data, 'Data & backup'),
         const SizedBox(height: 18),
         Padding(
@@ -822,7 +602,7 @@ class _Subnav extends StatelessWidget {
               Icon(Icons.tune, size: 18, color: c.inkMuted),
               const SizedBox(height: 10),
               Text(
-                'Review your practice defaults in one place. Changes are saved when you choose Save changes.',
+                'Clinic settings for owners and admins. Personal defaults live under Account settings.',
                 style: TextStyle(
                   fontSize: 11,
                   height: 1.5,
@@ -932,41 +712,6 @@ class _Field extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _TemplateDropdown extends StatelessWidget {
-  const _TemplateDropdown({required this.value, required this.onChanged});
-
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-        border: Border.all(color: c.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          icon: Icon(Icons.expand_more, color: c.inkMuted, size: 20),
-          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
-          items: [
-            for (final t in soapTemplates)
-              DropdownMenuItem(value: t.id, child: Text(t.label)),
-          ],
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        ),
-      ),
     );
   }
 }
@@ -1116,7 +861,6 @@ class _PinkSoftAction extends StatelessWidget {
   }
 }
 
-/// Compact sync status + Sync now (assignment: data & backup / sync).
 class _WebSyncStrip extends StatefulWidget {
   const _WebSyncStrip();
 

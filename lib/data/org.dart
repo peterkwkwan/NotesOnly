@@ -105,9 +105,14 @@ bool canSetMemberRoles({
   return true;
 }
 
+/// Owner or admin may open Practice settings and send clinic invites.
+bool canManagePracticeSettings(Iterable<OrgRole> actor) {
+  return actor.contains(OrgRole.owner) || actor.contains(OrgRole.admin);
+}
+
 /// Owner or admin may send a clinic join invite from Practice settings.
 bool canSendClinicInvite(Iterable<OrgRole> actor) {
-  return actor.contains(OrgRole.owner) || actor.contains(OrgRole.admin);
+  return canManagePracticeSettings(actor);
 }
 
 /// Roles the Members Send invite UI offers. Owner grants stay off this panel.

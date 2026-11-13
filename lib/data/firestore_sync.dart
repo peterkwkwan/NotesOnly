@@ -214,7 +214,7 @@ class FirestoreSyncEngine implements SyncEngine {
       return null;
     }
 
-    final practice = (await db.getPractitionerName())?.trim();
+    final practice = (await db.getClinicName())?.trim();
     final name =
         (practice == null || practice.isEmpty) ? 'NotesOnly' : practice;
     final orgId = await _orgs.createMigratedOrg(user: user, name: name);
@@ -535,8 +535,7 @@ class FirestoreSyncEngine implements SyncEngine {
           'updatedAt': _ts(row.updatedAt)!,
           'deletedAt': _ts(row.deletedAt),
         });
-        if (row.key == AppDatabase.practitionerNameKey &&
-            roles.contains('owner')) {
+        if (row.key == AppDatabase.clinicNameKey && roles.contains('owner')) {
           await _fs.collection('orgs').doc(orgId).update({
             'name': row.value,
             'updatedAt': FieldValue.serverTimestamp(),

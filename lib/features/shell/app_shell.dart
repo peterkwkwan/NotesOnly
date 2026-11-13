@@ -9,6 +9,7 @@ import '../../theme/theme.dart';
 import '../calendar/calendar_screen.dart';
 import '../clients/clients_screen.dart';
 import '../more/more_screen.dart';
+import '../more/web_account_settings.dart';
 import '../more/web_practice_settings.dart';
 import '../notes/web_soap_notes_page.dart';
 import '../templates/web_templates_host.dart';
@@ -36,7 +37,7 @@ class _AppShellState extends State<AppShell> {
   /// Nested content navigators (profile pushes stay in-column). Chrome select
   /// pops the destination back to root so e.g. Clients shows the list again.
   final _tabNavKeys = List<GlobalKey<NavigatorState>>.generate(
-    6,
+    7,
     (_) => GlobalKey<NavigatorState>(),
   );
 
@@ -82,20 +83,23 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
-  /// [_index] always uses desktop destination ids; mobile remaps More ↔ settings.
+  /// [_index] always uses desktop destination ids; mobile remaps More ↔ account.
   int _mobileIndex(int desktopIndex) {
     if (desktopIndex <= 2) return desktopIndex;
-    if (desktopIndex == DesktopDest.practiceSettings) return 3;
+    if (desktopIndex == DesktopDest.accountSettings ||
+        desktopIndex == DesktopDest.practiceSettings) {
+      return 3;
+    }
     return 0;
   }
 
   int _desktopIndexFromMobile(int mobileIndex) {
     if (mobileIndex <= 2) return mobileIndex;
-    return DesktopDest.practiceSettings;
+    return DesktopDest.accountSettings;
   }
 
   void _goTo(int desktopIndex) {
-    final next = desktopIndex.clamp(0, 5);
+    final next = desktopIndex.clamp(0, DesktopDest.accountSettings);
     final nav = _tabNavKeys[next].currentState;
     if (nav != null && nav.canPop()) {
       nav.popUntil((route) => route.isFirst);
@@ -127,6 +131,7 @@ class _AppShellState extends State<AppShell> {
         ),
         const WebTemplatesHost(),
         const WebPracticeSettings(),
+        const WebAccountSettings(),
       ];
 
   @override

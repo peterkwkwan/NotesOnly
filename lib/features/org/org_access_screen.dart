@@ -113,7 +113,7 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
           : (preview['role'] as String? ?? 'practitioner');
       await db.setSetting(AppDatabase.activeOrgIdKey, orgId);
       await db.setSetting(AppDatabase.activeOrgRolesKey, roles);
-      if (clinicName != null) await db.setPractitionerName(clinicName);
+      if (clinicName != null) await db.setClinicName(clinicName);
       await sync.syncNow();
       if (!mounted) return;
       widget.onJoined?.call();

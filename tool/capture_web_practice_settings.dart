@@ -44,7 +44,9 @@ void main() {
     );
     final db = AppDatabase(NativeDatabase.memory());
     await db.ensureDefaults();
+    await db.setClinicName('Mandy Shum Clinic');
     await db.setPractitionerName('Mandy Shum');
+    await db.setSetting(AppDatabase.activeOrgRolesKey, 'owner,practitioner');
     await db.setRecallDays(14);
     await db.setDefaultAppointmentMinutes(60);
     await db.setClinicHoursStart('09:00');

@@ -32,7 +32,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     final db = AppDatabaseProvider.of(context);
-    await db.setPractitionerName(_controller.text);
+    await db.setClinicName(_controller.text);
     if (!mounted) return;
     widget.onComplete();
   }

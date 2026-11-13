@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../data/auth.dart';
+import '../../data/database.dart';
 import '../../data/database_provider.dart';
+import '../../data/org.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../notifications/notifications_sheet.dart';
@@ -58,6 +60,7 @@ abstract final class DesktopDest {
   static const soapNotes = 3;
   static const templates = 4;
   static const practiceSettings = 5;
+  static const accountSettings = 6;
 
   static String breadcrumbFor(int index) => switch (index) {
         today => 'Practice / Today',
@@ -66,6 +69,7 @@ abstract final class DesktopDest {
         soapNotes => 'Practice / SOAP notes',
         templates => 'Practice / Templates',
         practiceSettings => 'Practice / Settings',
+        accountSettings => 'Practice / Account',
         _ => 'Practice',
       };
 }
@@ -82,10 +86,10 @@ String practitionerInitials(String? name) {
   return '${list.first[0]}${list.last[0]}'.toUpperCase();
 }
 
-String practiceCardTitle(String? name) {
-  final n = (name ?? '').trim();
+String practiceCardTitle(String? clinicName) {
+  final n = (clinicName ?? '').trim();
   if (n.isEmpty) return 'Your practice';
-  return n.endsWith('s') ? "$n' practice" : "$n's practice";
+  return n;
 }
 
 class DesktopSidebar extends StatelessWidget {
@@ -145,7 +149,7 @@ class DesktopSidebar extends StatelessWidget {
                 ),
                 const SizedBox(height: 30),
                 StreamBuilder<String?>(
-                  stream: db.watchPractitionerName(),
+                  stream: db.watchClinicName(),
                   builder: (context, snap) {
                     return Container(
                       width: double.infinity,
@@ -168,7 +172,7 @@ class DesktopSidebar extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Practitioner workspace',
+                            'Clinic workspace',
                             style: TextStyle(
                               fontSize: 11,
                               height: 1.5,
@@ -209,12 +213,32 @@ class DesktopSidebar extends StatelessWidget {
                   selected: index == DesktopDest.templates,
                   onTap: () => onSelect(DesktopDest.templates),
                 ),
+                StreamBuilder<String?>(
+                  stream: db.watchSetting(AppDatabase.activeOrgRolesKey),
+                  builder: (context, snap) {
+                    final roles = parseOrgRoles(snap.data);
+                    if (!canManagePracticeSettings(roles)) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      children: [
+                        const SizedBox(height: 6),
+                        _NavItem(
+                          icon: Icons.tune_outlined,
+                          label: 'Practice settings',
+                          selected: index == DesktopDest.practiceSettings,
+                          onTap: () => onSelect(DesktopDest.practiceSettings),
+                        ),
+                      ],
+                    );
+                  },
+                ),
                 const SizedBox(height: 6),
                 _NavItem(
-                  icon: Icons.tune_outlined,
-                  label: 'Practice settings',
-                  selected: index == DesktopDest.practiceSettings,
-                  onTap: () => onSelect(DesktopDest.practiceSettings),
+                  icon: Icons.person_outline,
+                  label: 'Account settings',
+                  selected: index == DesktopDest.accountSettings,
+                  onTap: () => onSelect(DesktopDest.accountSettings),
                 ),
                 const Spacer(),
                 Divider(height: 1, color: c.border),
@@ -422,74 +446,89 @@ class DesktopTopBar extends StatelessWidget {
                     final display =
                         name.isEmpty ? 'Practitioner' : name;
                     final initials = practitionerInitials(name);
-                    return PopupMenuButton<String>(
-                      tooltip: 'Account menu',
-                      offset: const Offset(0, 44),
-                      onSelected: (value) async {
-                        if (value == 'settings') {
-                          ShellNavigation.maybeOf(context)
-                              ?.goTo(DesktopDest.practiceSettings);
-                        } else if (value == 'signOut') {
-                          await _signOutFromDesktop(context);
-                        }
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'settings',
-                          child: Text('Practice settings'),
-                        ),
-                        PopupMenuItem(
-                          value: 'signOut',
-                          child: Text('Sign out'),
-                        ),
-                      ],
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: c.pink50,
-                              borderRadius: BorderRadius.circular(10),
+                    return StreamBuilder<String?>(
+                      stream: db.watchSetting(AppDatabase.activeOrgRolesKey),
+                      builder: (context, roleSnap) {
+                        final roles = parseOrgRoles(roleSnap.data);
+                        return PopupMenuButton<String>(
+                          tooltip: 'Account menu',
+                          offset: const Offset(0, 44),
+                          onSelected: (value) async {
+                            if (value == 'account') {
+                              ShellNavigation.maybeOf(context)
+                                  ?.goTo(DesktopDest.accountSettings);
+                            } else if (value == 'practice') {
+                              ShellNavigation.maybeOf(context)
+                                  ?.goTo(DesktopDest.practiceSettings);
+                            } else if (value == 'signOut') {
+                              await _signOutFromDesktop(context);
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(
+                              value: 'account',
+                              child: Text('Account settings'),
                             ),
-                            child: Text(
-                              initials,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: c.pink700,
+                            if (canManagePracticeSettings(roles))
+                              const PopupMenuItem(
+                                value: 'practice',
+                                child: Text('Practice settings'),
                               ),
+                            const PopupMenuItem(
+                              value: 'signOut',
+                              child: Text('Sign out'),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          ],
+                          child: Row(
                             children: [
-                              Text(
-                                display,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  height: 1.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: c.ink,
+                              Container(
+                                width: 36,
+                                height: 36,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: c.pink50,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  initials,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: c.pink700,
+                                  ),
                                 ),
                               ),
-                              Text(
-                                'Practitioner',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  height: 1.5,
-                                  color: c.inkMuted,
-                                ),
+                              const SizedBox(width: 12),
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    display,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      height: 1.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: c.ink,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Practitioner',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      height: 1.5,
+                                      color: c.inkMuted,
+                                    ),
+                                  ),
+                                ],
                               ),
+                              const SizedBox(width: 8),
+                              Icon(Icons.expand_more,
+                                  size: 14, color: c.inkMuted),
                             ],
                           ),
-                          const SizedBox(width: 8),
-                          Icon(Icons.expand_more, size: 14, color: c.inkMuted),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 ),

@@ -36,11 +36,30 @@ void main() {
     expect(await db.getSetting(AppDatabase.activeOrgIdKey), isNull);
     expect(await db.getSetting(AppDatabase.syncBoundUidKey), isNull);
     expect(await db.getSetting(AppDatabase.practitionerNameKey), isNull);
+    expect(await db.getSetting(AppDatabase.clinicNameKey), isNull);
     expect(await db.hasClinicalRows(), isFalse);
     expect(await db.getSetting(AppDatabase.recallDaysKey), isNotNull);
   });
 
-  test('clinic invites allow owner and admin but never owner role for admin', () {
+  test('ensureDefaults migrates legacy practitioner_name into clinic_name',
+      () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.setSetting(AppDatabase.practitionerNameKey, 'Amber Health');
+    await db.ensureDefaults();
+    expect(await db.getClinicName(), 'Amber Health');
+    expect(await db.getPractitionerName(), 'Amber Health');
+    expect(AppDatabase.isCloudSyncedSetting(AppDatabase.clinicNameKey), isTrue);
+    expect(
+      AppDatabase.isCloudSyncedSetting(AppDatabase.practitionerNameKey),
+      isFalse,
+    );
+  });
+
+  test('Practice settings and clinic invites are owner/admin only', () {
+    expect(canManagePracticeSettings(const [OrgRole.owner]), isTrue);
+    expect(canManagePracticeSettings(const [OrgRole.admin]), isTrue);
+    expect(canManagePracticeSettings(const [OrgRole.practitioner]), isFalse);
     expect(canSendClinicInvite(const [OrgRole.owner]), isTrue);
     expect(canSendClinicInvite(const [OrgRole.admin]), isTrue);
     expect(canSendClinicInvite(const [OrgRole.practitioner]), isFalse);

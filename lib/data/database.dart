@@ -295,6 +295,9 @@ class AppDatabase extends _$AppDatabase {
         },
       );
 
+  /// Org clinic label (Practice settings). Cloud-synced; owners also push orgs.name.
+  static const clinicNameKey = 'clinic_name';
+  /// Signed-in user's display name (Account settings). Device-local only.
   static const practitionerNameKey = 'practitioner_name';
   static const recallDaysKey = 'recall_days';
   static const defaultRecallDays = '30';
@@ -345,6 +348,8 @@ class AppDatabase extends _$AppDatabase {
       pinnedClientIdsKey,
       recallMutedIdsKey,
       recallClearedIdsKey,
+      // Personal display name — not the shared clinic label.
+      practitionerNameKey,
     };
     return !localOnly.contains(key);
   }
@@ -384,6 +389,17 @@ class AppDatabase extends _$AppDatabase {
       ),
     );
     if (cloud) _notifyDirty();
+  }
+
+  Future<String?> getClinicName() => getSetting(clinicNameKey);
+
+  Future<void> setClinicName(String name) =>
+      setSetting(clinicNameKey, name.trim());
+
+  Stream<String?> watchClinicName() {
+    return (select(settings)..where((t) => t.key.equals(clinicNameKey)))
+        .watch()
+        .map((rows) => rows.isEmpty ? null : rows.first.value);
   }
 
   Future<String?> getPractitionerName() => getSetting(practitionerNameKey);
@@ -706,6 +722,16 @@ class AppDatabase extends _$AppDatabase {
     if (await getSetting(themeModeKey) == null) {
       await setSetting(themeModeKey, defaultThemeMode);
     }
+    await _migrateClinicNameFromPractitioner();
+  }
+
+  /// Pre-split books stored the clinic label in [practitionerNameKey].
+  Future<void> _migrateClinicNameFromPractitioner() async {
+    final clinic = (await getSetting(clinicNameKey))?.trim() ?? '';
+    if (clinic.isNotEmpty) return;
+    final legacy = (await getSetting(practitionerNameKey))?.trim() ?? '';
+    if (legacy.isEmpty) return;
+    await setClinicName(legacy);
   }
 
   /// Any clinical row, including tombstones. Settings defaults are not a book.
