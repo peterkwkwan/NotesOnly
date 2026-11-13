@@ -36,12 +36,6 @@ enum _SettingsSection {
 
 class _WebPracticeSettingsState extends State<WebPracticeSettings> {
   final _scroll = ScrollController();
-  final _prefKey = GlobalKey();
-  final _membersKey = GlobalKey();
-  final _schedKey = GlobalKey();
-  final _recallKey = GlobalKey();
-  final _tmplKey = GlobalKey();
-  final _dataKey = GlobalKey();
 
   late final TextEditingController _name;
   late final TextEditingController _duration;
@@ -229,22 +223,395 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
 
   void _goSection(_SettingsSection section) {
     setState(() => _section = section);
-    final key = switch (section) {
-      _SettingsSection.preferences => _prefKey,
-      _SettingsSection.members => _membersKey,
-      _SettingsSection.scheduling => _schedKey,
-      _SettingsSection.recall => _recallKey,
-      _SettingsSection.templates => _tmplKey,
-      _SettingsSection.data => _dataKey,
+  }
+
+  Widget _sectionBody(PelviColors c, String displayName) {
+    return switch (_section) {
+      _SettingsSection.preferences => _Panel(
+          title: 'Practice preferences',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: c.pink50,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      practitionerInitials(displayName),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        color: c.pink700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: c.ink,
+                          height: 1.5,
+                        ),
+                      ),
+                      Text(
+                        'Practitioner',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: c.inkMuted,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _Field(
+                label: 'Practitioner name',
+                controller: _name,
+              ),
+            ],
+          ),
+        ),
+      _SettingsSection.members => const _Panel(
+          title: 'Members',
+          child: PracticeMembersPanel(),
+        ),
+      _SettingsSection.scheduling => _Panel(
+          title: 'Scheduling defaults',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Field(
+                label: 'Default duration',
+                controller: _duration,
+                helper: 'Used when the appointment end time is unset.',
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _Field(
+                      label: 'Clinic opens',
+                      controller: _opens,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _Field(
+                      label: 'Clinic closes',
+                      controller: _closes,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Divider(height: 1, color: c.border),
+              const SizedBox(height: 18),
+              _Field(
+                label: 'Timezone',
+                controller: _timezone,
+                helper: 'Label only (device clock).',
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: c.canvas,
+                  borderRadius: BorderRadius.circular(PelviRadius.sm),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.schedule, size: 16, color: c.inkMuted),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'The week view uses your clinic hours, '
+                        '${_opens.text.trim().isEmpty ? '09:00' : _opens.text.trim()}–'
+                        '${_closes.text.trim().isEmpty ? '18:00' : _closes.text.trim()}.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.5,
+                          color: c.inkMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      _SettingsSection.recall => _Panel(
+          title: 'Recall management',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Field(
+                label: 'Recall window',
+                controller: _recallDays,
+                helper:
+                    'Clients with no visit in the window appear in Due.',
+              ),
+              const SizedBox(height: 18),
+              Divider(height: 1, color: c.border),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Recall notifications',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: c.ink,
+                            height: 1.5,
+                          ),
+                        ),
+                        Text(
+                          'Daily local reminder when clients are due',
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.5,
+                            color: c.inkMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: _recallNotifs,
+                    onChanged: (v) {
+                      setState(() {
+                        _recallNotifs = v;
+                        _dirty = true;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Divider(height: 1, color: c.border),
+              const SizedBox(height: 18),
+              Text(
+                'Individual recall preferences',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: c.ink,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Mute recalls in a client profile to exclude that client from Due. Review selected clients together in the directory.',
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.5,
+                  color: c.inkMuted,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _PinkSoftAction(
+                icon: Icons.people_outline,
+                label: 'Open recall management',
+                onPressed: () =>
+                    ShellNavigation.of(context).goTo(DesktopDest.clients),
+              ),
+            ],
+          ),
+        ),
+      _SettingsSection.templates => _Panel(
+          title: 'Template defaults',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Default SOAP template',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: c.ink,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 7),
+              _TemplateDropdown(
+                value: _templateId,
+                onChanged: (id) {
+                  setState(() {
+                    _templateId = id;
+                    _dirty = true;
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Start with four open SOAP sections. You can choose another published template when writing a note.',
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.5,
+                  color: c.inkMuted,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () =>
+                        ShellNavigation.of(context).goTo(DesktopDest.templates),
+                    child: Text(
+                      'Manage SOAP templates →',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: c.pink700,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.purple50,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$_publishedCount published',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: c.purple700,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      _SettingsSection.data => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Panel(
+              title: 'Data & backup',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Export JSON backup',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: c.ink,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Clients, appointments, notes + settings',
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.5,
+                      color: c.inkMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  _OutlineAction(
+                    icon: Icons.download_outlined,
+                    label: 'Export JSON',
+                    onPressed: () => unawaited(_exportJson()),
+                  ),
+                  const SizedBox(height: 18),
+                  Divider(height: 1, color: c.border),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Export CSV',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: c.ink,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Three spreadsheet files: clients, appointments and notes.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.5,
+                      color: c.inkMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  _OutlineAction(
+                    icon: Icons.download_outlined,
+                    label: 'Export CSV',
+                    onPressed: () => unawaited(_exportCsv()),
+                  ),
+                  const SizedBox(height: 18),
+                  Divider(height: 1, color: c.border),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Cloud sync',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: c.ink,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  const _WebSyncStrip(),
+                  const SizedBox(height: 9),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const OrgAccessScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Invites'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Exports are separate from practice preference changes.',
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.5,
+                color: c.inkMuted,
+              ),
+            ),
+          ],
+        ),
     };
-    final ctx = key.currentContext;
-    if (ctx == null) return;
-    Scrollable.ensureVisible(
-      ctx,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-      alignment: 0.05,
-    );
   }
 
   Future<void> _exportJson() async {
@@ -373,446 +740,23 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                     onSelect: _goSection,
                   ),
                 );
-                final mainCol = Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    KeyedSubtree(
-                      key: _prefKey,
-                      child: _Panel(
-                        title: 'Practice preferences',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: c.pink50,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    practitionerInitials(displayName),
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.pink700,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      displayName,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w500,
-                                        color: c.ink,
-                                        height: 1.5,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Practitioner',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: c.inkMuted,
-                                        height: 1.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            _Field(
-                              label: 'Practitioner name',
-                              controller: _name,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    KeyedSubtree(
-                      key: _membersKey,
-                      child: const _Panel(
-                        title: 'Members',
-                        child: PracticeMembersPanel(),
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    KeyedSubtree(
-                      key: _schedKey,
-                      child: _Panel(
-                        title: 'Scheduling defaults',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _Field(
-                              label: 'Default duration',
-                              controller: _duration,
-                              helper:
-                                  'Used when the appointment end time is unset.',
-                            ),
-                            const SizedBox(height: 18),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _Field(
-                                    label: 'Clinic opens',
-                                    controller: _opens,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _Field(
-                                    label: 'Clinic closes',
-                                    controller: _closes,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            Divider(height: 1, color: c.border),
-                            const SizedBox(height: 18),
-                            _Field(
-                              label: 'Timezone',
-                              controller: _timezone,
-                              helper: 'Label only (device clock).',
-                            ),
-                            const SizedBox(height: 18),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: c.canvas,
-                                borderRadius:
-                                    BorderRadius.circular(PelviRadius.sm),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(Icons.schedule,
-                                      size: 16, color: c.inkMuted),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      'The week view uses your clinic hours, '
-                                      '${_opens.text.trim().isEmpty ? '09:00' : _opens.text.trim()}–'
-                                      '${_closes.text.trim().isEmpty ? '18:00' : _closes.text.trim()}.',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        height: 1.5,
-                                        color: c.inkMuted,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    KeyedSubtree(
-                      key: _tmplKey,
-                      child: _Panel(
-                        title: 'Template defaults',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Default SOAP template',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: c.ink,
-                                height: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 7),
-                            _TemplateDropdown(
-                              value: _templateId,
-                              onChanged: (id) {
-                                setState(() {
-                                  _templateId = id;
-                                  _dirty = true;
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Start with four open SOAP sections. You can choose another published template when writing a note.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                height: 1.5,
-                                color: c.inkMuted,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            Row(
-                              children: [
-                                InkWell(
-                                  onTap: () => ShellNavigation.of(context)
-                                      .goTo(DesktopDest.templates),
-                                  child: Text(
-                                    'Manage SOAP templates →',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.pink700,
-                                      height: 1.5,
-                                    ),
-                                  ),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 9,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: c.purple50,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '$_publishedCount published',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.purple700,
-                                      height: 1.5,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-                final sideCol = SizedBox(
-                  width: wide ? 360 : null,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      KeyedSubtree(
-                        key: _recallKey,
-                        child: _Panel(
-                          title: 'Recall management',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _Field(
-                                label: 'Recall window',
-                                controller: _recallDays,
-                                helper:
-                                    'Clients with no visit in the window appear in Due.',
-                              ),
-                              const SizedBox(height: 18),
-                              Divider(height: 1, color: c.border),
-                              const SizedBox(height: 18),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Recall notifications',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
-                                            color: c.ink,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Daily local reminder when clients are due',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            height: 1.5,
-                                            color: c.inkMuted,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Switch.adaptive(
-                                    value: _recallNotifs,
-                                    onChanged: (v) {
-                                      setState(() {
-                                        _recallNotifs = v;
-                                        _dirty = true;
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 18),
-                              Divider(height: 1, color: c.border),
-                              const SizedBox(height: 18),
-                              Text(
-                                'Individual recall preferences',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.ink,
-                                  height: 1.5,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Mute recalls in a client profile to exclude that client from Due. Review selected clients together in the directory.',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  height: 1.5,
-                                  color: c.inkMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-                              _PinkSoftAction(
-                                icon: Icons.people_outline,
-                                label: 'Open recall management',
-                                onPressed: () => ShellNavigation.of(context)
-                                    .goTo(DesktopDest.clients),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      KeyedSubtree(
-                        key: _dataKey,
-                        child: _Panel(
-                          title: 'Data & backup',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Export JSON backup',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.ink,
-                                  height: 1.5,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                'Clients, appointments, notes + settings',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  height: 1.5,
-                                  color: c.inkMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 9),
-                              _OutlineAction(
-                                icon: Icons.download_outlined,
-                                label: 'Export JSON',
-                                onPressed: () => unawaited(_exportJson()),
-                              ),
-                              const SizedBox(height: 18),
-                              Divider(height: 1, color: c.border),
-                              const SizedBox(height: 18),
-                              Text(
-                                'Export CSV',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.ink,
-                                  height: 1.5,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                'Three spreadsheet files: clients, appointments and notes.',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  height: 1.5,
-                                  color: c.inkMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 9),
-                              _OutlineAction(
-                                icon: Icons.download_outlined,
-                                label: 'Export CSV',
-                                onPressed: () => unawaited(_exportCsv()),
-                              ),
-                              const SizedBox(height: 18),
-                              Divider(height: 1, color: c.border),
-                              const SizedBox(height: 18),
-                              Text(
-                                'Cloud sync',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.ink,
-                                  height: 1.5,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              const _WebSyncStrip(),
-                              const SizedBox(height: 9),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => const OrgAccessScreen(),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text('Invites'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Exports are separate from practice preference changes.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          height: 1.5,
-                          color: c.inkMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-
+                final body = _sectionBody(c, displayName);
                 if (!wide) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       subnav,
                       const SizedBox(height: 22),
-                      mainCol,
-                      const SizedBox(height: 22),
-                      sideCol,
+                      body,
                     ],
                   );
                 }
-
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     subnav,
                     const SizedBox(width: 24),
-                    Expanded(child: mainCol),
-                    const SizedBox(width: 24),
-                    sideCol,
+                    Expanded(child: body),
                   ],
                 );
               },

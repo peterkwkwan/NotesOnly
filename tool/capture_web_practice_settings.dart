@@ -130,11 +130,17 @@ void main() {
     expect(find.text('NotesOnly'), findsOneWidget);
     expect(find.text('Practice settings'), findsWidgets);
     expect(find.text('Practice preferences'), findsWidgets);
-    expect(find.text('Scheduling defaults'), findsOneWidget);
-    expect(find.text('Recall management'), findsWidgets);
-    expect(find.textContaining('Data & backup'), findsWidgets);
+    expect(find.text('Practitioner name'), findsOneWidget);
+    expect(find.text('Scheduling defaults'), findsNothing);
+    expect(find.text('Recall window'), findsNothing);
+    expect(find.text('Export JSON'), findsNothing);
     expect(find.text('Save changes'), findsOneWidget);
     expect(find.text('Mandy Shum'), findsWidgets);
+
+    await tester.tap(find.text('Members'));
+    await tester.pump();
+    expect(find.text('Practitioner name'), findsNothing);
+    expect(find.text('Scheduling defaults'), findsNothing);
 
     final boundary =
         key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
