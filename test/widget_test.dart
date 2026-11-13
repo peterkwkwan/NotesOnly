@@ -795,6 +795,7 @@ void main() {
 
     expect(find.text('Waiting for a clinic'), findsOneWidget);
     expect(find.text('Accept invite'), findsOneWidget);
+    expect(find.text('Sign out'), findsOneWidget);
     expect(find.text('Today'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());

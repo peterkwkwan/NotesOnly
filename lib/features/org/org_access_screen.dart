@@ -197,6 +197,36 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
     }
   }
 
+  Future<void> _signOut() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+          'Clears this clinic from the device so another Google account '
+          'starts empty. Cloud data stays in Firestore.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await AppDatabaseProvider.of(context).clearLocalClinicForAccountSwitch();
+      await NotesAuth.signOut();
+    } catch (e) {
+      if (mounted) showPelviSnackBar(context, 'Sign out failed: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
@@ -255,6 +285,11 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
                   FilledButton(
                     onPressed: _busy ? null : _accept,
                     child: const Text('Accept invite'),
+                  ),
+                  const SizedBox(height: PelviSpace.sm),
+                  TextButton(
+                    onPressed: _busy ? null : _signOut,
+                    child: const Text('Sign out'),
                   ),
                 ],
                 if (_canSend) ...[
