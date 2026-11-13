@@ -21,7 +21,6 @@ class PracticeMembersPanel extends StatefulWidget {
 enum _MembersTab { active, pending }
 
 class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
-  final _email = TextEditingController();
   bool _loaded = false;
   bool _loading = false;
   bool _busy = false;
@@ -39,12 +38,6 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
     if (_loaded) return;
     _loaded = true;
     _reload();
-  }
-
-  @override
-  void dispose() {
-    _email.dispose();
-    super.dispose();
   }
 
   Future<void> _reload() async {
@@ -95,45 +88,179 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
     }
   }
 
-  Future<void> _sendInvite() async {
+  Future<void> _openInviteDialog() async {
     if (_busy) return;
-    final user = NotesAuth.currentUser;
-    final email = _email.text.trim().toLowerCase();
-    if (user == null) return;
     if (_orgId.isEmpty) {
       showPelviSnackBar(context, 'No clinic is active on this device.');
       return;
     }
-    if (email.isEmpty || !email.contains('@')) {
-      showPelviSnackBar(context, 'Enter a Google account email');
-      return;
-    }
-    if (!canInviteWithRole(actor: _actor, role: _inviteRole)) {
-      showPelviSnackBar(context, 'You cannot invite with that role');
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final id = await OrgDirectory().createInvite(
-        user: user,
-        email: email,
-        kind: 'join',
-        orgId: _orgId,
-        role: _inviteRole.name,
-        issuedByPlatformAdmin: false,
-      );
-      if (!mounted) return;
-      _email.clear();
-      await Clipboard.setData(ClipboardData(text: id));
-      if (!mounted) return;
-      setState(() => _tab = _MembersTab.pending);
-      showPelviSnackBar(context, 'Invite created. Code copied.');
-      await _reload();
-    } catch (e) {
-      if (mounted) showPelviSnackBar(context, 'Could not send invite: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    final inviteRoles = clinicInviteRolesFor(_actor);
+    if (inviteRoles.isEmpty) return;
+
+    final emailCtrl = TextEditingController();
+    var role = inviteRoles.contains(_inviteRole)
+        ? _inviteRole
+        : inviteRoles.first;
+    var sending = false;
+
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final c = PelviColors.of(ctx);
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            Future<void> send() async {
+              if (sending) return;
+              final user = NotesAuth.currentUser;
+              if (user == null) return;
+              final emails = parseClinicInviteEmails(emailCtrl.text);
+              if (emails.isEmpty) {
+                showPelviSnackBar(ctx, 'Enter a Google account email');
+                return;
+              }
+              final bad = emails.where((e) => !isClinicInviteEmail(e)).toList();
+              if (bad.isNotEmpty) {
+                showPelviSnackBar(
+                  ctx,
+                  'Invalid email: ${bad.first}',
+                );
+                return;
+              }
+              if (!canInviteWithRole(actor: _actor, role: role)) {
+                showPelviSnackBar(ctx, 'You cannot invite with that role');
+                return;
+              }
+              setLocal(() => sending = true);
+              try {
+                final ids = <String>[];
+                for (final email in emails) {
+                  final id = await OrgDirectory().createInvite(
+                    user: user,
+                    email: email,
+                    kind: 'join',
+                    orgId: _orgId,
+                    role: role.name,
+                    issuedByPlatformAdmin: false,
+                  );
+                  ids.add(id);
+                }
+                if (!ctx.mounted) return;
+                await Clipboard.setData(
+                  ClipboardData(text: ids.join('\n')),
+                );
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx, true);
+                if (!mounted) return;
+                setState(() {
+                  _inviteRole = role;
+                  _tab = _MembersTab.pending;
+                });
+                showPelviSnackBar(
+                  context,
+                  ids.length == 1
+                      ? 'Invite created. Code copied.'
+                      : '${ids.length} invites created. Codes copied.',
+                );
+                await _reload();
+              } catch (e) {
+                if (ctx.mounted) {
+                  showPelviSnackBar(ctx, 'Could not send invite: $e');
+                }
+              } finally {
+                if (ctx.mounted) setLocal(() => sending = false);
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Send invite'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Google account email',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    TextField(
+                      controller: emailCtrl,
+                      enabled: !sending,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        hintText: 'friend@gmail.com; other@gmail.com',
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'They must sign in with this Google email. Separate multiple with semicolons.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.5,
+                        color: c.inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Role on invite',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final r in inviteRoles)
+                          _RoleChip(
+                            label: orgRoleLabel(r),
+                            selected: role == r,
+                            onTap: sending
+                                ? null
+                                : () => setLocal(() => role = r),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Admins can invite Practitioner or Admin only — not Owner.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.5,
+                        color: c.inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: sending ? null : send,
+                  child: const Text('Send invite'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    emailCtrl.dispose();
+    if (sent != true || !mounted) return;
   }
 
   Future<void> _copyInvite(OrgInvite invite) async {
@@ -333,88 +460,28 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
     final owners = activeOwnerCount(_members);
     final canEditRoles = _actor.contains(OrgRole.owner);
     final canInvite = canSendClinicInvite(_actor);
-    final inviteRoles = clinicInviteRolesFor(_actor);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Owners set roles. Owners and admins can invite and remove someone. The last owner stays.',
-          style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                'Owners set roles. Owners and admins can invite and remove someone. The last owner stays.',
+                style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
+              ),
+            ),
+            if (canInvite) ...[
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: _busy ? null : _openInviteDialog,
+                child: const Text('Invite'),
+              ),
+            ],
+          ],
         ),
         if (canInvite) ...[
-          const SizedBox(height: 18),
-          Text(
-            'Send invite',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: c.ink,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Google account email',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: c.ink,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 7),
-          TextField(
-            controller: _email,
-            enabled: !_busy,
-            keyboardType: TextInputType.emailAddress,
-            autocorrect: false,
-            decoration: const InputDecoration(
-              hintText: 'friend@gmail.com',
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'They must sign in with this Google email.',
-            style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Role on invite',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: c.ink,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final role in inviteRoles)
-                _RoleChip(
-                  label: orgRoleLabel(role),
-                  selected: _inviteRole == role,
-                  onTap: _busy
-                      ? null
-                      : () => setState(() => _inviteRole = role),
-                ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Admins can invite Practitioner or Admin only — not Owner.',
-            style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-          ),
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton(
-              onPressed: _busy ? null : _sendInvite,
-              child: const Text('Send invite'),
-            ),
-          ),
           const SizedBox(height: 18),
           _MembersTabBar(
             tab: _tab,

@@ -76,6 +76,17 @@ void main() {
     );
   });
 
+  test('parseClinicInviteEmails trims skips empties and keeps order', () {
+    expect(parseClinicInviteEmails(''), isEmpty);
+    expect(parseClinicInviteEmails(' ; ; '), isEmpty);
+    expect(
+      parseClinicInviteEmails(' Ada@Gmail.com ; bob@x.test;; '),
+      ['ada@gmail.com', 'bob@x.test'],
+    );
+    expect(isClinicInviteEmail('ada@gmail.com'), isTrue);
+    expect(isClinicInviteEmail('not-an-email'), isFalse);
+  });
+
   test('owner role edits keep the last owner and block admins', () {
     final owner = _member('o1', const [OrgRole.owner, OrgRole.practitioner]);
     final second = _member('o2', const [OrgRole.owner]);

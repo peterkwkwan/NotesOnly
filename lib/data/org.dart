@@ -127,6 +127,19 @@ bool canInviteWithRole({
   return false;
 }
 
+/// Semicolon-separated Google emails for the Members invite dialog.
+List<String> parseClinicInviteEmails(String raw) {
+  final out = <String>[];
+  for (final part in raw.split(';')) {
+    final email = part.trim().toLowerCase();
+    if (email.isEmpty) continue;
+    out.add(email);
+  }
+  return out;
+}
+
+bool isClinicInviteEmail(String email) => email.contains('@');
+
 class OrgInvite {
   const OrgInvite({
     required this.id,
