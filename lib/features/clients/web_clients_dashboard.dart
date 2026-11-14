@@ -31,6 +31,18 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
   _SortMode _sort = _SortMode.nameAz;
   _ViewTab _tab = _ViewTab.all;
   final Set<int> _selected = {};
+  int _seenClientsDueEpoch = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Nested tab [Navigator] freezes constructor props; shell epoch stays live.
+    final epoch = ShellNavigation.maybeOf(context)?.clientsDueEpoch ?? 0;
+    if (epoch != 0 && epoch != _seenClientsDueEpoch) {
+      _seenClientsDueEpoch = epoch;
+      _tab = _ViewTab.due;
+    }
+  }
 
   void _openNew() {
     Navigator.of(context).push(

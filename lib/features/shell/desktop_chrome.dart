@@ -23,6 +23,8 @@ class ShellNavigation extends InheritedWidget {
     required this.breadcrumb,
     this.soapNoteId,
     this.openSoapNote,
+    this.clientsDueEpoch = 0,
+    this.openClientsDue,
     required super.child,
   });
 
@@ -35,6 +37,12 @@ class ShellNavigation extends InheritedWidget {
 
   /// Switch to SOAP notes and show [noteId] in the desktop workspace.
   final ValueChanged<int>? openSoapNote;
+
+  /// Bumps when Today asks Clients to land on the Due tab.
+  final int clientsDueEpoch;
+
+  /// Switch to Clients and select the Due tab.
+  final VoidCallback? openClientsDue;
 
   static ShellNavigation of(BuildContext context) {
     final nav = context.dependOnInheritedWidgetOfExactType<ShellNavigation>();
@@ -49,7 +57,8 @@ class ShellNavigation extends InheritedWidget {
   bool updateShouldNotify(ShellNavigation old) =>
       index != old.index ||
       breadcrumb != old.breadcrumb ||
-      soapNoteId != old.soapNoteId;
+      soapNoteId != old.soapNoteId ||
+      clientsDueEpoch != old.clientsDueEpoch;
 }
 
 /// Desktop destinations — indices match [AppShell] IndexedStack on wide layout.

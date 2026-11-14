@@ -29,6 +29,7 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
   int? _soapNoteId;
   String? _soapBreadcrumb;
+  int _clientsDueEpoch = 0;
   StreamSubscription<List<RecallDueEntry>>? _recallSub;
   StreamSubscription<bool>? _recallNotifSub;
   int _dueCount = 0;
@@ -115,6 +116,17 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  void _openClientsDue() {
+    final nav = _tabNavKeys[DesktopDest.clients].currentState;
+    if (nav != null && nav.canPop()) {
+      nav.popUntil((route) => route.isFirst);
+    }
+    setState(() {
+      _index = DesktopDest.clients;
+      _clientsDueEpoch++;
+    });
+  }
+
   void _onSoapBreadcrumb(String? crumb) {
     if (_soapBreadcrumb == crumb) return;
     setState(() => _soapBreadcrumb = crumb);
@@ -150,6 +162,8 @@ class _AppShellState extends State<AppShell> {
         breadcrumb: breadcrumb,
         soapNoteId: _soapNoteId,
         openSoapNote: _openSoapNote,
+        clientsDueEpoch: _clientsDueEpoch,
+        openClientsDue: _openClientsDue,
         child: Scaffold(
           body: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,

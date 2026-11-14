@@ -1048,8 +1048,14 @@ class _RecallsPanel extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: FilledButton.icon(
-              onPressed: () => ShellNavigation.maybeOf(context)
-                  ?.goTo(DesktopDest.clients),
+              onPressed: () {
+                final shell = ShellNavigation.maybeOf(context);
+                if (shell?.openClientsDue != null) {
+                  shell!.openClientsDue!();
+                } else {
+                  shell?.goTo(DesktopDest.clients);
+                }
+              },
               icon: Icon(Icons.people_outline, size: 16, color: c.pink700),
               label: Text(
                 'Review Due clients',
