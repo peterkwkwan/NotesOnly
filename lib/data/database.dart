@@ -153,7 +153,7 @@ class AppDatabase extends _$AppDatabase {
   void _notifyDirty() => onLocalChange?.call();
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   /// True if [table] exists (half-applied migrate / never-created templates).
   Future<bool> hasSqliteTable(String table) async {
@@ -297,6 +297,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 7) {
             await createTableIfMissing(m, templates);
           }
+          if (from < 8) {
+            // Local Drift ints → remoteIds so org settings can mirror pins.
+            await rewritePinnedClientIdsToRemoteIds();
+          }
         },
       );
 
@@ -332,7 +336,9 @@ class AppDatabase extends _$AppDatabase {
   /// Comma-separated client ids, most recently opened first.
   static const recentClientIdsKey = 'recent_client_ids';
   static const recentClientLimit = 8;
-  /// Comma-separated pinned (favourite) client ids, most recently pinned first.
+  /// Comma-separated pinned client [Clients.remoteId]s (most recently pinned
+  /// first). Cloud-synced via org settings so desktop ↔ mobile share pins.
+  /// Legacy local Drift ints are still accepted on read and rewritten on write.
   static const pinnedClientIdsKey = 'pinned_client_ids';
 
   /// Firebase Auth uid this local book is bound to (account-switch guard).
@@ -358,7 +364,6 @@ class AppDatabase extends _$AppDatabase {
     if (key == practitionerNameKey) return false;
     const localOnly = {
       recentClientIdsKey,
-      pinnedClientIdsKey,
       recallMutedIdsKey,
       recallClearedIdsKey,
     };
@@ -965,18 +970,61 @@ class AppDatabase extends _$AppDatabase {
     await setSetting(recentClientIdsKey, current.join(','));
   }
 
-  Future<List<int>> getPinnedClientIds() async =>
-      parseRecentClientIds(await getSetting(pinnedClientIdsKey));
+  static List<String> parsePinnedTokens(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    return [
+      for (final part in raw.split(','))
+        if (part.trim().isNotEmpty) part.trim(),
+    ];
+  }
+
+  /// Local client ids for the pin list (order preserved). Resolves remoteIds
+  /// and legacy local ints; skips tokens with no live local client yet.
+  Future<List<int>> getPinnedClientIds() async {
+    final tokens = parsePinnedTokens(await getSetting(pinnedClientIdsKey));
+    if (tokens.isEmpty) return const [];
+    final rows = await (select(clients)..where((t) => t.deletedAt.isNull())).get();
+    final byRemote = <String, int>{
+      for (final c in rows)
+        if (c.remoteId.isNotEmpty) c.remoteId: c.id,
+    };
+    final liveLocal = {for (final c in rows) c.id};
+    final out = <int>[];
+    final seen = <int>{};
+    for (final token in tokens) {
+      final asInt = int.tryParse(token);
+      final localId = (asInt != null && liveLocal.contains(asInt))
+          ? asInt
+          : byRemote[token];
+      if (localId != null && seen.add(localId)) out.add(localId);
+    }
+    return out;
+  }
 
   Stream<List<int>> watchPinnedClientIds() {
-    return (select(settings)
-          ..where((t) => t.key.equals(pinnedClientIdsKey)))
-        .watch()
-        .map(
-          (rows) => parseRecentClientIds(
-            rows.isEmpty ? null : rows.first.value,
-          ),
-        );
+    // Settings + clients: remoteIds may land before client rows on first pull.
+    return Stream.multi((multi) {
+      var closed = false;
+      Future<void> emit() async {
+        final ids = await getPinnedClientIds();
+        if (!closed && !multi.isClosed) multi.add(ids);
+      }
+
+      final subs = <StreamSubscription<dynamic>>[
+        (select(settings)..where((t) => t.key.equals(pinnedClientIdsKey)))
+            .watch()
+            .listen((_) => emit()),
+        (select(clients)..where((t) => t.deletedAt.isNull()))
+            .watch()
+            .listen((_) => emit()),
+      ];
+      multi.onCancel = () async {
+        closed = true;
+        for (final sub in subs) {
+          await sub.cancel();
+        }
+      };
+    });
   }
 
   Future<void> setClientsPinned(Iterable<int> ids, bool pinned) async {
@@ -985,7 +1033,29 @@ class AppDatabase extends _$AppDatabase {
       current.remove(id);
       if (pinned) current.insert(0, id);
     }
-    await setSetting(pinnedClientIdsKey, current.join(','));
+    await persistPinnedLocalIds(current);
+  }
+
+  /// Write pins as [Clients.remoteId]s (cloud-stable across devices).
+  Future<void> persistPinnedLocalIds(List<int> localIds) async {
+    if (localIds.isEmpty) {
+      await setSetting(pinnedClientIdsKey, '');
+      return;
+    }
+    final remotes = <String>[];
+    for (final id in localIds) {
+      final c = await getClient(id);
+      if (c == null || c.deletedAt != null || c.remoteId.isEmpty) continue;
+      remotes.add(c.remoteId);
+    }
+    await setSetting(pinnedClientIdsKey, remotes.join(','));
+  }
+
+  /// Rewrite legacy local-int pin lists to remoteIds and queue a cloud push.
+  Future<void> rewritePinnedClientIdsToRemoteIds() async {
+    final raw = await getSetting(pinnedClientIdsKey);
+    if (raw == null || raw.isEmpty) return;
+    await persistPinnedLocalIds(await getPinnedClientIds());
   }
 
   /// Soft-delete client and owned appointments/notes; scrub id from settings lists.
@@ -1017,15 +1087,24 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> _scrubClientIdFromSettings(int id) async {
+    final remoteId = (await getClient(id))?.remoteId;
     for (final key in [
       recentClientIdsKey,
-      pinnedClientIdsKey,
       recallMutedIdsKey,
       recallClearedIdsKey,
     ]) {
       final ids = List<int>.of(parseRecentClientIds(await getSetting(key)))
         ..remove(id);
       await setSetting(key, ids.join(','));
+    }
+    final pinned = parsePinnedTokens(await getSetting(pinnedClientIdsKey));
+    if (pinned.isEmpty) return;
+    final next = [
+      for (final token in pinned)
+        if (token != id.toString() && token != remoteId) token,
+    ];
+    if (next.length != pinned.length) {
+      await setSetting(pinnedClientIdsKey, next.join(','));
     }
   }
 

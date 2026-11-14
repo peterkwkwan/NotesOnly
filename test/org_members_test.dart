@@ -109,6 +109,53 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      AppDatabase.isCloudSyncedSetting(AppDatabase.pinnedClientIdsKey),
+      isTrue,
+    );
+    expect(
+      AppDatabase.isCloudSyncedSetting(AppDatabase.recentClientIdsKey),
+      isFalse,
+    );
+  });
+
+  test('pinned pins store remoteIds and still resolve legacy local ints', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+
+    final ada = await db.insertClient(firstName: 'Ada', lastName: 'Lovelace');
+    final grace = await db.insertClient(firstName: 'Grace', lastName: 'Hopper');
+    final adaRow = (await db.getClient(ada))!;
+    final graceRow = (await db.getClient(grace))!;
+
+    await db.setClientsPinned([ada, grace], true);
+    expect(
+      await db.getSetting(AppDatabase.pinnedClientIdsKey),
+      '${graceRow.remoteId},${adaRow.remoteId}',
+    );
+    expect(await db.getPinnedClientIds(), [grace, ada]);
+
+    // Legacy device-local int list still resolves until rewritten.
+    await db.into(db.settings).insertOnConflictUpdate(
+          SettingsCompanion.insert(
+            key: AppDatabase.pinnedClientIdsKey,
+            value: '$ada,$grace',
+            updatedAt: Value(DateTime.now()),
+            syncStatus: const Value(RowSyncStatus.synced),
+          ),
+        );
+    expect(await db.getPinnedClientIds(), [ada, grace]);
+
+    await db.rewritePinnedClientIdsToRemoteIds();
+    expect(
+      await db.getSetting(AppDatabase.pinnedClientIdsKey),
+      '${adaRow.remoteId},${graceRow.remoteId}',
+    );
+    final pinnedRow = await (db.select(db.settings)
+          ..where((t) => t.key.equals(AppDatabase.pinnedClientIdsKey)))
+        .getSingle();
+    expect(pinnedRow.syncStatus, RowSyncStatus.pending);
   });
 
   test('mirrorPractitionerNameToCloudOnce queues prior local name once',
