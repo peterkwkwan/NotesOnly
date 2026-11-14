@@ -705,6 +705,10 @@ class _ClientTable extends StatelessWidget {
   final VoidCallback onClear;
 
   static const _rowSelected = Color(0xFFFCF5F8);
+  /// Checkbox + trailing gap; whole area toggles select (not open profile).
+  static const double _checkColWidth = 48;
+  /// Wider than contact so longer names ellipsis later.
+  static const double _clientColWidth = 280;
 
   @override
   Widget build(BuildContext context) {
@@ -729,8 +733,13 @@ class _ClientTable extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Row(
                 children: [
-                  _CheckBox(checked: true, onTap: onClear),
-                  const SizedBox(width: 14),
+                  SizedBox(
+                    width: _checkColWidth,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: _CheckBox(checked: true, onTap: onClear),
+                    ),
+                  ),
                   Text(
                     '$n selected',
                     style: TextStyle(
@@ -770,13 +779,18 @@ class _ClientTable extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
             child: Row(
               children: [
-                _CheckBox(
-                  checked: allSelected,
-                  onTap: () => onSelectAll(!allSelected),
-                ),
-                const SizedBox(width: 14),
                 SizedBox(
-                  width: 190,
+                  width: _checkColWidth,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _CheckBox(
+                      checked: allSelected,
+                      onTap: () => onSelectAll(!allSelected),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: _clientColWidth,
                   child: Text(
                     'CLIENT',
                     style: TextStyle(
@@ -829,119 +843,171 @@ class _ClientTable extends StatelessWidget {
                       final avatar = clientAvatarColors(client, c);
                       return Material(
                         color: isSelected ? _rowSelected : c.surface,
-                        child: InkWell(
-                          onTap: () => onOpen(client.id),
-                          child: Container(
-                            constraints: const BoxConstraints(minHeight: 81),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 14,
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 81),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(color: c.border),
                             ),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                top: BorderSide(color: c.border),
-                              ),
-                            ),
+                          ),
+                          child: IntrinsicHeight(
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                _CheckBox(
-                                  checked: isSelected,
-                                  onTap: () => onToggle(client.id),
-                                ),
-                                const SizedBox(width: 14),
-                                SizedBox(
-                                  width: 190,
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
-                                        alignment: Alignment.center,
-                                        decoration: BoxDecoration(
-                                          color: avatar.wash,
-                                          borderRadius: BorderRadius.circular(
-                                            PelviRadius.md,
-                                          ),
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () => onToggle(client.id),
+                                    child: SizedBox(
+                                      width: 18 + _checkColWidth,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 18,
                                         ),
-                                        child: Text(
-                                          clientInitials(client),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color: avatar.ink,
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _CheckBox(
+                                            checked: isSelected,
+                                            onTap: () =>
+                                                onToggle(client.id),
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              clientDisplayName(client),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                                color: c.ink,
-                                              ),
-                                            ),
-                                            if (pinnedIds.contains(client.id))
-                                              Text(
-                                                'Pinned client',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: c.purple700,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        phone.isEmpty ? '—' : phone,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: c.ink,
-                                        ),
-                                      ),
-                                      Text(
-                                        email.isEmpty ? '—' : email,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: c.inkMuted,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 92,
-                                  child: Text(
-                                    mutedIds.contains(client.id)
-                                        ? 'Muted'
-                                        : 'Not muted',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: c.inkMuted,
                                     ),
                                   ),
                                 ),
-                                Icon(
-                                  Icons.chevron_right,
-                                  size: 16,
-                                  color: c.inkMuted,
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () => onOpen(client.id),
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        0,
+                                        14,
+                                        18,
+                                        14,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          SizedBox(
+                                            width: _clientColWidth,
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 36,
+                                                  height: 36,
+                                                  alignment:
+                                                      Alignment.center,
+                                                  decoration: BoxDecoration(
+                                                    color: avatar.wash,
+                                                    borderRadius:
+                                                        BorderRadius
+                                                            .circular(
+                                                      PelviRadius.md,
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    clientInitials(client),
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color: avatar.ink,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        clientDisplayName(
+                                                          client,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow:
+                                                            TextOverflow
+                                                                .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          fontWeight:
+                                                              FontWeight
+                                                                  .w500,
+                                                          color: c.ink,
+                                                        ),
+                                                      ),
+                                                      if (pinnedIds
+                                                          .contains(
+                                                        client.id,
+                                                      ))
+                                                        Text(
+                                                          'Pinned client',
+                                                          style:
+                                                              TextStyle(
+                                                            fontSize: 10,
+                                                            color: c
+                                                                .purple700,
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisSize:
+                                                  MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  phone.isEmpty
+                                                      ? '—'
+                                                      : phone,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: c.ink,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  email.isEmpty
+                                                      ? '—'
+                                                      : email,
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: c.inkMuted,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            width: 92,
+                                            child: Text(
+                                              mutedIds.contains(client.id)
+                                                  ? 'Muted'
+                                                  : 'Not muted',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: c.inkMuted,
+                                              ),
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.chevron_right,
+                                            size: 16,
+                                            color: c.inkMuted,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
