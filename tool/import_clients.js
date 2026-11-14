@@ -4,8 +4,12 @@
 // Does not write users/{uid}. Client docs have no practitionerUid.
 //
 //   node tool/import_clients.js <clients.csv>
+//   node tool/import_clients.js --dry-run [--wipe] <clients.csv>
+//   node tool/import_clients.js --wipe <clients.csv>
 //   node tool/import_clients.js --check
 //
+// --wipe deletes every doc under orgs/<org>/clients, then creates from CSV.
+// It does not touch appointments or notes; their clientId values become orphans.
 // shortcut: one project and one org, upgrade if a second clinic needs this
 
 const assert = require('assert');
@@ -243,8 +247,8 @@ function liveEmail(doc) {
   return normEmail(email);
 }
 
-async function existingEmails(token) {
-  const found = new Set();
+async function listClientDocs(token) {
+  const docs = [];
   let pageToken = '';
   do {
     const url = new URL(
@@ -255,13 +259,39 @@ async function existingEmails(token) {
     url.searchParams.append('mask.fieldPaths', 'deletedAt');
     if (pageToken) url.searchParams.set('pageToken', pageToken);
     const page = await firestore(url, token);
-    for (const doc of page.documents || []) {
-      const email = liveEmail(doc);
-      if (email) found.add(email);
-    }
+    for (const doc of page.documents || []) docs.push(doc);
     pageToken = page.nextPageToken || '';
   } while (pageToken);
+  return docs;
+}
+
+async function existingEmails(token) {
+  const found = new Set();
+  for (const doc of await listClientDocs(token)) {
+    const email = liveEmail(doc);
+    if (email) found.add(email);
+  }
   return found;
+}
+
+async function commitDeletes(token, names) {
+  let deleted = 0;
+  for (let i = 0; i < names.length; i += 400) {
+    const chunk = names.slice(i, i + 400);
+    const writes = chunk.map((name) => ({ delete: name }));
+    try {
+      await firestore(
+        `https://firestore.googleapis.com/v1/${databaseRoot()}/documents:commit`,
+        token,
+        { method: 'POST', body: JSON.stringify({ writes }) },
+      );
+    } catch (err) {
+      err.deleted = deleted;
+      throw err;
+    }
+    deleted += chunk.length;
+  }
+  return deleted;
 }
 
 async function commitCreates(token, creates) {
@@ -290,10 +320,28 @@ async function commitCreates(token, creates) {
   return created;
 }
 
-function report(created, skipped, missingPhone) {
-  console.log(`created: ${created}`);
-  console.log(`skipped: ${skipped}`);
-  console.log(`missingPhone: ${missingPhone}`);
+function report(stats) {
+  for (const key of ['deleted', 'created', 'skipped', 'missingPhone', 'existing', 'csv']) {
+    if (stats[key] !== undefined) console.log(`${key}: ${stats[key]}`);
+  }
+}
+
+function parseArgs(argv) {
+  let dryRun = false;
+  let wipe = false;
+  let check = false;
+  let csvPath = null;
+  for (const arg of argv) {
+    if (arg === '--dry-run') dryRun = true;
+    else if (arg === '--wipe') wipe = true;
+    else if (arg === '--check') check = true;
+    else if (arg.startsWith('-')) {
+      throw new Error(`unknown flag ${arg}`);
+    } else if (csvPath) {
+      throw new Error('usage: node tool/import_clients.js [--dry-run] [--wipe] <clients.csv>');
+    } else csvPath = arg;
+  }
+  return { dryRun, wipe, check, csvPath };
 }
 
 function selfCheck() {
@@ -342,33 +390,100 @@ function selfCheck() {
     }),
     null,
   );
+  const wipePlan = planImport(clients, new Set());
+  assert.strictEqual(wipePlan.creates.length, 2);
+  assert.strictEqual(wipePlan.skipped, 1);
+  const args = parseArgs(['--dry-run', '--wipe', 'x.csv']);
+  assert.strictEqual(args.dryRun, true);
+  assert.strictEqual(args.wipe, true);
+  assert.strictEqual(args.csvPath, 'x.csv');
   console.log('check ok');
 }
 
 async function main() {
-  const arg = process.argv[2];
-  if (arg === '--check') {
+  let opts;
+  try {
+    opts = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error(err.message);
+    process.exit(2);
+  }
+  if (opts.check) {
     selfCheck();
     return;
   }
-  if (!arg) {
-    console.error('usage: node tool/import_clients.js <clients.csv>');
+  if (!opts.csvPath) {
+    console.error('usage: node tool/import_clients.js [--dry-run] [--wipe] <clients.csv>');
     process.exit(2);
   }
+  const clients = parseClients(fs.readFileSync(opts.csvPath, 'utf8'));
   const login = loadTokens();
   if (!login) {
+    if (opts.dryRun) {
+      const plan = planImport(clients, new Set());
+      report({
+        csv: clients.length,
+        created: plan.creates.length,
+        skipped: 0,
+        missingPhone: plan.missingPhone,
+        deleted: opts.wipe ? '(unknown — no firebase login)' : undefined,
+        existing: '(unknown — no firebase login)',
+      });
+      console.log('dry-run: no writes');
+      return;
+    }
     console.error('No firebase login. Run `firebase login`, then rerun this command.');
     process.exit(1);
   }
-  const clients = parseClients(fs.readFileSync(arg, 'utf8'));
   const token = await accessToken(login);
   let created = 0;
+  let deleted = 0;
   try {
+    if (opts.wipe) {
+      const docs = await listClientDocs(token);
+      const names = docs.map((doc) => doc.name);
+      const plan = planImport(clients, new Set());
+      if (opts.dryRun) {
+        report({
+          csv: clients.length,
+          existing: names.length,
+          deleted: names.length,
+          created: plan.creates.length,
+          skipped: 0,
+          missingPhone: plan.missingPhone,
+        });
+        console.log('dry-run: no writes');
+        return;
+      }
+      deleted = await commitDeletes(token, names);
+      created = await commitCreates(token, plan.creates);
+      const after = await listClientDocs(token);
+      report({
+        deleted,
+        created,
+        skipped: 0,
+        missingPhone: plan.missingPhone,
+        existing: after.length,
+      });
+      return;
+    }
     const existing = await existingEmails(token);
     const plan = planImport(clients, existing);
+    if (opts.dryRun) {
+      report({
+        csv: clients.length,
+        existing: existing.size,
+        created: plan.creates.length,
+        skipped: plan.skipped,
+        missingPhone: plan.missingPhone,
+      });
+      console.log('dry-run: no writes');
+      return;
+    }
     created = await commitCreates(token, plan.creates);
-    report(created, plan.skipped, plan.missingPhone);
+    report({ created, skipped: plan.skipped, missingPhone: plan.missingPhone });
   } catch (err) {
+    if (err.deleted > 0) console.error(`deleted before error: ${err.deleted}`);
     if (err.created > 0) console.error(`created before error: ${err.created}`);
     if (err.status === 403) {
       console.error(
@@ -386,4 +501,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseClients, planImport, fieldsOf, liveEmail };
+module.exports = { parseClients, planImport, fieldsOf, liveEmail, parseArgs };
