@@ -92,7 +92,8 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
       replaceJoinUrlWithHome();
       await widget.syncEngine.syncNow();
     } catch (_) {
-      // Leave token for OrgAccessScreen (wrong account / create-org name / errors).
+      // Leave token for OrgAccessScreen to show the error (and clear stale
+      // rotated/revoked tokens after the message is visible).
     }
   }
 

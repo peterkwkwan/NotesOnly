@@ -17,6 +17,7 @@ const {
   assertCanCreateInvite,
   assertCanResend,
   assertRateLimit,
+  hasOpenReplacementInvite,
 } = require('./invite_authz');
 
 initializeApp();
@@ -286,7 +287,13 @@ exports.acceptInvite = onCall({ region: 'us-central1' }, async (request) => {
         throw new HttpsError('failed-precondition', 'This invite was already used');
       }
       if (invite.revokedAt) {
-        throw new HttpsError('failed-precondition', 'This invite was revoked');
+        // Distinguishing revoke vs rotate/re-invite needs a sibling lookup;
+        // abort the tx and resolve the message in the outer catch.
+        const err = new Error('INVITE_REVOKED');
+        err.code = 'INVITE_REVOKED';
+        err.invite = invite;
+        err.excludeId = ref.id;
+        throw err;
       }
       const expires = invite.expiresAt?.toDate?.() || null;
       if (!expires || expires.getTime() <= Date.now()) {
@@ -368,6 +375,21 @@ exports.acceptInvite = onCall({ region: 'us-central1' }, async (request) => {
 
     return result;
   } catch (err) {
+    if (err && err.code === 'INVITE_REVOKED') {
+      const invite = err.invite || {};
+      const replaced = await hasOpenReplacementInvite(db, {
+        email: normalizeEmail(invite.email),
+        kind: invite.kind,
+        orgId: invite.orgId || null,
+        excludeId: err.excludeId,
+      });
+      throw new HttpsError(
+        'failed-precondition',
+        replaced
+          ? 'This invite link has been replaced. Open the latest invite link from your email.'
+          : 'This invite was revoked',
+      );
+    }
     throw httpsError(err);
   }
 });
