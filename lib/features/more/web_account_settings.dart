@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../data/auth.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
@@ -81,7 +82,8 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
 
   Future<void> _loadFromDb() async {
     final db = AppDatabaseProvider.of(context);
-    final name = (await db.getPractitionerName()) ?? '';
+    final name =
+        (await db.getPractitionerName(uid: NotesAuth.currentUser?.uid)) ?? '';
     final mins = await db.getDefaultAppointmentMinutes();
     final hours = await db.watchClinicHours().first;
     final tz = await db.getTimezone();
@@ -141,7 +143,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
       return;
     }
 
-    await db.setPractitionerName(name);
+    await db.setPractitionerName(name, uid: NotesAuth.currentUser?.uid);
     await db.setDefaultAppointmentMinutes(mins);
     await db.setClinicHoursStart(opens);
     await db.setClinicHoursEnd(closes);

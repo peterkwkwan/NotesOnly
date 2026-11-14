@@ -143,6 +143,8 @@ class FirestoreSyncEngine implements SyncEngine {
       await db.clearLocalClinicForAccountSwitch();
     }
     await db.setSetting(AppDatabase.syncBoundUidKey, user.uid);
+    // Restore wipe-surviving personal name into the session key for the gate.
+    await db.rehydratePractitionerNameForUid(user.uid);
 
     final orgId = await _ensureActiveOrg(user);
     if (orgId == null) {

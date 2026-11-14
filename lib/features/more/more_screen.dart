@@ -34,7 +34,8 @@ class MoreScreen extends StatelessWidget {
 
   Future<void> _editPracticeName(BuildContext context) async {
     final db = AppDatabaseProvider.of(context);
-    final current = (await db.getPractitionerName()) ?? '';
+    final current =
+        (await db.getPractitionerName(uid: NotesAuth.currentUser?.uid)) ?? '';
     if (!context.mounted) return;
     // Own controller in State; dispose-on-pop hits TextField mid-exit anim.
     final saved = await showDialog<String>(
@@ -49,7 +50,7 @@ class MoreScreen extends StatelessWidget {
       }
       return;
     }
-    await db.setPractitionerName(trimmed);
+    await db.setPractitionerName(trimmed, uid: NotesAuth.currentUser?.uid);
   }
 
   Future<void> _editRecallWindow(BuildContext context) async {

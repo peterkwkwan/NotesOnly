@@ -303,7 +303,13 @@ class AppDatabase extends _$AppDatabase {
   /// Org clinic label (Practice settings). Cloud-synced; owner/admin also push orgs.name.
   static const clinicNameKey = 'clinic_name';
   /// Signed-in user's display name (Account settings). Device-local only.
+  /// Session copy; also written under [practitionerNameKeyFor] so it survives
+  /// [clearLocalClinicForAccountSwitch] for the same Google account.
   static const practitionerNameKey = 'practitioner_name';
+  /// Per-uid display name that is kept across clinic wipe / sign-out.
+  static String practitionerNameKeyFor(String uid) => 'practitioner_name__$uid';
+  static bool isPractitionerNameSetting(String key) =>
+      key == practitionerNameKey || key.startsWith('practitioner_name__');
   static const recallDaysKey = 'recall_days';
   static const defaultRecallDays = '30';
   static const defaultAppointmentMinutesKey = 'default_appointment_minutes';
@@ -348,13 +354,13 @@ class AppDatabase extends _$AppDatabase {
   /// Settings that mirror to Firestore (excludes device-local id lists + sync meta).
   static bool isCloudSyncedSetting(String key) {
     if (key.startsWith('sync_')) return false;
+    // Personal display name — not the shared clinic label.
+    if (isPractitionerNameSetting(key)) return false;
     const localOnly = {
       recentClientIdsKey,
       pinnedClientIdsKey,
       recallMutedIdsKey,
       recallClearedIdsKey,
-      // Personal display name — not the shared clinic label.
-      practitionerNameKey,
     };
     return !localOnly.contains(key);
   }
@@ -407,10 +413,42 @@ class AppDatabase extends _$AppDatabase {
         .map((rows) => rows.isEmpty ? null : rows.first.value);
   }
 
-  Future<String?> getPractitionerName() => getSetting(practitionerNameKey);
+  /// Prefer the per-uid copy; fall back to the session [practitionerNameKey].
+  /// Pass [uid] when [syncBoundUidKey] may not be set yet (post sign-in gate).
+  Future<String?> getPractitionerName({String? uid}) async {
+    final id = (uid != null && uid.isNotEmpty)
+        ? uid
+        : await getSetting(syncBoundUidKey);
+    if (id != null && id.isNotEmpty) {
+      final scoped = (await getSetting(practitionerNameKeyFor(id)))?.trim();
+      if (scoped != null && scoped.isNotEmpty) return scoped;
+    }
+    final legacy = (await getSetting(practitionerNameKey))?.trim();
+    if (legacy == null || legacy.isEmpty) return null;
+    return legacy;
+  }
 
-  Future<void> setPractitionerName(String name) =>
-      setSetting(practitionerNameKey, name.trim());
+  /// Writes the session key and, when a uid is known, the wipe-surviving copy.
+  Future<void> setPractitionerName(String name, {String? uid}) async {
+    final trimmed = name.trim();
+    final id = (uid != null && uid.isNotEmpty)
+        ? uid
+        : await getSetting(syncBoundUidKey);
+    if (id != null && id.isNotEmpty) {
+      await setSetting(practitionerNameKeyFor(id), trimmed);
+    }
+    await setSetting(practitionerNameKey, trimmed);
+  }
+
+  /// After sign-in, copy the wipe-surviving name back into the session key.
+  Future<void> rehydratePractitionerNameForUid(String uid) async {
+    if (uid.isEmpty) return;
+    final scoped = (await getSetting(practitionerNameKeyFor(uid)))?.trim() ?? '';
+    if (scoped.isEmpty) return;
+    final session = (await getSetting(practitionerNameKey))?.trim() ?? '';
+    if (session == scoped) return;
+    await setSetting(practitionerNameKey, scoped);
+  }
 
   Future<int> getRecallDays() async {
     final raw = await getSetting(recallDaysKey);
@@ -693,11 +731,8 @@ class AppDatabase extends _$AppDatabase {
         });
   }
 
-  Stream<String?> watchPractitionerName() {
-    return (select(settings)
-          ..where((t) => t.key.equals(practitionerNameKey)))
-        .watch()
-        .map((rows) => rows.isEmpty ? null : rows.first.value);
+  Stream<String?> watchPractitionerName({String? uid}) {
+    return (select(settings)).watch().asyncMap((_) => getPractitionerName(uid: uid));
   }
 
   Future<void> ensureDefaults() async {
@@ -747,7 +782,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Wipe clinic rows and settings so another Google account starts clean.
-  /// Keeps [themeModeKey] only.
+  /// Keeps [themeModeKey] and per-uid [practitionerNameKeyFor] keys.
   ///
   /// Skips [templates] when the table was never migrated (e.g. web Incognito
   /// half-applied schema) so sign-out still succeeds.
@@ -762,6 +797,9 @@ class AppDatabase extends _$AppDatabase {
       final rows = await select(settings).get();
       for (final row in rows) {
         if (row.key == themeModeKey) continue;
+        // Keep personal display names so the same Google account skips
+        // “What should we call you?” after sign-out / re-sign-in.
+        if (row.key.startsWith('practitioner_name__')) continue;
         await (delete(settings)..where((t) => t.key.equals(row.key))).go();
       }
     });

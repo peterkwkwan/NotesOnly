@@ -40,7 +40,8 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
     final roles =
         parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
     final clinic = (await db.getClinicName())?.trim() ?? '';
-    final display = (await db.getPractitionerName())?.trim() ?? '';
+    final uid = NotesAuth.currentUser?.uid;
+    final display = (await db.getPractitionerName(uid: uid))?.trim() ?? '';
     final canNameClinic = roles.isEmpty ||
         roles.contains(OrgRole.owner) ||
         roles.contains(OrgRole.admin);
@@ -75,10 +76,11 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
     setState(() => _saving = true);
     final db = AppDatabaseProvider.of(context);
     final trimmed = _controller.text.trim();
+    final uid = NotesAuth.currentUser?.uid;
     if (_step == _FirstRunStep.clinic) {
       await db.setClinicName(trimmed);
       if (!mounted) return;
-      final display = (await db.getPractitionerName())?.trim() ?? '';
+      final display = (await db.getPractitionerName(uid: uid))?.trim() ?? '';
       if (display.isEmpty) {
         final googleName = NotesAuth.currentUser?.displayName?.trim() ?? '';
         setState(() {
@@ -92,7 +94,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
       widget.onComplete();
       return;
     }
-    await db.setPractitionerName(trimmed);
+    await db.setPractitionerName(trimmed, uid: uid);
     if (!mounted) return;
     widget.onComplete();
   }

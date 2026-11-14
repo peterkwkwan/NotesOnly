@@ -43,6 +43,33 @@ void main() {
     expect(await db.getSetting(AppDatabase.recallDaysKey), isNotNull);
   });
 
+  test('display name survives clinic wipe for the same uid', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-peter');
+    await db.setPractitionerName('Peter Kwan');
+    expect(await db.getPractitionerName(), 'Peter Kwan');
+    expect(
+      await db.getSetting(AppDatabase.practitionerNameKeyFor('uid-peter')),
+      'Peter Kwan',
+    );
+
+    await db.clearLocalClinicForAccountSwitch();
+
+    // Session key is wiped; per-uid copy remains for the next sign-in.
+    expect(await db.getSetting(AppDatabase.practitionerNameKey), isNull);
+    expect(await db.getPractitionerName(uid: 'uid-peter'), 'Peter Kwan');
+
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-peter');
+    await db.rehydratePractitionerNameForUid('uid-peter');
+    expect(await db.getPractitionerName(), 'Peter Kwan');
+    expect(await db.getSetting(AppDatabase.practitionerNameKey), 'Peter Kwan');
+
+    // A different Google account does not inherit the name.
+    expect(await db.getPractitionerName(uid: 'uid-other'), isNull);
+  });
+
   test('clearLocalClinicForAccountSwitch skips missing templates table',
       () async {
     final db = AppDatabase(NativeDatabase.memory());

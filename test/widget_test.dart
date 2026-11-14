@@ -827,6 +827,39 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
+  testWidgets('shell skips first-run when display name set after wipe',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-test');
+    await db.setSetting(AppDatabase.activeOrgIdKey, 'org-test');
+    await db.setSetting(AppDatabase.activeOrgRolesKey, 'practitioner');
+    await db.setClinicName('Amber Health');
+    await db.setPractitionerName('Peter Kwan');
+    await db.clearLocalClinicForAccountSwitch();
+    // Re-bind after wipe the way sync does on the next sign-in.
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-test');
+    await db.setSetting(AppDatabase.activeOrgIdKey, 'org-test');
+    await db.setSetting(AppDatabase.activeOrgRolesKey, 'practitioner');
+    await db.setClinicName('Amber Health');
+    await db.rehydratePractitionerNameForUid('uid-test');
+
+    await tester.pumpWidget(
+      PelviApp(
+        database: db,
+        signedInOverride: Stream.value(true),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('What should we call you?'), findsNothing);
+    expect(find.text('What should we call this clinic?'), findsNothing);
+    expect(find.text('Today'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
   testWidgets('shell opens when clinic name is set', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     await db.setSetting(AppDatabase.activeOrgIdKey, 'org-test');

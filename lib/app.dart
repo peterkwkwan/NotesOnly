@@ -93,11 +93,14 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     final roles =
         parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
     final clinic = (await db.getClinicName())?.trim() ?? '';
-    final display = (await db.getPractitionerName())?.trim() ?? '';
+    final uid = NotesAuth.currentUser?.uid;
+    final display = (await db.getPractitionerName(uid: uid))?.trim() ?? '';
     final canNameClinic = roles.isEmpty ||
         roles.contains(OrgRole.owner) ||
         roles.contains(OrgRole.admin);
+    // Clinic label is cloud-synced; only prompt when still empty after pull.
     final needClinic = canNameClinic && clinic.isEmpty;
+    // Personal name is device-local (per uid); only prompt when unset.
     final needDisplay = display.isEmpty;
     if (!needClinic && !needDisplay) return const _HomeGate.shell();
     return const _HomeGate(showClinic: true, firstRun: true);
