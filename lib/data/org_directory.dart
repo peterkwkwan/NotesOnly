@@ -1,190 +1,86 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'org.dart';
 
-/// Firestore orgs, memberships, and invites. Clinical rows stay on the org.
+/// Firestore orgs / memberships / invite list+revoke.
+/// Create, accept, and resend go through HTTPS callables (hashed magic links).
 class OrgDirectory {
-  OrgDirectory({FirebaseFirestore? firestore}) : _firestore = firestore;
+  OrgDirectory({
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+  })  : _firestore = firestore,
+        _functions = functions;
 
   final FirebaseFirestore? _firestore;
+  final FirebaseFunctions? _functions;
 
   FirebaseFirestore get _fs => _firestore ?? FirebaseFirestore.instance;
+  FirebaseFunctions get _fn =>
+      _functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
 
   static String membershipId(String orgId, String uid) => '${orgId}_$uid';
 
-  Future<String> createInvite({
-    required User user,
+  /// Creates invite + emails magic link. Returns hash id and join URL.
+  Future<ClinicInviteResult> createClinicInvite({
     required String email,
     required String kind,
     String? orgId,
     String? role,
-    required bool issuedByPlatformAdmin,
   }) async {
-    final normalized = email.trim().toLowerCase();
-    final payload = <String, dynamic>{
+    final callable = _fn.httpsCallable('createClinicInvite');
+    final result = await callable.call(<String, dynamic>{
+      'email': email.trim().toLowerCase(),
       'kind': kind,
-      'email': normalized,
-      'role': kind == 'join' ? role : null,
-      'orgId': kind == 'join' ? orgId : null,
-      'issuedByUid': user.uid,
-      'issuedByPlatformAdmin': issuedByPlatformAdmin,
-      'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(DateTime.now().toUtc().add(inviteTtl)),
-      'revokedAt': null,
-      'acceptedAt': null,
-      'acceptedByUid': null,
-    };
-    // Do not get() before create: invite read rules need resource.data, so a
-    // missing doc is permission-denied. Collision turns set into update, which
-    // rules also deny — retry a fresh code.
-    FirebaseException? lastDenied;
-    for (var attempt = 0; attempt < 8; attempt++) {
-      final id = newInviteCode();
-      try {
-        await _fs.collection('invites').doc(id).set(payload);
-        return id;
-      } on FirebaseException catch (e) {
-        if (e.code != 'permission-denied') rethrow;
-        lastDenied = e;
-      }
-    }
-    throw lastDenied ?? StateError('Could not allocate an invite code');
+      if (orgId != null) 'orgId': orgId,
+      if (role != null) 'role': role,
+    });
+    return ClinicInviteResult.fromMap(
+      Map<String, dynamic>.from(result.data as Map),
+    );
+  }
+
+  Future<ClinicInviteResult> resendClinicInvite({
+    required String inviteId,
+  }) async {
+    final callable = _fn.httpsCallable('resendClinicInvite');
+    final result = await callable.call(<String, dynamic>{
+      'inviteId': inviteId,
+    });
+    return ClinicInviteResult.fromMap(
+      Map<String, dynamic>.from(result.data as Map),
+    );
+  }
+
+  /// Accept via opaque token from `/join?token=`. Returns org id + roles.
+  Future<AcceptedInvite> acceptInviteToken({
+    required String token,
+    String? clinicName,
+  }) async {
+    final callable = _fn.httpsCallable('acceptInvite');
+    final result = await callable.call(<String, dynamic>{
+      'token': token.trim(),
+      if (clinicName != null && clinicName.trim().isNotEmpty)
+        'clinicName': clinicName.trim(),
+    });
+    final data = Map<String, dynamic>.from(result.data as Map);
+    final orgId = data['orgId'] as String? ?? '';
+    final rolesRaw = data['roles'];
+    final roles = <String>[
+      if (rolesRaw is List)
+        for (final r in rolesRaw) '$r',
+    ];
+    if (orgId.isEmpty) throw StateError('Accept returned no clinic');
+    return AcceptedInvite(orgId: orgId, roles: roles);
   }
 
   Future<void> revokeInvite({
     required String inviteId,
   }) async {
-    await _fs.collection('invites').doc(normalizeInviteCode(inviteId)).update({
+    await _fs.collection('invites').doc(inviteId.trim()).update({
       'revokedAt': FieldValue.serverTimestamp(),
     });
-  }
-
-  Future<Map<String, dynamic>> peekInvite(String inviteId) async {
-    final snap =
-        await _fs.collection('invites').doc(normalizeInviteCode(inviteId)).get();
-    if (!snap.exists) {
-      throw StateError('Invite not found');
-    }
-    return snap.data()!;
-  }
-
-  /// Returns the org id the account now belongs to.
-  Future<String> acceptInvite({
-    required User user,
-    required String inviteId,
-    String? clinicName,
-  }) async {
-    final email = user.email?.trim().toLowerCase() ?? '';
-    if (email.isEmpty) {
-      throw StateError('This Google account has no email');
-    }
-    final ref = _fs.collection('invites').doc(normalizeInviteCode(inviteId));
-    final peeked = await ref.get();
-    if (!peeked.exists) throw StateError('Invite not found');
-    final preview = peeked.data()!;
-    if (preview['email'] != email) {
-      throw StateError('This invite is for a different Google account');
-    }
-    final expires = _time(preview['expiresAt']);
-    if (expires == null ||
-        !inviteStillOpen(
-          now: DateTime.now().toUtc(),
-          expiresAt: expires,
-          accepted: preview['acceptedAt'] != null,
-          revoked: preview['revokedAt'] != null,
-        )) {
-      throw StateError('This invite is no longer valid');
-    }
-
-    final kind = preview['kind'] as String?;
-    if (kind == 'create-org') {
-      final name = clinicName?.trim() ?? '';
-      if (name.isEmpty) throw StateError('Name the clinic');
-      final orgRef = _fs.collection('orgs').doc();
-      final memberRef = _fs
-          .collection('memberships')
-          .doc(membershipId(orgRef.id, user.uid));
-      await _fs.runTransaction((tx) async {
-        tx.set(orgRef, {
-          'name': name,
-          'createdByUid': user.uid,
-          'ownerUids': [user.uid],
-          'migratedFromUser': false,
-          'inviteId': ref.id,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        tx.set(memberRef, _member(
-          orgId: orgRef.id,
-          user: user,
-          email: email,
-          roles: const ['owner', 'practitioner'],
-          inviteId: ref.id,
-        ));
-        tx.update(ref, {
-          'acceptedAt': FieldValue.serverTimestamp(),
-          'acceptedByUid': user.uid,
-        });
-      });
-      return orgRef.id;
-    }
-
-    if (kind == 'join') {
-      final orgId = preview['orgId'] as String?;
-      final role = preview['role'] as String?;
-      if (orgId == null || role == null) {
-        throw StateError('This invite is missing a clinic or role');
-      }
-      final memberRef =
-          _fs.collection('memberships').doc(membershipId(orgId, user.uid));
-      await _fs.runTransaction((tx) async {
-        tx.set(memberRef, _member(
-          orgId: orgId,
-          user: user,
-          email: email,
-          roles: [role],
-          inviteId: ref.id,
-        ));
-        tx.update(ref, {
-          'acceptedAt': FieldValue.serverTimestamp(),
-          'acceptedByUid': user.uid,
-        });
-      });
-      return orgId;
-    }
-
-    throw StateError('Unknown invite');
-  }
-
-  /// One org for Peter's existing book. Not used for an empty sign-in.
-  Future<String> createMigratedOrg({
-    required User user,
-    required String name,
-  }) async {
-    final email = user.email?.trim().toLowerCase() ?? '';
-    final orgRef = _fs.collection('orgs').doc();
-    final memberRef =
-        _fs.collection('memberships').doc(membershipId(orgRef.id, user.uid));
-    await _fs.runTransaction((tx) async {
-      tx.set(orgRef, {
-        'name': name,
-        'createdByUid': user.uid,
-        'ownerUids': [user.uid],
-        'migratedFromUser': true,
-        'inviteId': null,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      tx.set(memberRef, _member(
-        orgId: orgRef.id,
-        user: user,
-        email: email,
-        roles: const ['owner', 'practitioner'],
-        inviteId: null,
-      ));
-    });
-    return orgRef.id;
   }
 
   /// Open join invites for this clinic. Callers must be owner or admin.
@@ -211,6 +107,7 @@ class OrgDirectory {
         email: data['email'] as String? ?? '',
         role: orgRoleFromName('${data['role'] ?? ''}'),
         expiresAt: expires,
+        emailDeliveryStatus: data['emailDeliveryStatus'] as String?,
       ));
     }
     pending.sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
@@ -343,6 +240,39 @@ class OrgDirectory {
     });
   }
 
+  /// One org for Peter's existing book. Not used for an empty sign-in.
+  Future<String> createMigratedOrg({
+    required User user,
+    required String name,
+  }) async {
+    final email = user.email?.trim().toLowerCase() ?? '';
+    final orgRef = _fs.collection('orgs').doc();
+    final memberRef =
+        _fs.collection('memberships').doc(membershipId(orgRef.id, user.uid));
+    await _fs.runTransaction((tx) async {
+      tx.set(orgRef, {
+        'name': name,
+        'createdByUid': user.uid,
+        'ownerUids': [user.uid],
+        'migratedFromUser': true,
+        'inviteId': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      tx.set(memberRef, {
+        'orgId': orgRef.id,
+        'uid': user.uid,
+        'email': email,
+        'roles': const ['owner', 'practitioner'],
+        'active': true,
+        'inviteId': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+    return orgRef.id;
+  }
+
   List<String> _ownerUids(Map<String, dynamic>? data) {
     final raw = data?['ownerUids'];
     if (raw is! List) return const [];
@@ -357,28 +287,39 @@ class OrgDirectory {
     return true;
   }
 
-  Map<String, Object?> _member({
-    required String orgId,
-    required User user,
-    required String email,
-    required List<String> roles,
-    required String? inviteId,
-  }) {
-    return {
-      'orgId': orgId,
-      'uid': user.uid,
-      'email': email,
-      'roles': roles,
-      'active': true,
-      'inviteId': inviteId,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-  }
-
   static DateTime? _time(Object? raw) {
     if (raw is Timestamp) return raw.toDate().toUtc();
     if (raw is DateTime) return raw.toUtc();
     return null;
   }
+}
+
+class ClinicInviteResult {
+  const ClinicInviteResult({
+    required this.inviteId,
+    required this.joinUrl,
+    required this.emailed,
+    this.emailDeliveryStatus,
+  });
+
+  final String inviteId;
+  final String joinUrl;
+  final bool emailed;
+  final String? emailDeliveryStatus;
+
+  factory ClinicInviteResult.fromMap(Map<String, dynamic> data) {
+    return ClinicInviteResult(
+      inviteId: '${data['inviteId'] ?? ''}',
+      joinUrl: '${data['joinUrl'] ?? ''}',
+      emailed: data['emailed'] == true,
+      emailDeliveryStatus: data['emailDeliveryStatus'] as String?,
+    );
+  }
+}
+
+class AcceptedInvite {
+  const AcceptedInvite({required this.orgId, required this.roles});
+
+  final String orgId;
+  final List<String> roles;
 }

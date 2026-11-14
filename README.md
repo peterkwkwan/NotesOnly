@@ -70,6 +70,12 @@ Same engine on Android and web.
    (or paste `firestore.rules` in Console → Rules → Publish).
 3. Confirm Google Sign-In still works (SHA-1 on Android app).
 
+## Magic-link clinic invites
+
+Clinic invites are emailed magic links (`/join?token=…`), not paste codes. See
+[`docs/magic-link-invites.md`](docs/magic-link-invites.md) for Resend secrets and
+deploy order (`functions` → `firestore:rules,indexes` → `hosting`).
+
 ## Web Hosting deploy
 
 Incomplete `build/web` deploys white-screen: Firebase rewrites missing files to

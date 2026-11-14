@@ -36,9 +36,6 @@ service cloud.firestore {
     function orgAfter(orgId) {
       return getAfter(/databases/$(database)/documents/orgs/$(orgId)).data;
     }
-    function inviteAfter(inviteId) {
-      return getAfter(/databases/$(database)/documents/invites/$(inviteId)).data;
-    }
     function bookedPractitioner(orgId, uid) {
       return exists(/databases/$(database)/documents/memberships/$(orgId + '_' + uid))
         && get(/databases/$(database)/documents/memberships/$(orgId + '_' + uid)).data.active == true
@@ -53,9 +50,8 @@ service cloud.firestore {
 
     match /orgs/{orgId} {
       allow read: if isActiveMember(orgId) || isPlatformAdmin();
-      allow create: if signedIn() && orgShape() && (
-        migrationOrg() || createOrgFromInvite()
-      );
+      // Clinic create from magic-link invite is Admin SDK only (acceptInvite).
+      allow create: if signedIn() && orgShape() && migrationOrg();
       allow update: if isOrgOwner(orgId)
         && request.resource.data.ownerUids.size() > 0
         && request.resource.data.createdByUid == resource.data.createdByUid
@@ -130,9 +126,8 @@ service cloud.firestore {
         resource.data.uid == request.auth.uid
         || isActiveMember(resource.data.orgId)
       );
-      allow create: if memberShape(memberId) && (
-        migrationMembership() || joinMembership() || createOrgMembership()
-      );
+      // Join / create-org membership is Admin SDK only (acceptInvite callable).
+      allow create: if memberShape(memberId) && migrationMembership();
       allow update: if ownerEditsMember() || adminRemovesMember();
       allow delete: if false;
     }
@@ -148,10 +143,9 @@ service cloud.firestore {
           && (isOrgOwner(resource.data.orgId) || isOrgAdmin(resource.data.orgId))
         )
       );
-      allow create: if signedIn() && inviteShape() && (
-        platformAdminInvite() || ownerJoinInvite() || adminJoinInvite()
-      );
-      allow update: if acceptInvite() || revokeInvite();
+      // Create / accept / email fields: Cloud Functions Admin SDK only.
+      allow create: if false;
+      allow update: if revokeInvite();
       allow delete: if false;
     }
 
@@ -173,13 +167,6 @@ service cloud.firestore {
         && request.resource.data.migratedFromUser == true
         && request.resource.data.inviteId == null;
     }
-    function createOrgFromInvite() {
-      return request.resource.data.migratedFromUser == false
-        && request.resource.data.inviteId is string
-        && inviteAfter(request.resource.data.inviteId).kind == 'create-org'
-        && inviteAfter(request.resource.data.inviteId).email == request.auth.token.email
-        && inviteAfter(request.resource.data.inviteId).acceptedByUid == request.auth.uid;
-    }
     function memberShape(memberId) {
       return signedIn()
         && request.resource.data.keys().hasOnly([
@@ -200,77 +187,6 @@ service cloud.firestore {
         && request.resource.data.roles == ['owner', 'practitioner']
         && orgAfter(request.resource.data.orgId).migratedFromUser == true
         && orgAfter(request.resource.data.orgId).createdByUid == request.auth.uid;
-    }
-    function joinMembership() {
-      return request.resource.data.inviteId is string
-        && inviteAfter(request.resource.data.inviteId).kind == 'join'
-        && inviteAfter(request.resource.data.inviteId).orgId == request.resource.data.orgId
-        && inviteAfter(request.resource.data.inviteId).acceptedByUid == request.auth.uid
-        && request.resource.data.roles == [inviteAfter(request.resource.data.inviteId).role];
-    }
-    function createOrgMembership() {
-      return request.resource.data.inviteId is string
-        && request.resource.data.roles == ['owner', 'practitioner']
-        && inviteAfter(request.resource.data.inviteId).kind == 'create-org'
-        && inviteAfter(request.resource.data.inviteId).acceptedByUid == request.auth.uid
-        && orgAfter(request.resource.data.orgId).inviteId == request.resource.data.inviteId
-        && orgAfter(request.resource.data.orgId).createdByUid == request.auth.uid;
-    }
-    function inviteShape() {
-      return request.resource.data.keys().hasOnly([
-          'kind', 'email', 'role', 'orgId', 'issuedByUid',
-          'issuedByPlatformAdmin', 'createdAt', 'expiresAt',
-          'revokedAt', 'acceptedAt', 'acceptedByUid'
-        ])
-        && request.resource.data.email is string
-        && request.resource.data.email.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}$')
-        && request.resource.data.issuedByUid == request.auth.uid
-        && request.resource.data.acceptedAt == null
-        && request.resource.data.acceptedByUid == null
-        && request.resource.data.revokedAt == null
-        && request.resource.data.expiresAt > request.time
-        && request.resource.data.expiresAt <= request.time + duration.value(14, 'd') + duration.value(10, 'm')
-        && request.resource.data.createdAt == request.time;
-    }
-    function platformAdminInvite() {
-      return isPlatformAdmin()
-        && request.resource.data.issuedByPlatformAdmin == true
-        && (
-          (
-            request.resource.data.kind == 'create-org'
-            && request.resource.data.orgId == null
-            && request.resource.data.role == null
-          ) || (
-            request.resource.data.kind == 'join'
-            && request.resource.data.orgId is string
-            && request.resource.data.role in ['owner', 'admin', 'practitioner']
-          )
-        );
-    }
-    function ownerJoinInvite() {
-      return request.resource.data.kind == 'join'
-        && request.resource.data.issuedByPlatformAdmin == false
-        && request.resource.data.orgId is string
-        && isOrgOwner(request.resource.data.orgId)
-        && request.resource.data.role in ['owner', 'admin', 'practitioner'];
-    }
-    function adminJoinInvite() {
-      return request.resource.data.kind == 'join'
-        && request.resource.data.issuedByPlatformAdmin == false
-        && request.resource.data.orgId is string
-        && isOrgAdmin(request.resource.data.orgId)
-        && request.resource.data.role in ['admin', 'practitioner'];
-    }
-    function acceptInvite() {
-      return signedIn()
-        && resource.data.email == request.auth.token.email
-        && resource.data.acceptedAt == null
-        && resource.data.revokedAt == null
-        && resource.data.expiresAt > request.time
-        && request.resource.data.acceptedAt == request.time
-        && request.resource.data.acceptedByUid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['acceptedAt', 'acceptedByUid']);
     }
     function memberIdentityStable() {
       return request.resource.data.uid == resource.data.uid

@@ -17,6 +17,14 @@
         {"fieldPath": "updatedAt", "order": "ASCENDING"},
         {"fieldPath": "__name__", "order": "ASCENDING"}
       ]
+    },
+    {
+      "collectionGroup": "invites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "issuedByUid", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "ASCENDING"}
+      ]
     }
   ],
   "fieldOverrides": []

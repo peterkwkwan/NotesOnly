@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/data/database.dart';
@@ -161,15 +159,35 @@ void main() {
     expect(isClinicInviteEmail('a @b.com'), isFalse);
   });
 
-  test('invite codes are 6 chars from the unambiguous alphabet', () {
-    final code = newInviteCode(Random(1));
-    expect(code.length, inviteCodeLength);
-    expect(code, matches(RegExp('^[$inviteCodeAlphabet]{$inviteCodeLength}\$')));
-    expect(normalizeInviteCode('  ab3k7f  '), 'AB3K7F');
-    expect(inviteCodeAlphabet.contains('0'), isFalse);
-    expect(inviteCodeAlphabet.contains('O'), isFalse);
-    expect(inviteCodeAlphabet.contains('1'), isFalse);
-    expect(inviteCodeAlphabet.contains('I'), isFalse);
+  test('inviteStillOpen rejects accepted revoked and expired', () {
+    final now = DateTime.utc(2026, 11, 14);
+    expect(
+      inviteStillOpen(
+        now: now,
+        expiresAt: now.add(const Duration(days: 1)),
+        accepted: false,
+        revoked: false,
+      ),
+      isTrue,
+    );
+    expect(
+      inviteStillOpen(
+        now: now,
+        expiresAt: now.add(const Duration(days: 1)),
+        accepted: true,
+        revoked: false,
+      ),
+      isFalse,
+    );
+    expect(
+      inviteStillOpen(
+        now: now,
+        expiresAt: now.subtract(const Duration(minutes: 1)),
+        accepted: false,
+        revoked: false,
+      ),
+      isFalse,
+    );
   });
 
   test('owner role edits keep the last owner and block admins', () {

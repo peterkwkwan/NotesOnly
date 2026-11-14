@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 import 'data/auth.dart';
 import 'data/database.dart';
 import 'data/database_provider.dart';
+import 'data/join_token.dart';
 import 'data/org.dart';
+import 'data/org_directory.dart';
 import 'data/sync.dart';
 import 'features/auth/sign_in_screen.dart';
 import 'features/first_run/first_run_screen.dart';
@@ -54,6 +56,8 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Stash /join?token= before Google redirect drops the query string.
+    captureJoinTokenFromUri();
     _gate = _loadGate();
     widget.syncEngine.start();
     _authSub = NotesAuth.authStateChanges().listen((user) {
@@ -66,6 +70,30 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
             : _loadGate();
       });
     });
+  }
+
+  /// Magic-link accept (join). create-org that needs a clinic name is handled
+  /// on the waiting screen.
+  Future<void> _acceptPendingJoinIfAny() async {
+    final token = peekPendingJoinToken();
+    if (token == null || token.isEmpty) return;
+    if (NotesAuth.currentUser == null) return;
+    try {
+      final accepted = await OrgDirectory().acceptInviteToken(token: token);
+      await widget.database.setSetting(
+        AppDatabase.activeOrgIdKey,
+        accepted.orgId,
+      );
+      await widget.database.setSetting(
+        AppDatabase.activeOrgRolesKey,
+        accepted.roles.join(','),
+      );
+      clearPendingJoinToken();
+      replaceJoinUrlWithHome();
+      await widget.syncEngine.syncNow();
+    } catch (_) {
+      // Leave token for OrgAccessScreen (wrong account / create-org name / errors).
+    }
   }
 
   @override
@@ -86,6 +114,7 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
   Future<_HomeGate> _loadGate() async {
     final db = widget.database;
     await db.ensureDefaults();
+    await _acceptPendingJoinIfAny();
     final orgId = await db.getSetting(AppDatabase.activeOrgIdKey);
     final orgReady = orgId != null && orgId.isNotEmpty;
     final clinical = orgReady || await db.hasClinicalRows();

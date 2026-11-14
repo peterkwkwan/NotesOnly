@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
+import '../../data/join_token.dart';
 import '../../data/org.dart';
 import '../../data/org_directory.dart';
 import '../../data/sync.dart';
@@ -13,7 +14,7 @@ import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../shell/desktop_chrome.dart';
 
-/// Paste an invite, or send one. Not an admin console.
+/// Waiting for clinic (magic-link join) or platform-admin invite tools.
 class OrgAccessScreen extends StatefulWidget {
   const OrgAccessScreen({super.key, this.waiting = false, this.onJoined});
 
@@ -28,23 +29,29 @@ class OrgAccessScreen extends StatefulWidget {
 }
 
 class _OrgAccessScreenState extends State<OrgAccessScreen> {
-  final _code = TextEditingController();
   final _email = TextEditingController();
   final _orgId = TextEditingController();
   final _clinicName = TextEditingController();
   String _kind = 'create-org';
   String _role = 'practitioner';
   bool _busy = false;
+  bool _joining = false;
   bool _canSend = false;
   bool _platformAdmin = false;
   bool _grantOwner = false;
-  String? _issuedCode;
+  String? _issuedJoinUrl;
+  String? _joinError;
   StreamSubscription<String?>? _orgSub;
+  bool _joinAttempted = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAccess());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAccess();
+      // App-level accept runs on auth; retry here if still waiting with a token.
+      if (widget.waiting) _tryJoinFromToken();
+    });
   }
 
   @override
@@ -77,52 +84,92 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
     });
   }
 
+  Future<void> _tryJoinFromToken() async {
+    if (_joinAttempted || !widget.waiting) return;
+    final token = captureJoinTokenFromUri();
+    if (token == null || token.isEmpty) return;
+    _joinAttempted = true;
+    final user = NotesAuth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _joining = true;
+      _joinError = null;
+    });
+    try {
+      final directory = OrgDirectory();
+      String? clinicName;
+      // create-org invites need a clinic name; probe via accept error is messy —
+      // ask only when the callable says so.
+      AcceptedInvite accepted;
+      try {
+        accepted = await directory.acceptInviteToken(token: token);
+      } catch (e) {
+        final msg = '$e';
+        if (msg.contains('Name the clinic')) {
+          if (!mounted) return;
+          clinicName = await _askClinicName();
+          if (clinicName == null) {
+            setState(() {
+              _joining = false;
+              _joinError = 'Name the clinic to finish this invite.';
+            });
+            return;
+          }
+          accepted = await directory.acceptInviteToken(
+            token: token,
+            clinicName: clinicName,
+          );
+        } else {
+          rethrow;
+        }
+      }
+      if (!mounted) return;
+      final db = AppDatabaseProvider.of(context);
+      final sync = AppDatabaseProvider.syncOf(context);
+      await db.setSetting(AppDatabase.activeOrgIdKey, accepted.orgId);
+      await db.setSetting(
+        AppDatabase.activeOrgRolesKey,
+        accepted.roles.join(','),
+      );
+      if (clinicName != null) await db.setClinicName(clinicName);
+      clearPendingJoinToken();
+      replaceJoinUrlWithHome();
+      await sync.syncNow();
+      if (!mounted) return;
+      widget.onJoined?.call();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _joinError = _friendlyJoinError(e);
+        _joining = false;
+      });
+      // Keep token so a switched account can retry after sign-out/in.
+    }
+  }
+
+  String _friendlyJoinError(Object e) {
+    final s = '$e';
+    if (s.contains('different Google account')) {
+      return 'This invite is for a different Google account. '
+          'Sign out and sign in with the invited email.';
+    }
+    if (s.contains('expired')) return 'This invite has expired.';
+    if (s.contains('revoked')) return 'This invite was revoked.';
+    if (s.contains('already used')) return 'This invite was already used.';
+    if (s.contains('not-found') || s.contains('Invite not found')) {
+      return 'This invite link is invalid.';
+    }
+    return s;
+  }
+
   @override
   void dispose() {
     _orgSub?.cancel();
-    _code.dispose();
     _email.dispose();
     _orgId.dispose();
     _clinicName.dispose();
     super.dispose();
-  }
-
-  Future<void> _accept() async {
-    final user = NotesAuth.currentUser;
-    if (user == null) return;
-    setState(() => _busy = true);
-    try {
-      final directory = OrgDirectory();
-      final preview = await directory.peekInvite(_code.text);
-      String? clinicName;
-      if (preview['kind'] == 'create-org') {
-        if (!mounted) return;
-        clinicName = await _askClinicName();
-        if (clinicName == null) return;
-      }
-      final orgId = await directory.acceptInvite(
-        user: user,
-        inviteId: _code.text,
-        clinicName: clinicName,
-      );
-      if (!mounted) return;
-      final db = AppDatabaseProvider.of(context);
-      final sync = AppDatabaseProvider.syncOf(context);
-      final roles = preview['kind'] == 'create-org'
-          ? 'owner,practitioner'
-          : (preview['role'] as String? ?? 'practitioner');
-      await db.setSetting(AppDatabase.activeOrgIdKey, orgId);
-      await db.setSetting(AppDatabase.activeOrgRolesKey, roles);
-      if (clinicName != null) await db.setClinicName(clinicName);
-      await sync.syncNow();
-      if (!mounted) return;
-      widget.onJoined?.call();
-      if (!widget.waiting) Navigator.of(context).maybePop();
-    } catch (e) {
-      if (mounted) showPelviSnackBar(context, '$e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
 
   Future<String?> _askClinicName() {
@@ -168,28 +215,24 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
     }
     setState(() => _busy = true);
     try {
-      final id = await OrgDirectory().createInvite(
-        user: user,
+      final result = await OrgDirectory().createClinicInvite(
         email: _email.text,
         kind: _kind,
         orgId: _kind == 'join' ? _orgId.text.trim() : null,
         role: _kind == 'join' ? _role : null,
-        issuedByPlatformAdmin: _platformAdmin,
       );
       if (!mounted) return;
-      setState(() => _issuedCode = id);
-    } catch (e) {
-      if (mounted) showPelviSnackBar(context, '$e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _revoke() async {
-    setState(() => _busy = true);
-    try {
-      await OrgDirectory().revokeInvite(inviteId: _code.text);
-      if (mounted) showPelviSnackBar(context, 'Invite revoked');
+      setState(() => _issuedJoinUrl = result.joinUrl);
+      if (result.joinUrl.isNotEmpty) {
+        await Clipboard.setData(ClipboardData(text: result.joinUrl));
+      }
+      if (!mounted) return;
+      showPelviSnackBar(
+        context,
+        result.emailed
+            ? 'Invite sent to ${_email.text.trim().toLowerCase()}. Link copied.'
+            : 'Invite created but email failed. Link copied — share it manually.',
+      );
     } catch (e) {
       if (mounted) showPelviSnackBar(context, '$e');
     } finally {
@@ -227,10 +270,10 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final email = NotesAuth.currentUser?.email;
-    // Match create-practice / sign-in auth panel on wide viewports (≥960).
     final maxFormWidth = widget.waiting && isDesktopShell(context)
         ? 380.0
         : double.infinity;
+    final pendingToken = peekPendingJoinToken();
 
     final form = <Widget>[
       if (widget.waiting) ...[
@@ -242,8 +285,10 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
         const SizedBox(height: PelviSpace.sm),
         Text(
           email == null
-              ? 'Sign-in does not create a clinic. Paste an invite code.'
-              : 'Signed in as $email. Paste an invite code to join or create a clinic.',
+              ? 'Sign-in does not create a clinic. Open the invite link from your email.'
+              : pendingToken != null || _joining
+                  ? 'Signed in as $email. Joining clinic…'
+                  : 'Signed in as $email. Open the invite link from your email to join a clinic.',
           textAlign: TextAlign.center,
           style: text.bodyMedium?.copyWith(
             color: PelviColors.of(context).inkMuted,
@@ -251,7 +296,31 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
         ),
         const SizedBox(height: PelviSpace.md),
         const _SyncLine(),
+        if (_joining) ...[
+          const SizedBox(height: PelviSpace.lg),
+          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: PelviSpace.sm),
+          Text(
+            'Joining…',
+            textAlign: TextAlign.center,
+            style: text.bodyMedium,
+          ),
+        ],
+        if (_joinError != null) ...[
+          const SizedBox(height: PelviSpace.md),
+          Text(
+            _joinError!,
+            textAlign: TextAlign.center,
+            style: text.bodyMedium?.copyWith(
+              color: PelviColors.of(context).danger,
+            ),
+          ),
+        ],
         const SizedBox(height: PelviSpace.lg),
+        TextButton(
+          onPressed: _busy || _joining ? null : _signOut,
+          child: const Text('Sign out'),
+        ),
       ],
       if (!widget.waiting && !_canSend)
         Text(
@@ -260,42 +329,15 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
             color: PelviColors.of(context).inkMuted,
           ),
         ),
-      if (widget.waiting || _canSend) ...[
-        Text('INVITE CODE', style: text.labelMedium),
-        const SizedBox(height: PelviSpace.xs),
-        TextField(
-          controller: _code,
-          textCapitalization: TextCapitalization.characters,
-          autocorrect: false,
-          enableSuggestions: false,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9-]')),
-          ],
-          decoration: const InputDecoration(
-            hintText: 'Paste 6-character code',
+      if (!widget.waiting && _canSend) ...[
+        Text('Send an invite', style: text.titleMedium),
+        const SizedBox(height: PelviSpace.sm),
+        Text(
+          'Sends a magic link by email. No invite codes.',
+          style: text.bodySmall?.copyWith(
+            color: PelviColors.of(context).inkMuted,
           ),
         ),
-      ],
-      if (widget.waiting) ...[
-        const SizedBox(height: PelviSpace.md),
-        FilledButton(
-          onPressed: _busy ? null : _accept,
-          child: const Text('Accept invite'),
-        ),
-        const SizedBox(height: PelviSpace.sm),
-        TextButton(
-          onPressed: _busy ? null : _signOut,
-          child: const Text('Sign out'),
-        ),
-      ],
-      if (_canSend) ...[
-        const SizedBox(height: PelviSpace.sm),
-        TextButton(
-          onPressed: _busy ? null : _revoke,
-          child: const Text('Revoke unused invite'),
-        ),
-        const SizedBox(height: PelviSpace.lg),
-        Text('Send an invite', style: text.titleMedium),
         const SizedBox(height: PelviSpace.sm),
         TextField(
           controller: _email,
@@ -347,23 +389,20 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
         const SizedBox(height: PelviSpace.md),
         FilledButton(
           onPressed: _busy ? null : _send,
-          child: const Text('Create invite'),
+          child: const Text('Send invite'),
         ),
-        if (_issuedCode != null) ...[
+        if (_issuedJoinUrl != null) ...[
           const SizedBox(height: PelviSpace.md),
           SelectableText(
-            _issuedCode!,
-            style: text.headlineSmall?.copyWith(
-              letterSpacing: 4,
-              fontWeight: FontWeight.w600,
-            ),
+            _issuedJoinUrl!,
+            style: text.bodySmall,
           ),
           TextButton(
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: _issuedCode!));
-              showPelviSnackBar(context, 'Code copied');
+              Clipboard.setData(ClipboardData(text: _issuedJoinUrl!));
+              showPelviSnackBar(context, 'Link copied');
             },
-            child: const Text('Copy code'),
+            child: const Text('Copy link'),
           ),
         ],
       ],
@@ -375,7 +414,6 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxFormWidth),
-            // Waiting: vertically center like first-run. Invites: scroll list.
             child: widget.waiting
                 ? Padding(
                     padding: const EdgeInsets.all(PelviSpace.lg),

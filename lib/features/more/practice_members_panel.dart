@@ -111,8 +111,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
           builder: (ctx, setLocal) {
             Future<void> send() async {
               if (sending) return;
-              final user = NotesAuth.currentUser;
-              if (user == null) return;
+              if (NotesAuth.currentUser == null) return;
               final emails = parseClinicInviteEmails(emailCtrl.text);
               if (emails.isEmpty) {
                 showPelviSnackBar(ctx, 'Enter a Google account email');
@@ -132,22 +131,25 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
               }
               setLocal(() => sending = true);
               try {
-                final ids = <String>[];
+                final results = <ClinicInviteResult>[];
                 for (final email in emails) {
-                  final id = await OrgDirectory().createInvite(
-                    user: user,
-                    email: email,
-                    kind: 'join',
-                    orgId: _orgId,
-                    role: role.name,
-                    issuedByPlatformAdmin: false,
+                  results.add(
+                    await OrgDirectory().createClinicInvite(
+                      email: email,
+                      kind: 'join',
+                      orgId: _orgId,
+                      role: role.name,
+                    ),
                   );
-                  ids.add(id);
                 }
                 if (!ctx.mounted) return;
-                await Clipboard.setData(
-                  ClipboardData(text: ids.join('\n')),
-                );
+                final links = [
+                  for (final r in results)
+                    if (r.joinUrl.isNotEmpty) r.joinUrl,
+                ];
+                if (links.isNotEmpty) {
+                  await Clipboard.setData(ClipboardData(text: links.join('\n')));
+                }
                 if (!ctx.mounted) return;
                 Navigator.pop(ctx, true);
                 if (!mounted) return;
@@ -155,12 +157,26 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
                   _inviteRole = role;
                   _tab = _MembersTab.pending;
                 });
-                showPelviSnackBar(
-                  context,
-                  ids.length == 1
-                      ? 'Invite created. Code copied.'
-                      : '${ids.length} invites created. Codes copied.',
-                );
+                final emailed = results.where((r) => r.emailed).length;
+                final failed = results.length - emailed;
+                if (failed == 0) {
+                  showPelviSnackBar(
+                    context,
+                    results.length == 1
+                        ? 'Invite sent to ${emails.first}'
+                        : '${results.length} invites sent',
+                  );
+                } else if (emailed == 0) {
+                  showPelviSnackBar(
+                    context,
+                    'Invite created but email failed. Link copied — share it manually.',
+                  );
+                } else {
+                  showPelviSnackBar(
+                    context,
+                    'Sent $emailed; $failed email(s) failed. Links copied.',
+                  );
+                }
                 await _reload();
               } catch (e) {
                 if (ctx.mounted) {
@@ -251,9 +267,29 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
     if (sent != true || !mounted) return;
   }
 
-  Future<void> _copyInvite(OrgInvite invite) async {
-    await Clipboard.setData(ClipboardData(text: invite.id));
-    if (mounted) showPelviSnackBar(context, 'Code copied');
+  Future<void> _resendInvite(OrgInvite invite) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final result =
+          await OrgDirectory().resendClinicInvite(inviteId: invite.id);
+      if (!mounted) return;
+      if (result.joinUrl.isNotEmpty) {
+        await Clipboard.setData(ClipboardData(text: result.joinUrl));
+      }
+      if (!mounted) return;
+      showPelviSnackBar(
+        context,
+        result.emailed
+            ? 'Invite resent to ${invite.email}. Link copied.'
+            : 'Invite rotated but email failed. Link copied.',
+      );
+      await _reload();
+    } catch (e) {
+      if (mounted) showPelviSnackBar(context, 'Could not resend invite: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _revokeInvite(OrgInvite invite) async {
@@ -480,7 +516,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
             _PendingList(
               pending: _pending,
               busy: _busy,
-              onCopy: _copyInvite,
+              onResend: _resendInvite,
               onRevoke: _revokeInvite,
             )
           else
@@ -646,13 +682,13 @@ class _PendingList extends StatelessWidget {
   const _PendingList({
     required this.pending,
     required this.busy,
-    required this.onCopy,
+    required this.onResend,
     required this.onRevoke,
   });
 
   final List<OrgInvite> pending;
   final bool busy;
-  final ValueChanged<OrgInvite> onCopy;
+  final ValueChanged<OrgInvite> onResend;
   final ValueChanged<OrgInvite> onRevoke;
 
   @override
@@ -672,7 +708,7 @@ class _PendingList extends StatelessWidget {
           _PendingRow(
             invite: pending[i],
             busy: busy,
-            onCopy: () => onCopy(pending[i]),
+            onResend: () => onResend(pending[i]),
             onRevoke: () => onRevoke(pending[i]),
           ),
         ],
@@ -726,13 +762,13 @@ class _PendingRow extends StatelessWidget {
   const _PendingRow({
     required this.invite,
     required this.busy,
-    required this.onCopy,
+    required this.onResend,
     required this.onRevoke,
   });
 
   final OrgInvite invite;
   final bool busy;
-  final VoidCallback onCopy;
+  final VoidCallback onResend;
   final VoidCallback onRevoke;
 
   @override
@@ -743,6 +779,17 @@ class _PendingRow extends StatelessWidget {
     final expiry = days <= 0
         ? 'expires today'
         : 'expires in ${days == 1 ? '1 day' : '$days days'}';
+    final delivery = switch (invite.emailDeliveryStatus) {
+      'sent' => 'email sent',
+      'failed' => 'email failed',
+      'queued' => 'email queued',
+      _ => null,
+    };
+    final meta = [
+      role,
+      expiry,
+      if (delivery != null) delivery,
+    ].join(' · ');
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -751,7 +798,7 @@ class _PendingRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                invite.email.isEmpty ? invite.id : invite.email,
+                invite.email.isEmpty ? 'Invite' : invite.email,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -760,21 +807,20 @@ class _PendingRow extends StatelessWidget {
                 ),
               ),
               Text(
-                '$role · $expiry · ${invite.id}',
+                meta,
                 style: TextStyle(
                   fontSize: 11,
                   height: 1.5,
                   color: c.inkMuted,
-                  letterSpacing: invite.id.length == 6 ? 1.2 : 0,
                 ),
               ),
             ],
           ),
         ),
         _RowAction(
-          label: 'Copy code',
+          label: 'Resend',
           color: c.pink700,
-          onTap: busy ? null : onCopy,
+          onTap: busy ? null : onResend,
         ),
         const SizedBox(width: 12),
         _RowAction(
