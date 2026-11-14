@@ -96,6 +96,8 @@ async function createAndEmailInvite({
   kind,
   orgId,
   role,
+  sendEmail = true,
+  inheritEmailStatus = null,
 }) {
   const normalized = normalizeEmail(email);
   if (!EMAIL_RE.test(normalized)) {
@@ -123,6 +125,23 @@ async function createAndEmailInvite({
   });
 
   const joinUrl = joinUrlForToken(token);
+
+  if (!sendEmail) {
+    // Copy-link rotate: new token, no outbound mail. Keep prior delivery state.
+    const status = inheritEmailStatus || null;
+    await ref.update({
+      emailDeliveryStatus: status,
+      lastEmailedAt: null,
+    });
+    return {
+      inviteId: hash,
+      joinUrl,
+      emailed: false,
+      emailDeliveryStatus: status,
+      emailError: null,
+    };
+  }
+
   const clinicName =
     kind === 'join' ? await clinicNameFor(orgId) : 'NotesOnly (create clinic)';
   const mailed = await sendInviteEmail({
@@ -168,6 +187,36 @@ exports.createClinicInvite = onCall(
   },
 );
 
+async function rotateOpenInvite({ auth, inviteId, sendEmail }) {
+  const oldRef = db.collection('invites').doc(inviteId);
+  const oldSnap = await oldRef.get();
+  if (!oldSnap.exists) {
+    throw new HttpsError('not-found', 'Invite not found');
+  }
+  const old = oldSnap.data();
+  await assertCanResend(db, auth, old);
+  if (old.acceptedAt || old.revokedAt) {
+    throw new HttpsError('failed-precondition', 'Invite is no longer open');
+  }
+  const expires = old.expiresAt?.toDate?.() || null;
+  if (!expires || expires.getTime() <= Date.now()) {
+    throw new HttpsError('failed-precondition', 'Invite has expired');
+  }
+
+  // Rotate: revoke previous open invite, mint a fresh token.
+  await oldRef.update({ revokedAt: FieldValue.serverTimestamp() });
+
+  return createAndEmailInvite({
+    auth,
+    email: old.email,
+    kind: old.kind,
+    orgId: old.orgId,
+    role: old.role,
+    sendEmail,
+    inheritEmailStatus: sendEmail ? null : old.emailDeliveryStatus || null,
+  });
+}
+
 exports.resendClinicInvite = onCall(
   { secrets: [gmailUser, gmailAppPassword], region: 'us-central1' },
   async (request) => {
@@ -181,31 +230,24 @@ exports.resendClinicInvite = onCall(
       if (!inviteId) {
         throw new HttpsError('invalid-argument', 'inviteId required');
       }
-      const oldRef = db.collection('invites').doc(inviteId);
-      const oldSnap = await oldRef.get();
-      if (!oldSnap.exists) {
-        throw new HttpsError('not-found', 'Invite not found');
-      }
-      const old = oldSnap.data();
-      await assertCanResend(db, auth, old);
-      if (old.acceptedAt || old.revokedAt) {
-        throw new HttpsError('failed-precondition', 'Invite is no longer open');
-      }
-      const expires = old.expiresAt?.toDate?.() || null;
-      if (!expires || expires.getTime() <= Date.now()) {
-        throw new HttpsError('failed-precondition', 'Invite has expired');
-      }
+      return await rotateOpenInvite({ auth, inviteId, sendEmail: true });
+    } catch (err) {
+      throw httpsError(err);
+    }
+  },
+);
 
-      // Rotate: revoke previous open invite, mint a fresh token.
-      await oldRef.update({ revokedAt: FieldValue.serverTimestamp() });
-
-      return await createAndEmailInvite({
-        auth,
-        email: old.email,
-        kind: old.kind,
-        orgId: old.orgId,
-        role: old.role,
-      });
+/// Copy link: rotate token and return joinUrl only (no email).
+exports.copyClinicInviteLink = onCall(
+  { region: 'us-central1' },
+  async (request) => {
+    try {
+      const auth = requireAuth(request);
+      const inviteId = String(request.data?.inviteId || '').trim();
+      if (!inviteId) {
+        throw new HttpsError('invalid-argument', 'inviteId required');
+      }
+      return await rotateOpenInvite({ auth, inviteId, sendEmail: false });
     } catch (err) {
       throw httpsError(err);
     }

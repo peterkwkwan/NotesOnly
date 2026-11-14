@@ -10,6 +10,7 @@ Web join URL: `https://notesonly-e4829.web.app/join?token=<opaque>`
 | --- | --- |
 | `createClinicInvite` | Owner/Admin (or platform admin) → mint token, store SHA-256 doc id, email link |
 | `resendClinicInvite` | Rotate token (revoke old) + email again |
+| `copyClinicInviteLink` | Rotate token (revoke old); return `joinUrl` for clipboard only (no email) |
 | `acceptInvite` | Hash token → email match → membership (Admin SDK) |
 
 Firestore never stores the raw token. Inviter may receive `joinUrl` once for clipboard.

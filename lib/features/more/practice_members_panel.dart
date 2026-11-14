@@ -274,19 +274,37 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
       final result =
           await OrgDirectory().resendClinicInvite(inviteId: invite.id);
       if (!mounted) return;
-      if (result.joinUrl.isNotEmpty) {
-        await Clipboard.setData(ClipboardData(text: result.joinUrl));
-      }
-      if (!mounted) return;
       showPelviSnackBar(
         context,
         result.emailed
-            ? 'Invite resent to ${invite.email}. Link copied.'
-            : 'Invite rotated but email failed. Link copied.',
+            ? 'Invite resent to ${invite.email}.'
+            : 'Invite rotated but email failed.',
       );
       await _reload();
     } catch (e) {
       if (mounted) showPelviSnackBar(context, 'Could not resend invite: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _copyInviteLink(OrgInvite invite) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final result =
+          await OrgDirectory().copyClinicInviteLink(inviteId: invite.id);
+      if (!mounted) return;
+      if (result.joinUrl.isEmpty) {
+        showPelviSnackBar(context, 'Could not copy link');
+        return;
+      }
+      await Clipboard.setData(ClipboardData(text: result.joinUrl));
+      if (!mounted) return;
+      showPelviSnackBar(context, 'Link copied.');
+      await _reload();
+    } catch (e) {
+      if (mounted) showPelviSnackBar(context, 'Could not copy link: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -517,6 +535,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
               pending: _pending,
               busy: _busy,
               onResend: _resendInvite,
+              onCopyLink: _copyInviteLink,
               onRevoke: _revokeInvite,
             )
           else
@@ -684,12 +703,14 @@ class _PendingList extends StatelessWidget {
     required this.pending,
     required this.busy,
     required this.onResend,
+    required this.onCopyLink,
     required this.onRevoke,
   });
 
   final List<OrgInvite> pending;
   final bool busy;
   final ValueChanged<OrgInvite> onResend;
+  final ValueChanged<OrgInvite> onCopyLink;
   final ValueChanged<OrgInvite> onRevoke;
 
   @override
@@ -710,6 +731,7 @@ class _PendingList extends StatelessWidget {
             invite: pending[i],
             busy: busy,
             onResend: () => onResend(pending[i]),
+            onCopyLink: () => onCopyLink(pending[i]),
             onRevoke: () => onRevoke(pending[i]),
           ),
         ],
@@ -764,12 +786,14 @@ class _PendingRow extends StatelessWidget {
     required this.invite,
     required this.busy,
     required this.onResend,
+    required this.onCopyLink,
     required this.onRevoke,
   });
 
   final OrgInvite invite;
   final bool busy;
   final VoidCallback onResend;
+  final VoidCallback onCopyLink;
   final VoidCallback onRevoke;
 
   @override
@@ -822,6 +846,12 @@ class _PendingRow extends StatelessWidget {
           label: 'Resend',
           color: c.pink700,
           onTap: busy ? null : onResend,
+        ),
+        const SizedBox(width: 12),
+        _RowAction(
+          label: 'Copy link',
+          color: c.pink700,
+          onTap: busy ? null : onCopyLink,
         ),
         const SizedBox(width: 12),
         _RowAction(
