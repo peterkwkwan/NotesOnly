@@ -2,7 +2,7 @@
   "name": "notesonly-functions",
   "description": "NotesOnly Cloud Functions — magic-link clinic invites",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "scripts": {
