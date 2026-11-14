@@ -22,7 +22,8 @@ const {
 initializeApp();
 const db = getFirestore();
 
-const resendApiKey = defineSecret('RESEND_API_KEY');
+const gmailUser = defineSecret('GMAIL_USER');
+const gmailAppPassword = defineSecret('GMAIL_APP_PASSWORD');
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -143,12 +144,13 @@ async function createAndEmailInvite({
 }
 
 exports.createClinicInvite = onCall(
-  { secrets: [resendApiKey], region: 'us-central1' },
+  { secrets: [gmailUser, gmailAppPassword], region: 'us-central1' },
   async (request) => {
     try {
-      // Secret is injected into process.env by Functions runtime.
-      if (resendApiKey.value()) {
-        process.env.RESEND_API_KEY = resendApiKey.value();
+      // Secrets are injected into process.env by Functions runtime.
+      if (gmailUser.value()) process.env.GMAIL_USER = gmailUser.value();
+      if (gmailAppPassword.value()) {
+        process.env.GMAIL_APP_PASSWORD = gmailAppPassword.value();
       }
       const auth = requireAuth(request);
       const data = request.data || {};
@@ -167,11 +169,12 @@ exports.createClinicInvite = onCall(
 );
 
 exports.resendClinicInvite = onCall(
-  { secrets: [resendApiKey], region: 'us-central1' },
+  { secrets: [gmailUser, gmailAppPassword], region: 'us-central1' },
   async (request) => {
     try {
-      if (resendApiKey.value()) {
-        process.env.RESEND_API_KEY = resendApiKey.value();
+      if (gmailUser.value()) process.env.GMAIL_USER = gmailUser.value();
+      if (gmailAppPassword.value()) {
+        process.env.GMAIL_APP_PASSWORD = gmailAppPassword.value();
       }
       const auth = requireAuth(request);
       const inviteId = String(request.data?.inviteId || '').trim();

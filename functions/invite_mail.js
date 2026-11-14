@@ -1,5 +1,7 @@
 'use strict';
 
+const nodemailer = require('nodemailer');
+
 const INVITE_TTL_DAYS = 14;
 
 function publicWebBase() {
@@ -10,7 +12,7 @@ function publicWebBase() {
 }
 
 function inviteFromAddress() {
-  return process.env.INVITE_FROM_EMAIL || 'NotesOnly <onboarding@resend.dev>';
+  return `NotesOnly <${process.env.GMAIL_USER}>`;
 }
 
 function joinUrlForToken(token) {
@@ -68,49 +70,53 @@ function roleLabel(role) {
 }
 
 /**
- * Send via Resend HTTP API. Returns { ok, status, error? }.
- * When RESEND_API_KEY is missing, returns failed without throwing (invite still created).
+ * Send via Gmail SMTP (nodemailer). Returns { ok, status, error? }.
+ * When GMAIL_USER / GMAIL_APP_PASSWORD are missing, returns failed without
+ * throwing (invite still created).
  */
 async function sendInviteEmail({ to, clinicName, role, joinUrl, expiresAt }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return { ok: false, status: 'failed', error: 'RESEND_API_KEY not set' };
-  }
-  const subjectClinic = clinicName || 'NotesOnly';
-  const body = {
-    from: inviteFromAddress(),
-    to: [to],
-    subject: `Join ${subjectClinic} on NotesOnly`,
-    html: inviteEmailHtml({
-      clinicName,
-      roleLabel: roleLabel(role),
-      joinUrl,
-      expiresAt,
-    }),
-    text: inviteEmailText({
-      clinicName,
-      roleLabel: roleLabel(role),
-      joinUrl,
-      expiresAt,
-    }),
-  };
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) {
     return {
       ok: false,
       status: 'failed',
-      error: `Resend ${res.status}: ${text.slice(0, 200)}`,
+      error: 'GMAIL_USER / GMAIL_APP_PASSWORD not set',
     };
   }
-  return { ok: true, status: 'sent' };
+
+  const subjectClinic = clinicName || 'NotesOnly';
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass },
+  });
+
+  try {
+    await transporter.sendMail({
+      from: inviteFromAddress(),
+      to,
+      subject: `Join ${subjectClinic} on NotesOnly`,
+      html: inviteEmailHtml({
+        clinicName,
+        roleLabel: roleLabel(role),
+        joinUrl,
+        expiresAt,
+      }),
+      text: inviteEmailText({
+        clinicName,
+        roleLabel: roleLabel(role),
+        joinUrl,
+        expiresAt,
+      }),
+    });
+    return { ok: true, status: 'sent' };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 'failed',
+      error: `Gmail SMTP: ${(err && err.message) || String(err)}`.slice(0, 200),
+    };
+  }
 }
 
 module.exports = {

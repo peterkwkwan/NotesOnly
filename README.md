@@ -73,7 +73,7 @@ Same engine on Android and web.
 ## Magic-link clinic invites
 
 Clinic invites are emailed magic links (`/join?token=…`), not paste codes. See
-[`docs/magic-link-invites.md`](docs/magic-link-invites.md) for Resend secrets and
+[`docs/magic-link-invites.md`](docs/magic-link-invites.md) for Gmail SMTP secrets and
 deploy order (`functions` → `firestore:rules,indexes` → `hosting`).
 
 ## Web Hosting deploy

@@ -1,6 +1,6 @@
 # Magic-link clinic invites
 
-Opaque hashed tokens + Resend email. **No 6-character invite codes.**
+Opaque hashed tokens + Gmail SMTP email. **No 6-character invite codes.**
 
 Web join URL: `https://notesonly-e4829.web.app/join?token=<opaque>`
 
@@ -16,25 +16,31 @@ Firestore never stores the raw token. Inviter may receive `joinUrl` once for cli
 
 ## Secrets / env (Peter)
 
-1. **Resend:** create account, verify a sending domain (or use `onboarding@resend.dev` for smoke tests only).
-2. Set the Functions secret:
+1. Use a Google account with [App Passwords](https://myaccount.google.com/apppasswords) enabled (2FA required).
+2. Set the Functions secrets:
 
 ```bash
-firebase functions:secrets:set RESEND_API_KEY
-# paste the Resend API key when prompted
+firebase functions:secrets:set GMAIL_USER
+# paste: peterkwkwan@gmail.com
+
+firebase functions:secrets:set GMAIL_APP_PASSWORD
+# paste the 16-character Google App Password
 ```
 
-3. Optional runtime env (set in Console or `.env` for emulators):
+3. Optional runtime env:
 
 | Name | Default | Purpose |
 | --- | --- | --- |
-| `INVITE_FROM_EMAIL` | `NotesOnly <onboarding@resend.dev>` | Resend `from` (must be allowed on your Resend domain) |
 | `PUBLIC_WEB_URL` | `https://notesonly-e4829.web.app` | Base for `/join?token=` links |
+
+From address is always `NotesOnly <GMAIL_USER>` (no separate From secret).
+
+`RESEND_API_KEY` is no longer used — remove it from Secret Manager when convenient.
 
 ## Deploy order
 
 ```bash
-# 1) Functions (needs RESEND_API_KEY secret first)
+# 1) Functions (needs GMAIL_USER + GMAIL_APP_PASSWORD first)
 cd functions && npm ci && cd ..
 firebase deploy --only functions
 
@@ -50,7 +56,7 @@ firebase deploy --only hosting
 ## After deploy
 
 1. Revoke any leftover open **6-character** Amber Health invites (Pending → Revoke), or let them expire — they cannot be accepted anymore.
-2. Practice settings → Members → Send invite → confirm Resend delivery.
+2. Practice settings → Members → Send invite → confirm Gmail delivery.
 3. Open the link signed out → Google Sign-In with the **invited** account → auto-join.
 
 ## Android
