@@ -23,7 +23,7 @@ class WebClientsDashboard extends StatefulWidget {
 
 enum _ScopeFilter { all, pinned }
 enum _SortMode { nameAz, nameZa }
-enum _ViewTab { all, due }
+enum _ViewTab { all, due, pinned }
 
 class _WebClientsDashboardState extends State<WebClientsDashboard> {
   String _query = '';
@@ -77,6 +77,12 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
     for (final id in ids) {
       await db.setRecallMuted(id, muted);
     }
+  }
+
+  Future<void> _pinSelected(bool pinned) async {
+    final ids = _selected.toList();
+    if (ids.isEmpty) return;
+    await AppDatabaseProvider.of(context).setClientsPinned(ids, pinned);
   }
 
   Future<void> _exportSelected(List<Client> listed) async {
@@ -139,6 +145,8 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
     }
     if (_tab == _ViewTab.due) {
       listed = [for (final c in listed) if (dueIds.contains(c.id)) c];
+    } else if (_tab == _ViewTab.pinned) {
+      listed = [for (final c in listed) if (pinnedIds.contains(c.id)) c];
     }
     listed = List<Client>.of(listed);
     listed.sort((a, b) {
@@ -248,6 +256,7 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
                                     _ViewTabs(
                                       tab: _tab,
                                       dueCount: due.length,
+                                      pinnedCount: pinnedIds.length,
                                       onTab: (v) =>
                                           setState(() => _tab = v),
                                     ),
@@ -289,6 +298,10 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
                                                     _muteSelected(true),
                                                 onUnmute: () =>
                                                     _muteSelected(false),
+                                                onPin: () =>
+                                                    _pinSelected(true),
+                                                onUnpin: () =>
+                                                    _pinSelected(false),
                                               ),
                                             ),
                                           ),
@@ -606,11 +619,13 @@ class _ViewTabs extends StatelessWidget {
   const _ViewTabs({
     required this.tab,
     required this.dueCount,
+    required this.pinnedCount,
     required this.onTab,
   });
 
   final _ViewTab tab;
   final int dueCount;
+  final int pinnedCount;
   final ValueChanged<_ViewTab> onTab;
 
   @override
@@ -632,6 +647,12 @@ class _ViewTabs extends StatelessWidget {
             label: dueCount == 0 ? 'Due' : 'Due ($dueCount)',
             selected: tab == _ViewTab.due,
             onTap: () => onTab(_ViewTab.due),
+          ),
+          const SizedBox(width: 26),
+          _Tab(
+            label: pinnedCount == 0 ? 'Pinned' : 'Pinned ($pinnedCount)',
+            selected: tab == _ViewTab.pinned,
+            onTap: () => onTab(_ViewTab.pinned),
           ),
         ],
       ),
@@ -1078,6 +1099,8 @@ class _RecallSidePanels extends StatefulWidget {
     required this.onRemove,
     required this.onMute,
     required this.onUnmute,
+    required this.onPin,
+    required this.onUnpin,
   });
 
   final List<Client> selected;
@@ -1085,6 +1108,8 @@ class _RecallSidePanels extends StatefulWidget {
   final ValueChanged<int> onRemove;
   final VoidCallback onMute;
   final VoidCallback onUnmute;
+  final VoidCallback onPin;
+  final VoidCallback onUnpin;
 
   @override
   State<_RecallSidePanels> createState() => _RecallSidePanelsState();
@@ -1262,6 +1287,54 @@ class _RecallSidePanelsState extends State<_RecallSidePanels> {
                     ),
                     child: Text(
                       'Unmute recalls ($n)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.ink,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: widget.onPin,
+                    icon: Icon(
+                      Icons.push_pin_outlined,
+                      size: 16,
+                      color: c.pink700,
+                    ),
+                    label: Text(
+                      'Pin ($n)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.pink700,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: c.pink50,
+                      foregroundColor: c.pink700,
+                      elevation: 0,
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: widget.onUnpin,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: c.ink,
+                      side: BorderSide(color: c.border),
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                      ),
+                    ),
+                    child: Text(
+                      'Unpin ($n)',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
