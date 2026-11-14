@@ -35,15 +35,21 @@ class OrgDirectory {
       'acceptedAt': null,
       'acceptedByUid': null,
     };
+    // Do not get() before create: invite read rules need resource.data, so a
+    // missing doc is permission-denied. Collision turns set into update, which
+    // rules also deny — retry a fresh code.
+    FirebaseException? lastDenied;
     for (var attempt = 0; attempt < 8; attempt++) {
       final id = newInviteCode();
-      final ref = _fs.collection('invites').doc(id);
-      final existing = await ref.get();
-      if (existing.exists) continue;
-      await ref.set(payload);
-      return id;
+      try {
+        await _fs.collection('invites').doc(id).set(payload);
+        return id;
+      } on FirebaseException catch (e) {
+        if (e.code != 'permission-denied') rethrow;
+        lastDenied = e;
+      }
     }
-    throw StateError('Could not allocate an invite code');
+    throw lastDenied ?? StateError('Could not allocate an invite code');
   }
 
   Future<void> revokeInvite({
