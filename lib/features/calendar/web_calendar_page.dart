@@ -456,6 +456,46 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     }
   }
 
+  Future<void> _deleteAppointment(AppDatabase db) async {
+    final row = _reassign;
+    if (row == null || _saving) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this appointment?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: PelviColors.of(context).danger,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await db.deleteAppointment(row.appointment.id);
+      if (!mounted) return;
+      setState(() {
+        _reassign = null;
+        _reassignUid = null;
+        _panelOpen = false;
+      });
+      showPelviSnackBar(context, 'Appointment deleted');
+    } catch (e) {
+      if (mounted) showPelviSnackBar(context, 'Could not delete: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _save(AppDatabase db, int defaultMins) async {
     final clientId = _clientId;
     if (clientId == null || _saving) return;
@@ -760,6 +800,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                   ),
                                                   onSave: () =>
                                                       _saveReassign(db),
+                                                  onDelete: () =>
+                                                      _deleteAppointment(db),
                                                 ),
                                             ),
                                           ],
@@ -2472,6 +2514,7 @@ class _ReassignPanel extends StatelessWidget {
     required this.onClose,
     required this.onPick,
     required this.onSave,
+    required this.onDelete,
   });
 
   final ({Appointment appointment, Client client}) row;
@@ -2482,6 +2525,7 @@ class _ReassignPanel extends StatelessWidget {
   final VoidCallback onClose;
   final ValueChanged<String> onPick;
   final VoidCallback onSave;
+  final VoidCallback onDelete;
 
   List<OrgMember> get _bookable => [
         for (final member in members)
@@ -2607,6 +2651,19 @@ class _ReassignPanel extends StatelessWidget {
             child: Text(
               saving ? 'Saving…' : 'Reassign',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: saving ? null : onDelete,
+            style: TextButton.styleFrom(
+              foregroundColor: c.danger,
+              disabledForegroundColor: c.inkMuted,
+              minimumSize: const Size(0, 38),
+            ),
+            child: const Text(
+              'Delete',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
         ],

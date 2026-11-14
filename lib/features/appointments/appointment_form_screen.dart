@@ -165,6 +165,41 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     await _loadHasNote();
   }
 
+  Future<void> _confirmDelete() async {
+    final existing = widget.existing;
+    if (existing == null || _saving) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this appointment?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: PelviColors.of(context).danger,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await AppDatabaseProvider.of(context).deleteAppointment(existing.id);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, 'Could not delete: $e');
+      setState(() => _saving = false);
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final clientId = _clientId;
@@ -373,10 +408,18 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             if (_editing) ...[
               const SizedBox(height: PelviSpace.sm),
               OutlinedButton(
-                onPressed: _openSoap,
+                onPressed: _saving ? null : _openSoap,
                 child: Text(
                   _hasNote == true ? 'Open SOAP note' : 'Create SOAP note',
                 ),
+              ),
+              const SizedBox(height: PelviSpace.sm),
+              TextButton(
+                onPressed: _saving ? null : _confirmDelete,
+                style: TextButton.styleFrom(
+                  foregroundColor: PelviColors.of(context).danger,
+                ),
+                child: const Text('Delete appointment'),
               ),
             ],
           ],
