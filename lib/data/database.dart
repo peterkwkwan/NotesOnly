@@ -1455,18 +1455,22 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// My non-deleted appointments missing a Google event id (backfill).
+  ///
+  /// Ownership matches [GoogleCalendarSync.enqueueForAppointment]: empty
+  /// [Appointment.practitionerUid] counts as the signed-in user. Empty-string
+  /// event ids are treated as missing (same as null).
   Future<List<Appointment>> myAppointmentsNeedingGoogleEvent(String uid) async {
-    final rows = await (select(appointments)
-          ..where(
-            (t) =>
-                t.deletedAt.isNull() &
-                t.practitionerUid.equals(uid) &
-                t.googleEventId.isNull(),
-          ))
-        .get();
-    return rows
-        .where((a) => a.status != AppointmentStatus.cancelled)
-        .toList();
+    if (uid.isEmpty) return const [];
+    final rows =
+        await (select(appointments)..where((t) => t.deletedAt.isNull())).get();
+    return rows.where((a) {
+      if (a.status == AppointmentStatus.cancelled) return false;
+      final owner =
+          a.practitionerUid.isEmpty ? uid : a.practitionerUid;
+      if (owner != uid) return false;
+      final gid = a.googleEventId;
+      return gid == null || gid.isEmpty;
+    }).toList();
   }
 
   Future<Appointment?> getAppointment(int id) {

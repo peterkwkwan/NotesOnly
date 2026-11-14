@@ -87,7 +87,16 @@ class NotesAuth {
         final provider = GoogleAuthProvider()
           ..addScope(calendarEventsScope);
         if (interactive) {
-          provider.setCustomParameters({'prompt': 'consent select_account'});
+          // Prefer the already-signed-in Firebase Google account so Calendar
+          // events land on that primary calendar (not a different picker pick).
+          final params = <String, String>{'prompt': 'consent'};
+          final email = currentUser?.email?.trim();
+          if (email != null && email.isNotEmpty) {
+            params['login_hint'] = email;
+          } else {
+            params['prompt'] = 'consent select_account';
+          }
+          provider.setCustomParameters(params);
         }
         final result = await _auth.signInWithPopup(provider);
         final cred = result.credential;

@@ -59,7 +59,9 @@ class GoogleCalendarSync {
     await db.setGoogleCalendarSyncStatus('connected');
     await db.setSetting(AppDatabase.googleCalendarLastErrorKey, '');
     await _enqueueBackfill();
-    unawaited(drain());
+    // Await first drain so enable() reflects push errors (status / soft snackbar)
+    // instead of claiming Connected while the outbox never left the device.
+    await drain();
     return true;
   }
 
@@ -134,11 +136,18 @@ class GoogleCalendarSync {
   Future<void> drain() async {
     if (_draining) return;
     if (!await db.getGoogleCalendarSyncEnabled()) return;
-    if (!await deviceLooksOnline()) return;
+    final queued = await _readOutbox();
+    if (queued.isEmpty) return;
+    if (!await deviceLooksOnline()) {
+      // Previously a silent return left status "Connected" with a full outbox.
+      onSoftError?.call(
+        "Couldn't update Google Calendar — will retry",
+      );
+      return;
+    }
     _draining = true;
     try {
-      var items = await _readOutbox();
-      if (items.isEmpty) return;
+      var items = queued;
       final now = DateTime.now().millisecondsSinceEpoch;
       final remaining = <Map<String, dynamic>>[];
       var softFailed = false;
@@ -406,5 +415,11 @@ class _CalendarHttpException implements Exception {
   final String body;
 
   @override
-  String toString() => 'Calendar HTTP $statusCode';
+  String toString() {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return 'Calendar HTTP $statusCode';
+    final clip =
+        trimmed.length > 180 ? '${trimmed.substring(0, 180)}…' : trimmed;
+    return 'Calendar HTTP $statusCode: $clip';
+  }
 }

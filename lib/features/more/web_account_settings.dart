@@ -205,7 +205,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
       );
       return;
     }
-    showPelviSnackBar(context, 'Synced to Google Calendar');
+    showPelviSnackBar(context, 'Google Calendar connected');
   }
 
   int get _publishedCount => soapTemplates.where((t) => !t.isBlank).length;

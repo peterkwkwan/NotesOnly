@@ -491,7 +491,7 @@ class MoreScreen extends StatelessWidget {
       );
       return;
     }
-    showPelviSnackBar(context, 'Synced to Google Calendar');
+    showPelviSnackBar(context, 'Google Calendar connected');
   }
 
   Future<void> _signOut(BuildContext context) async {
