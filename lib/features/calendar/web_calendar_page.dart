@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/appointment_overlap.dart';
+import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../data/org.dart';
@@ -14,6 +15,69 @@ import '../notes/note_format.dart';
 import '../shell/desktop_chrome.dart';
 
 enum _CalView { day, week, month }
+
+/// Week overlay stays readable past this; day columns can raise later.
+const _maxCalendarPractitioners = 3;
+
+String _calendarFilterUidsKey(String orgId, String uid) =>
+    'calendar_filter_uids__${orgId}__$uid';
+
+class _PracColors {
+  const _PracColors({
+    required this.fill,
+    required this.accent,
+    required this.text,
+  });
+
+  final Color fill;
+  final Color accent;
+  final Color text;
+}
+
+/// Pink = me; others get purple / teal / amber by roster order.
+_PracColors _personColors({
+  required PelviPalette c,
+  required String uid,
+  required String selfUid,
+  required List<String> rosterUids,
+}) {
+  final id = uid.isEmpty ? selfUid : uid;
+  if (id.isEmpty || id == selfUid) {
+    return _PracColors(fill: c.pink50, accent: c.pink400, text: c.pink700);
+  }
+  // shortcut: teal/amber are fixed light swatches; upgrade if dark-calendar QA cares
+  final extras = <_PracColors>[
+    _PracColors(fill: c.purple50, accent: c.purple400, text: c.purple700),
+    const _PracColors(
+      fill: Color(0xFFE6F5F0),
+      accent: Color(0xFF5BA88A),
+      text: Color(0xFF1F7A5C),
+    ),
+    const _PracColors(
+      fill: Color(0xFFFBF0E6),
+      accent: Color(0xFFE0A066),
+      text: Color(0xFFB56A1E),
+    ),
+  ];
+  final others = [for (final u in rosterUids) if (u != selfUid) u];
+  final idx = others.indexOf(id);
+  final pick =
+      idx < 0 ? id.hashCode.abs() % extras.length : idx % extras.length;
+  return extras[pick];
+}
+
+String _shortPersonName(String full) {
+  final t = full.trim();
+  if (t.isEmpty) return '?';
+  if (t.contains('@')) {
+    final local = t.split('@').first;
+    final parts = local.split(RegExp(r'[._\-+]+'));
+    final first = parts.isEmpty ? local : parts.first;
+    if (first.isEmpty) return local;
+    return '${first[0].toUpperCase()}${first.substring(1)}';
+  }
+  return t.split(RegExp(r'\s+')).first;
+}
 
 const _monthNames = [
   'January',
@@ -86,6 +150,10 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   List<OrgMember> _members = const [];
   bool _canReassign = false;
   bool _rosterStarted = false;
+  String _selfUid = '';
+  String _orgId = '';
+  Set<String> _filterUids = {};
+  Map<String, String> _memberNames = {};
 
   @override
   void initState() {
@@ -117,15 +185,144 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       final orgId = await db.getSetting(AppDatabase.activeOrgIdKey);
       final roles =
           parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
+      final self = NotesAuth.currentUser?.uid ?? '';
       if (!mounted) return;
-      setState(() => _canReassign = mayReassignBooking(roles));
-      if (orgId == null || orgId.isEmpty) return;
+      setState(() {
+        _canReassign = mayReassignBooking(roles);
+        _selfUid = self;
+        _orgId = orgId ?? '';
+      });
+      if (orgId == null || orgId.isEmpty) {
+        if (self.isNotEmpty && _filterUids.isEmpty) {
+          setState(() => _filterUids = {self});
+        }
+        return;
+      }
       final members = await OrgDirectory().listMembers(orgId);
+      final bookable = [
+        for (final m in members)
+          if (isBookablePractitioner(m)) m,
+      ];
+      final names = <String, String>{};
+      for (final m in bookable) {
+        final stored = await db.getPractitionerName(uid: m.uid);
+        final label = (stored != null && stored.trim().isNotEmpty)
+            ? stored.trim()
+            : memberLabel(m);
+        names[m.uid] = label;
+      }
+      if (self.isNotEmpty) {
+        final selfName = await db.getPractitionerName(uid: self);
+        if (selfName != null && selfName.trim().isNotEmpty) {
+          names[self] = selfName.trim();
+        }
+      }
       if (!mounted) return;
-      setState(() => _members = members);
+      final bookableUids = {for (final m in bookable) m.uid};
+      var selected = <String>{};
+      final raw =
+          await db.getSetting(_calendarFilterUidsKey(orgId, self));
+      if (raw != null && raw.isNotEmpty) {
+        for (final part in raw.split(',')) {
+          final uid = part.trim();
+          if (uid.isEmpty) continue;
+          if (bookableUids.contains(uid) || uid == self) selected.add(uid);
+        }
+      }
+      if (selected.isEmpty) {
+        if (self.isNotEmpty &&
+            (bookableUids.contains(self) || bookableUids.isEmpty)) {
+          selected = {self};
+        } else if (bookable.isNotEmpty) {
+          selected = {bookable.first.uid};
+        }
+      }
+      if (selected.length > _maxCalendarPractitioners) {
+        selected = selected.take(_maxCalendarPractitioners).toSet();
+      }
+      setState(() {
+        _members = members;
+        _memberNames = names;
+        _filterUids = selected;
+      });
     } catch (_) {
       // Offline or signed out: the panel still shows the booked uid.
+      final self = NotesAuth.currentUser?.uid ?? '';
+      if (!mounted || self.isEmpty) return;
+      if (_filterUids.isEmpty) setState(() => _filterUids = {self});
     }
+  }
+
+  List<OrgMember> get _bookableMembers => [
+        for (final m in _members)
+          if (isBookablePractitioner(m)) m,
+      ];
+
+  List<String> get _rosterUids {
+    final uids = [for (final m in _bookableMembers) m.uid];
+    if (_selfUid.isNotEmpty && !uids.contains(_selfUid)) {
+      return [_selfUid, ...uids];
+    }
+    return uids;
+  }
+
+  bool _matchesFilter(String practitionerUid) {
+    if (_filterUids.isEmpty) return true;
+    final uid = practitionerUid.isEmpty ? _selfUid : practitionerUid;
+    if (uid.isEmpty) return _filterUids.contains(_selfUid);
+    return _filterUids.contains(uid);
+  }
+
+  List<({Appointment appointment, Client client})> _filteredRows(
+    List<({Appointment appointment, Client client})> rows,
+  ) {
+    if (_filterUids.isEmpty) return rows;
+    return [
+      for (final r in rows)
+        if (_matchesFilter(r.appointment.practitionerUid)) r,
+    ];
+  }
+
+  String _nameForUid(String uid) {
+    final stored = _memberNames[uid];
+    if (stored != null && stored.isNotEmpty) return stored;
+    for (final m in _members) {
+      if (m.uid == uid) return memberLabel(m);
+    }
+    return uid;
+  }
+
+  Future<void> _persistFilter() async {
+    if (_orgId.isEmpty || _selfUid.isEmpty) return;
+    try {
+      final db = AppDatabaseProvider.of(context);
+      await db.setSetting(
+        _calendarFilterUidsKey(_orgId, _selfUid),
+        _filterUids.join(','),
+      );
+    } catch (_) {}
+  }
+
+  void _toggleFilterUid(String uid) {
+    final next = {..._filterUids};
+    if (next.contains(uid)) {
+      if (next.length <= 1) return;
+      next.remove(uid);
+    } else {
+      if (next.length >= _maxCalendarPractitioners) return;
+      next.add(uid);
+    }
+    setState(() => _filterUids = next);
+    _persistFilter();
+  }
+
+  void _filterOnlyMe() {
+    final me = _selfUid.isNotEmpty
+        ? _selfUid
+        : (_bookableMembers.isNotEmpty ? _bookableMembers.first.uid : '');
+    if (me.isEmpty) return;
+    setState(() => _filterUids = {me});
+    _persistFilter();
   }
 
   DateTime get _rangeStart {
@@ -344,7 +541,9 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                           final endHour = _parseHour(hours.$2);
                           final tz = tzSnap.data ??
                               AppDatabase.defaultTimezone;
-                          final rows = apptSnap.data ?? const [];
+                          final rows = _filteredRows(
+                            apptSnap.data ?? const [],
+                          );
 
                           return LayoutBuilder(
                             builder: (context, constraints) {
@@ -384,9 +583,6 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                           _CalView.month =>
                                             '${_monthNames[_anchor.month - 1]} ${_anchor.year}',
                                         },
-                                        practitioner: practitioner.isEmpty
-                                            ? 'Practitioner'
-                                            : practitioner,
                                         view: _view,
                                         onPrev: () => _shift(-1),
                                         onNext: () => _shift(1),
@@ -401,6 +597,18 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                             );
                                           }
                                         }),
+                                        filter: _PractitionerFilter(
+                                          members: _bookableMembers,
+                                          selfUid: _selfUid,
+                                          selfName: practitioner.isEmpty
+                                              ? 'Practitioner'
+                                              : practitioner,
+                                          memberNames: _memberNames,
+                                          selectedUids: _filterUids,
+                                          rosterUids: _rosterUids,
+                                          onToggle: _toggleFilterUid,
+                                          onOnlyMe: _filterOnlyMe,
+                                        ),
                                       ),
                                       const SizedBox(height: 26),
                                       Row(
@@ -430,6 +638,10 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                     startHour: startHour,
                                                     endHour: endHour,
                                                     defaultMins: defaultMins,
+                                                    selfUid: _selfUid,
+                                                    rosterUids: _rosterUids,
+                                                    filterUids: _filterUids,
+                                                    nameForUid: _nameForUid,
                                                     draft: _panelOpen &&
                                                             _reassign == null
                                                         ? (
@@ -675,19 +887,19 @@ class _Header extends StatelessWidget {
 class _Controls extends StatelessWidget {
   const _Controls({
     required this.navLabel,
-    required this.practitioner,
     required this.view,
     required this.onPrev,
     required this.onNext,
     required this.onView,
+    required this.filter,
   });
 
   final String navLabel;
-  final String practitioner;
   final _CalView view;
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final ValueChanged<_CalView> onView;
+  final Widget filter;
 
   @override
   Widget build(BuildContext context) {
@@ -716,11 +928,7 @@ class _Controls extends StatelessWidget {
           tooltip: 'Next',
         ),
         const Spacer(),
-        _PillButton(
-          label: practitioner,
-          icon: Icons.keyboard_arrow_down,
-          onTap: null,
-        ),
+        filter,
         const SizedBox(width: 10),
         _PillButton(
           label: 'Day',
@@ -744,38 +952,415 @@ class _Controls extends StatelessWidget {
   }
 }
 
+class _PractitionerFilter extends StatefulWidget {
+  const _PractitionerFilter({
+    required this.members,
+    required this.selfUid,
+    required this.selfName,
+    required this.memberNames,
+    required this.selectedUids,
+    required this.rosterUids,
+    required this.onToggle,
+    required this.onOnlyMe,
+  });
+
+  final List<OrgMember> members;
+  final String selfUid;
+  final String selfName;
+  final Map<String, String> memberNames;
+  final Set<String> selectedUids;
+  final List<String> rosterUids;
+  final ValueChanged<String> onToggle;
+  final VoidCallback onOnlyMe;
+
+  @override
+  State<_PractitionerFilter> createState() => _PractitionerFilterState();
+}
+
+class _PractitionerFilterState extends State<_PractitionerFilter> {
+  final _portal = OverlayPortalController();
+  final _link = LayerLink();
+
+  String _labelFor(String uid) {
+    if (uid == widget.selfUid) return widget.selfName;
+    final named = widget.memberNames[uid];
+    if (named != null && named.isNotEmpty) return named;
+    for (final m in widget.members) {
+      if (m.uid == uid) return memberLabel(m);
+    }
+    return uid;
+  }
+
+  List<({String uid, String label, bool isSelf})> get _options {
+    final seen = <String>{};
+    final out = <({String uid, String label, bool isSelf})>[];
+    if (widget.selfUid.isNotEmpty) {
+      seen.add(widget.selfUid);
+      out.add((
+        uid: widget.selfUid,
+        label: widget.selfName,
+        isSelf: true,
+      ));
+    }
+    for (final m in widget.members) {
+      if (!seen.add(m.uid)) continue;
+      out.add((
+        uid: m.uid,
+        label: widget.memberNames[m.uid] ?? memberLabel(m),
+        isSelf: false,
+      ));
+    }
+    return out;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final selected = [
+      for (final o in _options)
+        if (widget.selectedUids.contains(o.uid)) o,
+    ];
+    final atMax = widget.selectedUids.length >= _maxCalendarPractitioners;
+
+    return CompositedTransformTarget(
+      link: _link,
+      child: OverlayPortal(
+        controller: _portal,
+        overlayChildBuilder: (context) {
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _portal.hide,
+                  child: const ColoredBox(color: Colors.transparent),
+                ),
+              ),
+              CompositedTransformFollower(
+                link: _link,
+                showWhenUnlinked: false,
+                targetAnchor: Alignment.bottomRight,
+                followerAnchor: Alignment.topRight,
+                offset: const Offset(0, 6),
+                child: Material(
+                  elevation: 8,
+                  color: c.surface,
+                  shadowColor: c.ink.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 280,
+                      maxWidth: 320,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'PRACTITIONERS · MAX $_maxCalendarPractitioners',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.6,
+                              color: c.inkMuted,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          for (final o in _options)
+                            _PractitionerOptionRow(
+                              label: o.isSelf
+                                  ? 'My calendar'
+                                  : o.label,
+                              subtitle: o.isSelf ? o.label : null,
+                              selected:
+                                  widget.selectedUids.contains(o.uid),
+                              disabled: atMax &&
+                                  !widget.selectedUids.contains(o.uid),
+                              colors: _personColors(
+                                c: c,
+                                uid: o.uid,
+                                selfUid: widget.selfUid,
+                                rosterUids: widget.rosterUids,
+                              ),
+                              onTap: () {
+                                if (atMax &&
+                                    !widget.selectedUids
+                                        .contains(o.uid)) {
+                                  return;
+                                }
+                                widget.onToggle(o.uid);
+                              },
+                            ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              TextButton(
+                                onPressed: () {
+                                  widget.onOnlyMe();
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: c.pink700,
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Only me',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            atMax
+                                ? 'Week view shows up to $_maxCalendarPractitioners practitioners'
+                                : 'Week overlay stays readable at $_maxCalendarPractitioners. Day columns can go higher later.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: c.inkMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+        child: Material(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(PelviRadius.sm),
+          child: InkWell(
+            onTap: () {
+              if (_portal.isShowing) {
+                _portal.hide();
+              } else {
+                _portal.show();
+              }
+            },
+            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            child: Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                border: Border.all(color: c.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (selected.isEmpty)
+                    Text(
+                      'Select practitioners',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.inkMuted,
+                      ),
+                    )
+                  else if (selected.length == 1 &&
+                      selected.first.uid == widget.selfUid)
+                    _FilterChipLabel(
+                      colors: _personColors(
+                        c: c,
+                        uid: widget.selfUid,
+                        selfUid: widget.selfUid,
+                        rosterUids: widget.rosterUids,
+                      ),
+                      label: 'My calendar',
+                    )
+                  else
+                    for (final o in selected) ...[
+                      if (o != selected.first) const SizedBox(width: 6),
+                      _FilterChipLabel(
+                        colors: _personColors(
+                          c: c,
+                          uid: o.uid,
+                          selfUid: widget.selfUid,
+                          rosterUids: widget.rosterUids,
+                        ),
+                        label: o.isSelf
+                            ? 'My calendar'
+                            : _shortPersonName(_labelFor(o.uid)),
+                      ),
+                    ],
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 16,
+                    color: c.ink,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChipLabel extends StatelessWidget {
+  const _FilterChipLabel({required this.colors, required this.label});
+
+  final _PracColors colors;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: colors.accent,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: PelviColors.of(context).ink,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PractitionerOptionRow extends StatelessWidget {
+  const _PractitionerOptionRow({
+    required this.label,
+    required this.subtitle,
+    required this.selected,
+    required this.disabled,
+    required this.colors,
+    required this.onTap,
+  });
+
+  final String label;
+  final String? subtitle;
+  final bool selected;
+  final bool disabled;
+  final _PracColors colors;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final ink = disabled ? c.inkMuted : c.ink;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Material(
+        color: selected ? colors.fill : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: disabled && !selected ? null : onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Checkbox(
+                    value: selected,
+                    onChanged: disabled && !selected
+                        ? null
+                        : (_) => onTap(),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    activeColor: c.pink700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: colors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: ink,
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: c.inkMuted,
+                          ),
+                        ),
+                      if (disabled && !selected)
+                        Text(
+                          'Limit reached',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: c.inkMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PillButton extends StatelessWidget {
   const _PillButton({
     required this.label,
-    this.icon,
     this.selected = false,
     this.onTap,
   });
 
   final String label;
-  final IconData? icon;
   final bool selected;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    final child = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: 16, color: c.ink),
-          const SizedBox(width: 8),
-        ],
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? c.pink700 : c.ink,
-          ),
-        ),
-      ],
+    final child = Text(
+      label,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: selected ? c.pink700 : c.ink,
+      ),
     );
     return Material(
       color: selected ? c.pink50 : c.surface,
@@ -808,6 +1393,10 @@ class _WeekSchedule extends StatefulWidget {
     required this.startHour,
     required this.endHour,
     required this.defaultMins,
+    required this.selfUid,
+    required this.rosterUids,
+    required this.filterUids,
+    required this.nameForUid,
     required this.draft,
     required this.onSelectDay,
     required this.onTapSlot,
@@ -820,6 +1409,10 @@ class _WeekSchedule extends StatefulWidget {
   final int startHour;
   final int endHour;
   final int defaultMins;
+  final String selfUid;
+  final List<String> rosterUids;
+  final Set<String> filterUids;
+  final String Function(String uid) nameForUid;
   final ({DateTime day, TimeOfDay starts})? draft;
   final ValueChanged<DateTime> onSelectDay;
   final void Function(DateTime day, TimeOfDay time) onTapSlot;
@@ -839,6 +1432,42 @@ class _WeekSchedule extends StatefulWidget {
     return mins >= _dayStart * 60 && mins < _dayEnd * 60;
   }
 
+  static List<({int lane, int laneCount})> _lanesForDay(
+    List<({Appointment appointment, Client client})> dayRows,
+    int defaultMins,
+  ) {
+    final indexed = [
+      for (var i = 0; i < dayRows.length; i++) (i: i, row: dayRows[i]),
+    ]..sort(
+        (a, b) => a.row.appointment.startsAt
+            .compareTo(b.row.appointment.startsAt),
+      );
+    final laneEnds = <DateTime>[];
+    final laneOf = List<int>.filled(dayRows.length, 0);
+    for (final item in indexed) {
+      final start = item.row.appointment.startsAt;
+      final end = appointmentEffectiveEnd(
+        start,
+        item.row.appointment.endsAt,
+        defaultMins,
+      );
+      var lane = 0;
+      while (lane < laneEnds.length && laneEnds[lane].isAfter(start)) {
+        lane++;
+      }
+      if (lane == laneEnds.length) {
+        laneEnds.add(end);
+      } else {
+        laneEnds[lane] = end;
+      }
+      laneOf[item.i] = lane;
+    }
+    final laneCount = laneEnds.isEmpty ? 1 : laneEnds.length;
+    return [
+      for (final lane in laneOf) (lane: lane, laneCount: laneCount),
+    ];
+  }
+
   static Widget _eventCard({
     required BuildContext context,
     required List<DateTime> days,
@@ -848,9 +1477,12 @@ class _WeekSchedule extends StatefulWidget {
     required double hourH,
     required int defaultMins,
     required ({Appointment appointment, Client client}) row,
+    required _PracColors colors,
+    required String practitionerLabel,
+    required int lane,
+    required int laneCount,
     required VoidCallback onTap,
   }) {
-    final c = PelviColors.of(context);
     final dayIndex = days.indexWhere(
       (d) => _sameDay(d, row.appointment.startsAt),
     );
@@ -865,53 +1497,66 @@ class _WeekSchedule extends StatefulWidget {
         ((start.hour - startHour) * 60 + start.minute) / 60.0 * hourH;
     final height =
         (end.difference(start).inMinutes / 60.0 * hourH).clamp(44.0, 400.0);
+    final lanes = laneCount < 1 ? 1 : laneCount;
+    final slotW = (colW - 8) / lanes;
+    final clientName = clientDisplayName(row.client);
     return Positioned(
-      left: gutter + dayIndex * colW + 4,
+      left: gutter + dayIndex * colW + 4 + lane * slotW,
       top: top,
-      width: colW - 8,
+      width: slotW - (lanes > 1 ? 2 : 0),
       height: height,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: c.pink50,
-            border: Border.all(color: c.pink400.withValues(alpha: 0.45)),
+      child: Tooltip(
+        message:
+            '${formatApptTime(start)} · $clientName · $practitionerLabel',
+        waitDuration: const Duration(milliseconds: 400),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(width: 3, color: c.pink400),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        formatApptTime(start),
-                        style: TextStyle(fontSize: 10, color: c.pink700),
-                      ),
-                      Text(
-                        clientDisplayName(row.client),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: c.pink700,
-                        ),
-                      ),
-                    ],
-                  ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.fill,
+                border: Border.all(
+                  color: colors.accent.withValues(alpha: 0.45),
                 ),
+                borderRadius: BorderRadius.circular(6),
               ),
-            ],
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(width: 3, color: colors.accent),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            formatApptTime(start),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colors.text,
+                            ),
+                          ),
+                          Text(
+                            clientName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: colors.text,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -989,6 +1634,52 @@ class _WeekScheduleState extends State<_WeekSchedule> {
   void dispose() {
     _timeScroll.dispose();
     super.dispose();
+  }
+
+  List<Widget> _eventCardsForDay({
+    required BuildContext context,
+    required PelviPalette c,
+    required DateTime day,
+    required List<DateTime> days,
+    required List<({Appointment appointment, Client client})> rows,
+    required double colW,
+  }) {
+    final dayRows = [
+      for (final row in rows)
+        if (_sameDay(row.appointment.startsAt, day) &&
+            _WeekSchedule._inDayHours(row.appointment.startsAt))
+          row,
+    ];
+    final lanes = _WeekSchedule._lanesForDay(dayRows, widget.defaultMins);
+    return [
+      for (var i = 0; i < dayRows.length; i++)
+        _WeekSchedule._eventCard(
+          context: context,
+          days: days,
+          gutter: _WeekSchedule._gutter,
+          colW: colW,
+          startHour: _WeekSchedule._dayStart,
+          hourH: _WeekSchedule._hourH,
+          defaultMins: widget.defaultMins,
+          row: dayRows[i],
+          colors: _personColors(
+            c: c,
+            uid: dayRows[i].appointment.practitionerUid,
+            selfUid: widget.selfUid,
+            rosterUids: widget.rosterUids,
+          ),
+          practitionerLabel: () {
+            final raw = dayRows[i].appointment.practitionerUid;
+            final uid = raw.isEmpty ? widget.selfUid : raw;
+            final name = widget.nameForUid(uid);
+            if (uid == widget.selfUid) return '$name (me)';
+            return name;
+          }(),
+          lane: lanes[i].lane,
+          laneCount: lanes[i].laneCount,
+          onTap: () => widget.onTapAppointment(dayRows[i]),
+        ),
+    ];
   }
 
   @override
@@ -1125,21 +1816,15 @@ class _WeekScheduleState extends State<_WeekSchedule> {
                                   widget.onTapSlot(days[i], time),
                             ),
                           ),
-                        for (final row in rows)
-                          if (_WeekSchedule._inDayHours(
-                            row.appointment.startsAt,
-                          ))
-                            _WeekSchedule._eventCard(
-                              context: context,
-                              days: days,
-                              gutter: _WeekSchedule._gutter,
-                              colW: colW,
-                              startHour: _WeekSchedule._dayStart,
-                              hourH: _WeekSchedule._hourH,
-                              defaultMins: widget.defaultMins,
-                              row: row,
-                              onTap: () => widget.onTapAppointment(row),
-                            ),
+                        for (final day in days)
+                          ..._eventCardsForDay(
+                            context: context,
+                            c: c,
+                            day: day,
+                            days: days,
+                            rows: rows,
+                            colW: colW,
+                          ),
                         if (widget.draft != null)
                           _WeekSchedule._draftCard(
                             context: context,
@@ -1164,25 +1849,60 @@ class _WeekScheduleState extends State<_WeekSchedule> {
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: c.pink50,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Scheduled',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: c.pink700,
+                  if (widget.filterUids.length <= 1)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
                       ),
+                      decoration: BoxDecoration(
+                        color: c.pink50,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Scheduled',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: c.pink700,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    for (final uid in widget.rosterUids)
+                      if (widget.filterUids.contains(uid)) ...[
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: _personColors(
+                              c: c,
+                              uid: uid,
+                              selfUid: widget.selfUid,
+                              rosterUids: widget.rosterUids,
+                            ).accent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          uid == widget.selfUid
+                              ? '${_shortPersonName(widget.nameForUid(uid))} (me)'
+                              : _shortPersonName(widget.nameForUid(uid)),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: c.ink,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                      ],
+                    Text(
+                      'Week · overlay · max $_maxCalendarPractitioners',
+                      style: TextStyle(fontSize: 10, color: c.inkMuted),
                     ),
-                  ),
-                  const SizedBox(width: 20),
+                    const SizedBox(width: 14),
+                  ],
                   Text(
                     rows.isEmpty
                         ? 'No appointments in this view.'
