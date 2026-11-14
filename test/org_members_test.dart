@@ -480,4 +480,51 @@ void main() {
       isFalse,
     );
   });
+
+  test('Up next only returns the signed-in practitioner booking', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final mine = await db.insertClient(firstName: 'Mine', lastName: 'Client');
+    final theirs =
+        await db.insertClient(firstName: 'Theirs', lastName: 'Client');
+    final day = DateTime(2026, 11, 15);
+
+    await db.insertAppointment(
+      clientId: theirs,
+      practitionerUid: 'physio-other',
+      startsAt: DateTime(2026, 11, 15, 9),
+    );
+    await db.insertAppointment(
+      clientId: mine,
+      practitionerUid: 'physio-self',
+      startsAt: DateTime(2026, 11, 16, 14),
+    );
+
+    final next = await db
+        .watchNextAppointmentOnOrAfter(
+          day,
+          practitionerUid: 'physio-self',
+        )
+        .first;
+    expect(next, isNotNull);
+    expect(next!.client.firstName, 'Mine');
+    expect(next.appointment.practitionerUid, 'physio-self');
+
+    final otherFirst = await db
+        .watchNextAppointmentOnOrAfter(
+          day,
+          practitionerUid: 'physio-other',
+        )
+        .first;
+    expect(otherFirst!.client.firstName, 'Theirs');
+
+    final nobody = await db
+        .watchNextAppointmentOnOrAfter(
+          day,
+          practitionerUid: 'physio-absent',
+        )
+        .first;
+    expect(nobody, isNull);
+  });
 }

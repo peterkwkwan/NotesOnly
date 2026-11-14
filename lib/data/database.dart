@@ -1503,9 +1503,14 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// Next non-cancelled appointment starting on/after [day]’s midnight (Up next).
+  /// Next non-cancelled appointment for [practitionerUid] on/after [day]
+  /// midnight (Today “Up next”). Defaults to the signed-in member.
   Stream<({Appointment appointment, Client client})?>
-      watchNextAppointmentOnOrAfter(DateTime day) {
+      watchNextAppointmentOnOrAfter(
+    DateTime day, {
+    String? practitionerUid,
+  }) {
+    final uid = practitionerUid ?? NotesAuth.currentUser?.uid ?? '';
     final start = DateTime(day.year, day.month, day.day);
     final query = select(appointments).join([
       innerJoin(clients, clients.id.equalsExp(appointments.clientId)),
@@ -1514,6 +1519,7 @@ class AppDatabase extends _$AppDatabase {
         appointments.startsAt.isBiggerOrEqualValue(start) &
             appointments.deletedAt.isNull() &
             clients.deletedAt.isNull() &
+            appointments.practitionerUid.equals(uid) &
             appointments.status
                 .equals(AppointmentStatus.cancelled.index)
                 .not(),

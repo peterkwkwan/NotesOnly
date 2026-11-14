@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/appointment_overlap.dart';
+import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
@@ -47,7 +48,11 @@ class WebTodayDashboard extends StatelessWidget {
                     stream: db.watchRecallDays(),
                     builder: (context, recallDaysSnap) {
                       return StreamBuilder(
-                        stream: db.watchNextAppointmentOnOrAfter(tomorrow),
+                        stream: db.watchNextAppointmentOnOrAfter(
+                          tomorrow,
+                          practitionerUid:
+                              NotesAuth.currentUser?.uid ?? '',
+                        ),
                         builder: (context, nextSnap) {
                           return StreamBuilder(
                             stream: db.watchDefaultAppointmentMinutes(),
