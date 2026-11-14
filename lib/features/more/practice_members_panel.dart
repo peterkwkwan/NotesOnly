@@ -645,7 +645,8 @@ class _ActiveMembersList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    if (members.isEmpty) {
+    final active = [for (final m in members) if (m.active) m];
+    if (active.isEmpty) {
       return Text(
         'No members yet.',
         style: TextStyle(fontSize: 13, color: c.ink),
@@ -654,23 +655,23 @@ class _ActiveMembersList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var i = 0; i < members.length; i++) ...[
+        for (var i = 0; i < active.length; i++) ...[
           if (i > 0) ...[
             const SizedBox(height: 12),
             Divider(height: 1, color: c.border),
             const SizedBox(height: 12),
           ],
           _MemberRow(
-            member: members[i],
-            canChange: canEditRoles && members[i].active && !busy,
+            member: active[i],
+            canChange: canEditRoles && !busy,
             canRemove: canRemoveMember(
                   actor: actor,
-                  target: members[i],
+                  target: active[i],
                   owners: owners,
                 ) &&
                 !busy,
-            onChange: () => onChange(members[i]),
-            onRemove: () => onRemove(members[i]),
+            onChange: () => onChange(active[i]),
+            onRemove: () => onRemove(active[i]),
           ),
         ],
       ],
