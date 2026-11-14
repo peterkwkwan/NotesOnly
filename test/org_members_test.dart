@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/data/database.dart';
@@ -102,6 +103,56 @@ void main() {
       AppDatabase.isCloudSyncedSetting(AppDatabase.practitionerNameKey),
       isFalse,
     );
+    expect(
+      AppDatabase.isCloudSyncedSetting(
+        AppDatabase.practitionerNameKeyFor('uid-peter'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('mirrorPractitionerNameToCloudOnce queues prior local name once',
+      () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-peter');
+    // Simulate a pre-cloud local write (synced, not pending).
+    await db.into(db.settings).insertOnConflictUpdate(
+          SettingsCompanion.insert(
+            key: AppDatabase.practitionerNameKeyFor('uid-peter'),
+            value: 'Peter Kwan',
+            syncStatus: const Value(RowSyncStatus.synced),
+          ),
+        );
+    await db.mirrorPractitionerNameToCloudOnce('uid-peter');
+    final row = await (db.select(db.settings)
+          ..where(
+            (t) => t.key.equals(
+              AppDatabase.practitionerNameKeyFor('uid-peter'),
+            ),
+          ))
+        .getSingle();
+    expect(row.syncStatus, RowSyncStatus.pending.index);
+
+    await (db.update(db.settings)
+          ..where(
+            (t) => t.key.equals(
+              AppDatabase.practitionerNameKeyFor('uid-peter'),
+            ),
+          ))
+        .write(
+      const SettingsCompanion(syncStatus: Value(RowSyncStatus.synced)),
+    );
+    await db.mirrorPractitionerNameToCloudOnce('uid-peter');
+    final again = await (db.select(db.settings)
+          ..where(
+            (t) => t.key.equals(
+              AppDatabase.practitionerNameKeyFor('uid-peter'),
+            ),
+          ))
+        .getSingle();
+    expect(again.syncStatus, RowSyncStatus.synced.index);
   });
 
   test('Practice settings and clinic invites are owner/admin only', () {

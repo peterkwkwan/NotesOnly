@@ -302,11 +302,10 @@ class AppDatabase extends _$AppDatabase {
 
   /// Org clinic label (Practice settings). Cloud-synced; owner/admin also push orgs.name.
   static const clinicNameKey = 'clinic_name';
-  /// Signed-in user's display name (Account settings). Device-local only.
-  /// Session copy; also written under [practitionerNameKeyFor] so it survives
-  /// [clearLocalClinicForAccountSwitch] for the same Google account.
+  /// Signed-in user's display name (Account settings). Session copy, local-only.
+  /// Also written under [practitionerNameKeyFor] (wipe-surviving + cloud-synced).
   static const practitionerNameKey = 'practitioner_name';
-  /// Per-uid display name that is kept across clinic wipe / sign-out.
+  /// Per-uid display name: kept across clinic wipe and mirrored to org settings.
   static String practitionerNameKeyFor(String uid) => 'practitioner_name__$uid';
   static bool isPractitionerNameSetting(String key) =>
       key == practitionerNameKey || key.startsWith('practitioner_name__');
@@ -354,8 +353,9 @@ class AppDatabase extends _$AppDatabase {
   /// Settings that mirror to Firestore (excludes device-local id lists + sync meta).
   static bool isCloudSyncedSetting(String key) {
     if (key.startsWith('sync_')) return false;
-    // Personal display name — not the shared clinic label.
-    if (isPractitionerNameSetting(key)) return false;
+    // Session copy stays device-local; per-uid key mirrors to org settings so
+    // the home gate can skip “What should we call you?” after wipe / new device.
+    if (key == practitionerNameKey) return false;
     const localOnly = {
       recentClientIdsKey,
       pinnedClientIdsKey,
@@ -440,7 +440,7 @@ class AppDatabase extends _$AppDatabase {
     await setSetting(practitionerNameKey, trimmed);
   }
 
-  /// After sign-in, copy the wipe-surviving name back into the session key.
+  /// After sign-in, copy the wipe-surviving / cloud-pulled name into the session key.
   Future<void> rehydratePractitionerNameForUid(String uid) async {
     if (uid.isEmpty) return;
     final scoped = (await getSetting(practitionerNameKeyFor(uid)))?.trim() ?? '';
@@ -448,6 +448,25 @@ class AppDatabase extends _$AppDatabase {
     final session = (await getSetting(practitionerNameKey))?.trim() ?? '';
     if (session == scoped) return;
     await setSetting(practitionerNameKey, scoped);
+  }
+
+  /// One-shot: queue a pre-cloud local per-uid name for Firestore push.
+  Future<void> mirrorPractitionerNameToCloudOnce(String uid) async {
+    if (uid.isEmpty) return;
+    final marker = 'sync_practitioner_name_cloud_v1__$uid';
+    if (await getSetting(marker) == '1') return;
+    final key = practitionerNameKeyFor(uid);
+    final row = await (select(settings)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    if (row != null &&
+        row.value.trim().isNotEmpty &&
+        row.syncStatus != RowSyncStatus.pending.index) {
+      await (update(settings)..where((t) => t.key.equals(key))).write(
+        const SettingsCompanion(syncStatus: Value(RowSyncStatus.pending)),
+      );
+      _notifyDirty();
+    }
+    await setSetting(marker, '1');
   }
 
   Future<int> getRecallDays() async {

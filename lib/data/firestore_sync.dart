@@ -143,17 +143,23 @@ class FirestoreSyncEngine implements SyncEngine {
       await db.clearLocalClinicForAccountSwitch();
     }
     await db.setSetting(AppDatabase.syncBoundUidKey, user.uid);
-    // Restore wipe-surviving personal name into the session key for the gate.
-    await db.rehydratePractitionerNameForUid(user.uid);
 
     final orgId = await _ensureActiveOrg(user);
     if (orgId == null) {
+      // Still restore a wipe-surviving local name while waiting for a clinic.
+      await db.rehydratePractitionerNameForUid(user.uid);
       _setStatus(SyncStatus.idle);
       return;
     }
+    // After settings pull (new bind) so a cloud practitioner_name__{uid} is local.
+    await db.rehydratePractitionerNameForUid(user.uid);
+    // Pre-cloud local names were stored as synced — push once into org settings.
+    await db.mirrorPractitionerNameToCloudOnce(user.uid);
     await _pushAll(orgId, user);
     final catchUpClients = await _resetClientsCursorOnce();
     await _pullAll(orgId, user);
+    // Full pull may bring a per-uid name written on another device.
+    await db.rehydratePractitionerNameForUid(user.uid);
     if (catchUpClients) {
       await db.setSetting(AppDatabase.clientsCursorResetV1Key, syncPullMarker);
     }
