@@ -123,7 +123,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     final db = AppDatabaseProvider.of(context);
     final name = _name.text.trim();
     if (name.isEmpty) {
-      showPelviSnackBar(context, 'Practitioner name cannot be empty');
+      showPelviSnackBar(context, 'Display name cannot be empty');
       return;
     }
     final mins = _parseMinutes(_duration.text);
@@ -191,7 +191,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     final signedInEmail = NotesAuth.currentUser?.email?.trim() ?? '';
     return switch (_section) {
       _AccountSection.profile => _Panel(
-          title: 'Practitioner name',
+          title: 'Personal Details',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -227,14 +227,6 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                           height: 1.5,
                         ),
                       ),
-                      Text(
-                        'Signed-in display name',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: c.inkMuted,
-                          height: 1.5,
-                        ),
-                      ),
                       if (signedInEmail.isNotEmpty)
                         Text(
                           signedInEmail,
@@ -250,9 +242,10 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
               ),
               const SizedBox(height: 18),
               _Field(
-                label: 'Practitioner name',
+                label: 'Display name',
                 controller: _name,
-                helper: 'Shown in the top bar on this device.',
+                helper:
+                    'Shown on the calendar when other members view your schedule.',
               ),
             ],
           ),
@@ -532,7 +525,7 @@ class _Subnav extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        item(_AccountSection.profile, 'Practitioner name'),
+        item(_AccountSection.profile, 'Personal Details'),
         item(_AccountSection.scheduling, 'Scheduling'),
         item(_AccountSection.templates, 'Template defaults'),
       ],
