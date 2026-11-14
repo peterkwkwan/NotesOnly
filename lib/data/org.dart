@@ -161,7 +161,12 @@ List<String> parseClinicInviteEmails(String raw) {
   return out;
 }
 
-bool isClinicInviteEmail(String email) => email.contains('@');
+/// Practical invite shape: local@domain.tld — no spaces, domain has a dot.
+/// Does not require a specific TLD (.hk, custom domains OK).
+final _clinicInviteEmailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+bool isClinicInviteEmail(String email) =>
+    _clinicInviteEmailRe.hasMatch(email.trim().toLowerCase());
 
 class OrgInvite {
   const OrgInvite({

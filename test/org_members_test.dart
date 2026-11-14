@@ -126,7 +126,12 @@ void main() {
       ['ada@gmail.com', 'bob@x.test'],
     );
     expect(isClinicInviteEmail('ada@gmail.com'), isTrue);
+    expect(isClinicInviteEmail('user@clinic.hk'), isTrue);
+    expect(isClinicInviteEmail('bob@x.test'), isTrue);
     expect(isClinicInviteEmail('not-an-email'), isFalse);
+    expect(isClinicInviteEmail('shummh19@'), isFalse);
+    expect(isClinicInviteEmail('a@b'), isFalse);
+    expect(isClinicInviteEmail('a @b.com'), isFalse);
   });
 
   test('invite codes are 6 chars from the unambiguous alphabet', () {
