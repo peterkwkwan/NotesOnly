@@ -188,6 +188,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
   int get _publishedCount => soapTemplates.where((t) => !t.isBlank).length;
 
   Widget _sectionBody(PelviPalette c, String displayName) {
+    final signedInEmail = NotesAuth.currentUser?.email?.trim() ?? '';
     return switch (_section) {
       _AccountSection.profile => _Panel(
           title: 'Practitioner name',
@@ -234,6 +235,15 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                           height: 1.5,
                         ),
                       ),
+                      if (signedInEmail.isNotEmpty)
+                        Text(
+                          signedInEmail,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: c.inkMuted,
+                            height: 1.5,
+                          ),
+                        ),
                     ],
                   ),
                 ],
