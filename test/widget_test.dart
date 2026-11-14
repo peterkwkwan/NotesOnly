@@ -601,6 +601,29 @@ void main() {
     expect(kept!.appointmentId, isNull);
   });
 
+  test('deleteAppointment notifies Google Calendar with event id', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(firstName: 'Ada', lastName: 'L');
+    final apptId = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 9),
+    );
+    await db.setAppointmentGoogleEventId(apptId, 'gcal-evt-1');
+
+    int? notifiedId;
+    String? notifiedDeleteId;
+    db.onAppointmentChanged = (id, {deleteGoogleEventId}) {
+      notifiedId = id;
+      notifiedDeleteId = deleteGoogleEventId;
+    };
+
+    await db.deleteAppointment(apptId);
+    expect(notifiedId, apptId);
+    expect(notifiedDeleteId, 'gcal-evt-1');
+  });
+
   testWidgets('profile appointment tap opens edit, not SOAP', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
