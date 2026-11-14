@@ -65,7 +65,8 @@ abstract final class DesktopDest {
   static String breadcrumbFor(int index) => switch (index) {
         today => 'Practice / Today',
         calendar => 'Practice / Calendar',
-        clients => 'Practice / Clients',
+        // Clients list is root — no crumb; profile supplies `Clients / Name`.
+        clients => '',
         soapNotes => 'Practice / SOAP notes',
         templates => 'Practice / Templates',
         practiceSettings => 'Practice / Settings',
@@ -336,10 +337,13 @@ class _NavItem extends StatelessWidget {
 
 /// Crumb line for desktop page headers (above the title), not the top bar.
 class DesktopBreadcrumb extends StatelessWidget {
-  const DesktopBreadcrumb({super.key, this.text});
+  const DesktopBreadcrumb({super.key, this.text, this.onAncestorTap});
 
   /// Override when [ShellNavigation] is absent or a page needs a local crumb.
   final String? text;
+
+  /// Called for every segment except the last (`Clients / Name` → index 0).
+  final ValueChanged<int>? onAncestorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -347,14 +351,75 @@ class DesktopBreadcrumb extends StatelessWidget {
         text ?? ShellNavigation.maybeOf(context)?.breadcrumb ?? '';
     if (label.isEmpty) return const SizedBox.shrink();
     final c = PelviColors.of(context);
+    const style = TextStyle(fontSize: 12, height: 1.5);
+    final parts = label.split(' / ');
+    final interactive = onAncestorTap != null && parts.length > 1;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          height: 1.5,
-          color: c.inkMuted,
+      child: interactive
+          ? Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (var i = 0; i < parts.length; i++) ...[
+                  if (i > 0)
+                    Text(
+                      ' / ',
+                      style: style.copyWith(color: c.inkMuted),
+                    ),
+                  if (i < parts.length - 1)
+                    _DesktopBreadcrumbLink(
+                      label: parts[i],
+                      onTap: () => onAncestorTap!(i),
+                    )
+                  else
+                    Text(
+                      parts[i],
+                      style: style.copyWith(color: c.inkMuted),
+                    ),
+                ],
+              ],
+            )
+          : Text(
+              label,
+              style: style.copyWith(color: c.inkMuted),
+            ),
+    );
+  }
+}
+
+class _DesktopBreadcrumbLink extends StatefulWidget {
+  const _DesktopBreadcrumbLink({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_DesktopBreadcrumbLink> createState() => _DesktopBreadcrumbLinkState();
+}
+
+class _DesktopBreadcrumbLinkState extends State<_DesktopBreadcrumbLink> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Text(
+          widget.label,
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.5,
+            color: _hover ? c.ink : c.inkMuted,
+            decoration:
+                _hover ? TextDecoration.underline : TextDecoration.none,
+            decorationColor: c.ink,
+          ),
         ),
       ),
     );

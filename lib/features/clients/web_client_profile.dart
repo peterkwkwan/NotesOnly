@@ -234,6 +234,7 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                 sliver: SliverList(
                                   delegate: SliverChildListDelegate([
                                     _PageHeading(
+                                      clientName: name,
                                       editing: _editing,
                                       saving: _saving,
                                       onEdit: () => _beginEdit(client),
@@ -339,6 +340,7 @@ class _WebClientProfileState extends State<WebClientProfile> {
 
 class _PageHeading extends StatelessWidget {
   const _PageHeading({
+    required this.clientName,
     required this.editing,
     required this.saving,
     required this.onEdit,
@@ -347,6 +349,7 @@ class _PageHeading extends StatelessWidget {
     required this.onNewAppt,
   });
 
+  final String clientName;
   final bool editing;
   final bool saving;
   final VoidCallback onEdit;
@@ -365,7 +368,13 @@ class _PageHeading extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const DesktopBreadcrumb(),
+              DesktopBreadcrumb(
+                text: 'Clients / $clientName',
+                onAncestorTap: (_) {
+                  final nav = Navigator.of(context);
+                  if (nav.canPop()) nav.pop();
+                },
+              ),
               Text(
                 'Client profile',
                 style: TextStyle(
