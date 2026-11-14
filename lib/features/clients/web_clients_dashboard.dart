@@ -1071,7 +1071,7 @@ class _CheckBox extends StatelessWidget {
   }
 }
 
-class _RecallSidePanels extends StatelessWidget {
+class _RecallSidePanels extends StatefulWidget {
   const _RecallSidePanels({
     required this.selected,
     required this.recallDays,
@@ -1087,9 +1087,22 @@ class _RecallSidePanels extends StatelessWidget {
   final VoidCallback onUnmute;
 
   @override
+  State<_RecallSidePanels> createState() => _RecallSidePanelsState();
+}
+
+class _RecallSidePanelsState extends State<_RecallSidePanels> {
+  static const _collapsedVisible = 5;
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
+    final selected = widget.selected;
     final n = selected.length;
+    final collapse = n > _collapsedVisible;
+    final visible = !collapse || _expanded
+        ? selected
+        : selected.take(_collapsedVisible).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1163,8 +1176,8 @@ class _RecallSidePanels extends StatelessWidget {
                     'Select clients in the table to review recalls.',
                     style: TextStyle(fontSize: 12, color: c.inkMuted),
                   )
-                else
-                  for (final client in selected) ...[
+                else ...[
+                  for (final client in visible) ...[
                     Row(
                       children: [
                         Expanded(
@@ -1174,7 +1187,7 @@ class _RecallSidePanels extends StatelessWidget {
                           ),
                         ),
                         InkWell(
-                          onTap: () => onRemove(client.id),
+                          onTap: () => widget.onRemove(client.id),
                           child: Icon(
                             Icons.close,
                             size: 13,
@@ -1185,11 +1198,32 @@ class _RecallSidePanels extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                   ],
+                  if (collapse)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: InkWell(
+                        onTap: () => setState(() => _expanded = !_expanded),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            _expanded
+                                ? 'Show fewer'
+                                : 'Show all $n selected',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: c.pink700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
                 if (n > 0) ...[
                   Divider(height: 1, color: c.border),
                   const SizedBox(height: 18),
                   FilledButton.icon(
-                    onPressed: onMute,
+                    onPressed: widget.onMute,
                     icon: Icon(
                       Icons.notifications_off_outlined,
                       size: 16,
@@ -1216,7 +1250,7 @@ class _RecallSidePanels extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
-                    onPressed: onUnmute,
+                    onPressed: widget.onUnmute,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: c.ink,
                       side: BorderSide(color: c.border),
@@ -1271,7 +1305,7 @@ class _RecallSidePanels extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  recallDays <= 0 ? 'Off' : '$recallDays days',
+                  widget.recallDays <= 0 ? 'Off' : '${widget.recallDays} days',
                   style: TextStyle(
                     fontSize: 26,
                     height: 1.5,
