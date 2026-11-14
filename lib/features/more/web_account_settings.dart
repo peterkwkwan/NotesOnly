@@ -20,6 +20,7 @@ class WebAccountSettings extends StatefulWidget {
 enum _AccountSection {
   profile,
   scheduling,
+  calendar,
   templates,
 }
 
@@ -185,6 +186,28 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     setState(() => _section = section);
   }
 
+  Future<void> _toggleGoogleCalendar(bool enable) async {
+    final gcal = AppDatabaseProvider.googleCalendarOf(context);
+    if (gcal == null) {
+      showPelviSnackBar(context, 'Google Calendar sync is unavailable');
+      return;
+    }
+    if (!enable) {
+      await gcal.disable();
+      return;
+    }
+    final ok = await gcal.enable();
+    if (!mounted) return;
+    if (!ok) {
+      showPelviSnackBar(
+        context,
+        'Calendar permission was denied — sync stays off',
+      );
+      return;
+    }
+    showPelviSnackBar(context, 'Synced to Google Calendar');
+  }
+
   int get _publishedCount => soapTemplates.where((t) => !t.isBlank).length;
 
   Widget _sectionBody(PelviPalette c, String displayName) {
@@ -314,6 +337,80 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                 ),
               ),
             ],
+          ),
+        ),
+      _AccountSection.calendar => _Panel(
+          title: 'Google Calendar',
+          child: StreamBuilder<bool>(
+            stream: AppDatabaseProvider.of(context)
+                .watchGoogleCalendarSyncEnabled(),
+            builder: (context, enabledSnap) {
+              final on = enabledSnap.data ?? false;
+              return StreamBuilder<String>(
+                stream: AppDatabaseProvider.of(context)
+                    .watchGoogleCalendarSyncStatus(),
+                builder: (context, statusSnap) {
+                  final status = statusSnap.data ?? '';
+                  final statusLine = !on
+                      ? null
+                      : switch (status) {
+                          'connected' => 'Connected',
+                          'needs_permission' => 'Needs permission',
+                          'error' => 'Temporary error',
+                          _ => 'Connecting…',
+                        };
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Sync my appointments to Google Calendar',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: c.ink,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Creates and updates events on your Google '
+                                  'primary calendar. Client names appear in '
+                                  'event titles.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    height: 1.45,
+                                    color: c.inkMuted,
+                                  ),
+                                ),
+                                if (statusLine != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    statusLine,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: c.inkMuted,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: on,
+                            onChanged: (v) => _toggleGoogleCalendar(v),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
           ),
         ),
       _AccountSection.templates => _Panel(
@@ -527,6 +624,7 @@ class _Subnav extends StatelessWidget {
       children: [
         item(_AccountSection.profile, 'Personal Details'),
         item(_AccountSection.scheduling, 'Scheduling'),
+        item(_AccountSection.calendar, 'Google Calendar'),
         item(_AccountSection.templates, 'Template defaults'),
       ],
     );

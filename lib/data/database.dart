@@ -81,6 +81,8 @@ class Appointments extends Table {
   IntColumn get syncStatus => intEnum<RowSyncStatus>()
       .withDefault(Constant(RowSyncStatus.pending.index))();
   DateTimeColumn get deletedAt => dateTime().nullable()();
+  /// Google Calendar primary event id (one-way push). Null when unsynced.
+  TextColumn get googleEventId => text().nullable()();
 }
 
 class Notes extends Table {
@@ -150,10 +152,17 @@ class AppDatabase extends _$AppDatabase {
   /// Fired after a local mutation that may need a cloud push.
   void Function()? onLocalChange;
 
+  /// Fired after an appointment insert/update/delete for Google Calendar push.
+  void Function(int appointmentId, {String? deleteGoogleEventId})?
+      onAppointmentChanged;
+
   void _notifyDirty() => onLocalChange?.call();
 
+  void _notifyAppointment(int id, {String? deleteGoogleEventId}) =>
+      onAppointmentChanged?.call(id, deleteGoogleEventId: deleteGoogleEventId);
+
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   /// True if [table] exists (half-applied migrate / never-created templates).
   Future<bool> hasSqliteTable(String table) async {
@@ -301,6 +310,13 @@ class AppDatabase extends _$AppDatabase {
             // Local Drift ints → remoteIds so org settings can mirror pins.
             await rewritePinnedClientIdsToRemoteIds();
           }
+          if (from < 9) {
+            await _addColumnIfMissing(
+              m,
+              appointments,
+              appointments.googleEventId,
+            );
+          }
         },
       );
 
@@ -355,6 +371,15 @@ class AppDatabase extends _$AppDatabase {
   /// Value is [syncPullMarker] once the catch-up has been scheduled.
   static const clientsCursorResetV1Key = 'sync_clients_cursor_reset_v1';
   static String syncCursorKey(String collection) => 'sync_cursor_$collection';
+
+  /// Opt-in: push my appointments to Google primary calendar (device-local).
+  static const googleCalendarSyncEnabledKey = 'sync_google_calendar_enabled';
+  /// `connected` | `needs_permission` | `error` | empty.
+  static const googleCalendarSyncStatusKey = 'sync_google_calendar_status';
+  static const googleCalendarLastOkKey = 'sync_google_calendar_last_ok';
+  static const googleCalendarLastErrorKey = 'sync_google_calendar_last_error';
+  /// JSON outbox: `[{remoteId,op,attempts,nextAttemptAt,googleEventId?}]`.
+  static const googleCalendarOutboxKey = 'sync_google_calendar_outbox';
 
   /// Settings that mirror to Firestore (excludes device-local id lists + sync meta).
   static bool isCloudSyncedSetting(String key) {
@@ -753,6 +778,34 @@ class AppDatabase extends _$AppDatabase {
           final raw = rows.isEmpty ? null : rows.first.value;
           return (raw ?? defaultThemeMode) == 'dark';
         });
+  }
+
+  Future<bool> getGoogleCalendarSyncEnabled() async {
+    final raw = await getSetting(googleCalendarSyncEnabledKey);
+    return raw == '1';
+  }
+
+  Future<void> setGoogleCalendarSyncEnabled(bool enabled) =>
+      setSetting(googleCalendarSyncEnabledKey, enabled ? '1' : '0');
+
+  Stream<bool> watchGoogleCalendarSyncEnabled() {
+    return (select(settings)
+          ..where((t) => t.key.equals(googleCalendarSyncEnabledKey)))
+        .watch()
+        .map((rows) => rows.isNotEmpty && rows.first.value == '1');
+  }
+
+  Future<String> getGoogleCalendarSyncStatus() async =>
+      await getSetting(googleCalendarSyncStatusKey) ?? '';
+
+  Future<void> setGoogleCalendarSyncStatus(String status) =>
+      setSetting(googleCalendarSyncStatusKey, status);
+
+  Stream<String> watchGoogleCalendarSyncStatus() {
+    return (select(settings)
+          ..where((t) => t.key.equals(googleCalendarSyncStatusKey)))
+        .watch()
+        .map((rows) => rows.isEmpty ? '' : rows.first.value);
   }
 
   Stream<String?> watchPractitionerName({String? uid}) {
@@ -1313,6 +1366,7 @@ class AppDatabase extends _$AppDatabase {
       ),
     );
     _notifyDirty();
+    _notifyAppointment(id);
     return id;
   }
 
@@ -1321,6 +1375,7 @@ class AppDatabase extends _$AppDatabase {
     required DateTime startsAt,
     DateTime? endsAt,
     AppointmentStatus? status,
+    String? notes,
     String? practitionerUid,
   }) async {
     final existing = await getAppointment(id);
@@ -1353,21 +1408,65 @@ class AppDatabase extends _$AppDatabase {
         );
       }
     }
+    final reassigned = nextUid != existing.practitionerUid;
+    final oldEventId = existing.googleEventId;
     // shortcut: note practitionerUid stays with the author, upgrade when rules let an admin move SOAP
     final n = await (update(appointments)..where((t) => t.id.equals(id))).write(
       AppointmentsCompanion(
         startsAt: Value(startsAt),
         endsAt: endsAt == null ? const Value.absent() : Value(endsAt),
         status: status == null ? const Value.absent() : Value(status),
-        practitionerUid: nextUid == existing.practitionerUid
+        notes: notes == null
             ? const Value.absent()
-            : Value(nextUid),
+            : Value(_blankToNull(notes)),
+        practitionerUid: reassigned ? Value(nextUid) : const Value.absent(),
+        // Reassign: clear id so new owner does not patch old owner's event.
+        googleEventId: reassigned ? const Value(null) : const Value.absent(),
         updatedAt: Value(DateTime.now()),
         syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
-    if (n > 0) _notifyDirty();
+    if (n > 0) {
+      _notifyDirty();
+      final self = NotesAuth.currentUser?.uid ?? '';
+      final deleteId = reassigned &&
+              oldEventId != null &&
+              oldEventId.isNotEmpty &&
+              (existing.practitionerUid.isEmpty ||
+                  existing.practitionerUid == self)
+          ? oldEventId
+          : null;
+      _notifyAppointment(id, deleteGoogleEventId: deleteId);
+    }
     return n > 0;
+  }
+
+  /// Persist Google Calendar event id without changing appointment updatedAt
+  /// ownership semantics more than needed for Firestore mirror.
+  Future<void> setAppointmentGoogleEventId(int id, String? eventId) async {
+    await (update(appointments)..where((t) => t.id.equals(id))).write(
+      AppointmentsCompanion(
+        googleEventId: Value(eventId),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    _notifyDirty();
+  }
+
+  /// My non-deleted appointments missing a Google event id (backfill).
+  Future<List<Appointment>> myAppointmentsNeedingGoogleEvent(String uid) async {
+    final rows = await (select(appointments)
+          ..where(
+            (t) =>
+                t.deletedAt.isNull() &
+                t.practitionerUid.equals(uid) &
+                t.googleEventId.isNull(),
+          ))
+        .get();
+    return rows
+        .where((a) => a.status != AppointmentStatus.cancelled)
+        .toList();
   }
 
   Future<Appointment?> getAppointment(int id) {
@@ -1377,6 +1476,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Soft-deletes the appointment; unlinks any SOAP note (note kept).
   Future<void> deleteAppointment(int id) async {
+    final existing = await getAppointment(id);
     final now = DateTime.now();
     await (update(notes)..where((t) => t.appointmentId.equals(id))).write(
       NotesCompanion(
@@ -1393,6 +1493,10 @@ class AppDatabase extends _$AppDatabase {
       ),
     );
     _notifyDirty();
+    _notifyAppointment(
+      id,
+      deleteGoogleEventId: existing?.googleEventId,
+    );
   }
 
   Stream<Note?> watchNote(int id) {

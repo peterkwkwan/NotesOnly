@@ -6,6 +6,7 @@ import 'app.dart';
 import 'data/auth.dart';
 import 'data/database.dart';
 import 'data/firestore_sync.dart';
+import 'data/google_calendar_sync.dart';
 import 'data/local_notifications.dart';
 import 'firebase_options.dart';
 import 'theme/colors.dart';
@@ -30,5 +31,12 @@ Future<void> main() async {
   await LocalNotifications.init();
 
   final sync = FirestoreSyncEngine(database);
-  runApp(PelviApp(database: database, syncEngine: sync));
+  final googleCalendar = GoogleCalendarSync(database);
+  runApp(
+    PelviApp(
+      database: database,
+      syncEngine: sync,
+      googleCalendarSync: googleCalendar,
+    ),
+  );
 }

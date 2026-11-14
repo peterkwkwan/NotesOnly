@@ -366,6 +366,31 @@ class MoreScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: PelviSpace.lg),
+          const _SectionLabel('Google Calendar'),
+          const SizedBox(height: PelviSpace.sm),
+          _SettingsBlock(
+            children: [
+              StreamBuilder<bool>(
+                stream: db.watchGoogleCalendarSyncEnabled(),
+                builder: (context, enabledSnap) {
+                  final on = enabledSnap.data ?? false;
+                  return StreamBuilder<String>(
+                    stream: db.watchGoogleCalendarSyncStatus(),
+                    builder: (context, statusSnap) {
+                      final status = statusSnap.data ?? '';
+                      return _SwitchRow(
+                        title: 'Sync my appointments to Google Calendar',
+                        subtitle: _googleCalendarSubtitle(on, status),
+                        value: on,
+                        onChanged: (v) => _toggleGoogleCalendar(context, v),
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: PelviSpace.lg),
           const _SectionLabel('Data & backup'),
           const SizedBox(height: PelviSpace.sm),
           _SettingsBlock(
@@ -431,6 +456,42 @@ class MoreScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _googleCalendarSubtitle(bool enabled, String status) {
+    const base =
+        'Creates and updates events on your Google primary calendar. '
+        'Client names appear in event titles.';
+    if (!enabled) return base;
+    final line = switch (status) {
+      'connected' => 'Connected',
+      'needs_permission' => 'Needs permission',
+      'error' => 'Temporary error',
+      _ => 'Connecting…',
+    };
+    return '$base\n$line';
+  }
+
+  Future<void> _toggleGoogleCalendar(BuildContext context, bool enable) async {
+    final gcal = AppDatabaseProvider.googleCalendarOf(context);
+    if (gcal == null) {
+      showPelviSnackBar(context, 'Google Calendar sync is unavailable');
+      return;
+    }
+    if (!enable) {
+      await gcal.disable();
+      return;
+    }
+    final ok = await gcal.enable();
+    if (!context.mounted) return;
+    if (!ok) {
+      showPelviSnackBar(
+        context,
+        'Calendar permission was denied — sync stays off',
+      );
+      return;
+    }
+    showPelviSnackBar(context, 'Synced to Google Calendar');
   }
 
   Future<void> _signOut(BuildContext context) async {

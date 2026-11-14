@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'data/auth.dart';
 import 'data/database.dart';
 import 'data/database_provider.dart';
+import 'data/google_calendar_sync.dart';
 import 'data/join_token.dart';
 import 'data/org.dart';
 import 'data/org_directory.dart';
@@ -16,6 +17,7 @@ import 'features/first_run/first_run_screen.dart';
 import 'features/org/org_access_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'theme/theme.dart';
+import 'widgets/show_snack.dart';
 
 export 'data/database_provider.dart';
 
@@ -35,12 +37,14 @@ class PelviApp extends StatefulWidget {
     super.key,
     required this.database,
     this.syncEngine = const StubSyncEngine(),
+    this.googleCalendarSync,
     /// Tests only — when set, skips Firebase Auth and treats true as signed in.
     this.signedInOverride,
   });
 
   final AppDatabase database;
   final SyncEngine syncEngine;
+  final GoogleCalendarSync? googleCalendarSync;
   final Stream<bool>? signedInOverride;
 
   @override
@@ -51,6 +55,8 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
   late Future<_HomeGate> _gate;
   StreamSubscription<User?>? _authSub;
   String? _authUid;
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  DateTime? _lastCalendarSoftErrorAt;
 
   @override
   void initState() {
@@ -60,6 +66,11 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     captureJoinTokenFromUri();
     _gate = _loadGate();
     widget.syncEngine.start();
+    final gcal = widget.googleCalendarSync;
+    if (gcal != null) {
+      gcal.onSoftError = _onCalendarSoftError;
+      gcal.start();
+    }
     _authSub = NotesAuth.authStateChanges().listen((user) {
       final uid = user?.uid;
       if (uid == _authUid) return;
@@ -70,6 +81,18 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
             : _loadGate();
       });
     });
+  }
+
+  void _onCalendarSoftError(String message) {
+    final now = DateTime.now();
+    final last = _lastCalendarSoftErrorAt;
+    if (last != null && now.difference(last) < const Duration(seconds: 20)) {
+      return;
+    }
+    _lastCalendarSoftErrorAt = now;
+    final ctx = _navigatorKey.currentContext;
+    if (ctx == null) return;
+    showPelviSnackBar(ctx, message);
   }
 
   /// Magic-link accept (join). create-org that needs a clinic name is handled
@@ -102,6 +125,7 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     _authSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     widget.syncEngine.stop();
+    widget.googleCalendarSync?.stop();
     super.dispose();
   }
 
@@ -109,6 +133,7 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.syncEngine.onAppResumed();
+      widget.googleCalendarSync?.onAppResumed();
     }
   }
 
@@ -172,6 +197,7 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     return AppDatabaseProvider(
       database: widget.database,
       syncEngine: widget.syncEngine,
+      googleCalendarSync: widget.googleCalendarSync,
       child: StreamBuilder<bool>(
         stream: widget.database.watchDarkModeEnabled(),
         initialData: false,
@@ -179,6 +205,7 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
           final dark = snap.data ?? false;
           _applySystemUi(dark);
           return MaterialApp(
+            navigatorKey: _navigatorKey,
             title: 'NotesOnly',
             debugShowCheckedModeBanner: false,
             theme: pelviLightTheme(),
