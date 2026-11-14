@@ -41,10 +41,24 @@ class OrgDirectory {
     );
   }
 
+  /// Rotates the invite token and emails the new magic link.
   Future<ClinicInviteResult> resendClinicInvite({
     required String inviteId,
   }) async {
     final callable = _fn.httpsCallable('resendClinicInvite');
+    final result = await callable.call(<String, dynamic>{
+      'inviteId': inviteId,
+    });
+    return ClinicInviteResult.fromMap(
+      Map<String, dynamic>.from(result.data as Map),
+    );
+  }
+
+  /// Rotates the invite token and returns [joinUrl] for clipboard only (no email).
+  Future<ClinicInviteResult> copyClinicInviteLink({
+    required String inviteId,
+  }) async {
+    final callable = _fn.httpsCallable('copyClinicInviteLink');
     final result = await callable.call(<String, dynamic>{
       'inviteId': inviteId,
     });
