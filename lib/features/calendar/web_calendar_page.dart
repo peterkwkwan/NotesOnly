@@ -16,7 +16,7 @@ import '../shell/desktop_chrome.dart';
 
 enum _CalView { day, week, month }
 
-/// Week overlay stays readable past this; day columns can raise later.
+/// Max practitioners selectable in the calendar filter.
 const _maxCalendarPractitioners = 3;
 
 String _calendarFilterUidsKey(String orgId, String uid) =>
@@ -1102,7 +1102,10 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
                                 },
                                 style: TextButton.styleFrom(
                                   foregroundColor: c.pink700,
-                                  padding: EdgeInsets.zero,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
                                   minimumSize: Size.zero,
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
@@ -1118,16 +1121,16 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
                               const Spacer(),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            atMax
-                                ? 'Week view shows up to $_maxCalendarPractitioners practitioners'
-                                : 'Week overlay stays readable at $_maxCalendarPractitioners. Day columns can go higher later.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: c.inkMuted,
+                          if (atMax) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Week view shows up to $_maxCalendarPractitioners practitioners',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: c.inkMuted,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -1975,7 +1978,7 @@ class _DayHeading extends StatelessWidget {
                 decorationColor: c.inkMuted,
               ),
             ),
-            if (bookingCount > 0 && !selected)
+            if (bookingCount > 0)
               Text(
                 '$bookingCount booking${bookingCount == 1 ? '' : 's'}',
                 style: TextStyle(fontSize: 9, color: c.purple700),
