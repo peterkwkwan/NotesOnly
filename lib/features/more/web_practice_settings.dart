@@ -25,10 +25,10 @@ class WebPracticeSettings extends StatefulWidget {
 }
 
 enum _SettingsSection {
-  preferences,
   members,
   recall,
   data,
+  preferences,
 }
 
 class _WebPracticeSettingsState extends State<WebPracticeSettings> {
@@ -41,7 +41,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
   bool _applying = false;
   bool _dirty = false;
   bool _recallNotifs = true;
-  _SettingsSection _section = _SettingsSection.preferences;
+  _SettingsSection _section = _SettingsSection.members;
 
   String _snapClinicName = '';
   String _snapRecallDays = '';
@@ -589,10 +589,10 @@ class _Subnav extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        item(_SettingsSection.preferences, 'Clinic name'),
         item(_SettingsSection.members, 'Members'),
         item(_SettingsSection.recall, 'Recall management'),
         item(_SettingsSection.data, 'Data & backup'),
+        item(_SettingsSection.preferences, 'Clinic name'),
       ],
     );
   }
