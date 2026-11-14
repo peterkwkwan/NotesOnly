@@ -140,19 +140,33 @@ class _OrgAccessScreenState extends State<OrgAccessScreen> {
       widget.onJoined?.call();
     } catch (e) {
       if (!mounted) return;
+      final msg = '$e';
+      // Keep token only for wrong-account so sign-out/in can retry.
+      // Drop stale/rotated/revoked tokens so sessionStorage cannot keep
+      // retrying an old hash while Members Pending shows a newer invite.
+      if (!_isWrongAccountJoinError(msg)) {
+        clearPendingJoinToken();
+        replaceJoinUrlWithHome();
+      }
       setState(() {
         _joinError = _friendlyJoinError(e);
         _joining = false;
       });
-      // Keep token so a switched account can retry after sign-out/in.
     }
   }
 
+  bool _isWrongAccountJoinError(String s) =>
+      s.contains('different Google account');
+
   String _friendlyJoinError(Object e) {
     final s = '$e';
-    if (s.contains('different Google account')) {
+    if (_isWrongAccountJoinError(s)) {
       return 'This invite is for a different Google account. '
           'Sign out and sign in with the invited email.';
+    }
+    if (s.contains('replaced')) {
+      return 'This invite link has been replaced. '
+          'Open the latest invite link from your email.';
     }
     if (s.contains('expired')) return 'This invite has expired.';
     if (s.contains('revoked')) return 'This invite was revoked.';

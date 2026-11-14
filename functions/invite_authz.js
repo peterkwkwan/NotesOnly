@@ -121,6 +121,64 @@ async function assertRateLimit(db, uid, { max = 20, windowMs = 60 * 60 * 1000 } 
   }
 }
 
+function inviteExpiresAtMs(data) {
+  const raw = data?.expiresAt;
+  if (!raw) return null;
+  if (typeof raw.toDate === 'function') return raw.toDate().getTime();
+  if (raw instanceof Date) return raw.getTime();
+  if (typeof raw === 'number') return raw;
+  return null;
+}
+
+/** True when invite can still be accepted (not accepted/revoked, not past expiry). */
+function isOpenInviteDoc(data, { now = Date.now() } = {}) {
+  if (!data || data.acceptedAt || data.revokedAt) return false;
+  const expiresMs = inviteExpiresAtMs(data);
+  return expiresMs != null && expiresMs > now;
+}
+
+/**
+ * After rotate / revoke+re-invite, the old hash is revoked but a newer open
+ * invite may exist for the same email (+ org for join). Pure scan over docs.
+ */
+function hasOpenReplacementAmong(
+  docs,
+  { email, kind, orgId = null, excludeId, now = Date.now() },
+) {
+  const wantEmail = normalizeEmail(email);
+  for (const doc of docs) {
+    if (!doc || doc.id === excludeId) continue;
+    const data = typeof doc.data === 'function' ? doc.data() : doc.data;
+    if (!data) continue;
+    if (normalizeEmail(data.email) !== wantEmail) continue;
+    if (data.kind !== kind) continue;
+    if (kind === 'join' && (data.orgId || null) !== (orgId || null)) continue;
+    if (isOpenInviteDoc(data, { now })) return true;
+  }
+  return false;
+}
+
+/**
+ * Look up whether a newer open invite exists for this email (and org when join).
+ * Single-field email query — no composite index required.
+ */
+async function hasOpenReplacementInvite(
+  db,
+  { email, kind, orgId = null, excludeId, now = Date.now() },
+) {
+  const snap = await db
+    .collection('invites')
+    .where('email', '==', normalizeEmail(email))
+    .get();
+  return hasOpenReplacementAmong(snap.docs, {
+    email,
+    kind,
+    orgId,
+    excludeId,
+    now,
+  });
+}
+
 module.exports = {
   PLATFORM_ADMIN_EMAIL,
   normalizeEmail,
@@ -130,4 +188,7 @@ module.exports = {
   assertCanCreateInvite,
   assertCanResend,
   assertRateLimit,
+  isOpenInviteDoc,
+  hasOpenReplacementAmong,
+  hasOpenReplacementInvite,
 };

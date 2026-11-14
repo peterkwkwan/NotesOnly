@@ -15,6 +15,8 @@ Web join URL: `https://notesonly-e4829.web.app/join?token=<opaque>`
 
 Firestore never stores the raw token. Inviter may receive `joinUrl` once for clipboard.
 
+**Rotate / re-invite:** Resend and Copy link revoke the previous hash and mint a new one. Accepting a stale token while a newer open invite exists for the same email (+ org) returns *replaced* (not *revoked*). Truly revoked invites (no open replacement) still return *revoked*. The web client clears `sessionStorage` on replaced/revoked/expired so an old `/join?token=` cannot keep failing after a re-invite.
+
 ## Secrets / env (Peter)
 
 1. Use a Google account with [App Passwords](https://myaccount.google.com/apppasswords) enabled (2FA required).
