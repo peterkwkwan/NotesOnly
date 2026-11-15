@@ -486,15 +486,6 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                           color: c.ink,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        'Clinic-wide preferences for owners and admins',
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.5,
-                          color: c.inkMuted,
-                        ),
-                      ),
                     ],
                   ),
                 ),

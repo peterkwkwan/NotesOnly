@@ -521,15 +521,6 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                           color: c.ink,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        'Your name and the defaults you use every day',
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.5,
-                          color: c.inkMuted,
-                        ),
-                      ),
                     ],
                   ),
                 ),

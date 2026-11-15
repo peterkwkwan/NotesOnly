@@ -76,7 +76,6 @@ class WebTodayDashboard extends StatelessWidget {
                                           CrossAxisAlignment.stretch,
                                       children: [
                                         _HeroRow(
-                                          today: today,
                                           onNewNote: () =>
                                               openNoteViaPickers(context),
                                           onAddAppointment: () =>
@@ -172,33 +171,6 @@ class WebTodayDashboard extends StatelessWidget {
 
 String _pad2(int n) => n.toString().padLeft(2, '0');
 
-String _heroDateLabel(DateTime d) {
-  const weekdays = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
-  const months = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-  return '${weekdays[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
-}
-
 String _agendaDateLabel(DateTime d) {
   const weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   const months = [
@@ -247,12 +219,10 @@ String _upNextDayLabel(DateTime d) {
 
 class _HeroRow extends StatelessWidget {
   const _HeroRow({
-    required this.today,
     required this.onNewNote,
     required this.onAddAppointment,
   });
 
-  final DateTime today;
   final VoidCallback onNewNote;
   final VoidCallback onAddAppointment;
 
@@ -274,14 +244,6 @@ class _HeroRow extends StatelessWidget {
                   height: 1.5,
                   fontWeight: FontWeight.w600,
                   color: c.ink,
-                ),
-              ),
-              Text(
-                'Your practice at a glance · ${_heroDateLabel(today)}',
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.inkMuted,
                 ),
               ),
             ],

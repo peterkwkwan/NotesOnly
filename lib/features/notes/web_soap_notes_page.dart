@@ -79,15 +79,6 @@ class _SoapNotesHub extends StatelessWidget {
                     color: c.ink,
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  'Open a note from an appointment. Notes stay tied to visits.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    color: c.inkMuted,
-                  ),
-                ),
                 const SizedBox(height: 26),
                 Align(
                   alignment: Alignment.centerLeft,

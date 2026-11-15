@@ -170,8 +170,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
 
     expect(find.text('NotesOnly'), findsOneWidget);
-    expect(find.text('Keep people, contact details and recalls in one place'),
-        findsOneWidget);
+    expect(find.text('Clients'), findsOneWidget);
     expect(find.text('Recall review'), findsOneWidget);
     expect(find.text('Your recall window'), findsOneWidget);
     expect(find.text('Recently Viewed'), findsOneWidget);

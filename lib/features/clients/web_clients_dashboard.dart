@@ -356,14 +356,6 @@ class _HeadingRow extends StatelessWidget {
                   color: c.ink,
                 ),
               ),
-              Text(
-                'Keep people, contact details and recalls in one place',
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
             ],
           ),
         ),

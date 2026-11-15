@@ -384,14 +384,6 @@ class _PageHeading extends StatelessWidget {
                   color: c.ink,
                 ),
               ),
-              Text(
-                'Contact details, appointment history and notes — together',
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
             ],
           ),
         ),

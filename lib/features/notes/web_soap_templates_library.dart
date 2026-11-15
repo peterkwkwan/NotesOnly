@@ -327,10 +327,6 @@ class _Heading extends StatelessWidget {
                   color: c.ink,
                 ),
               ),
-              Text(
-                'A familiar structure, shaped around the way you write',
-                style: TextStyle(fontSize: 13, height: 1.5, color: c.inkMuted),
-              ),
             ],
           ),
         ),
