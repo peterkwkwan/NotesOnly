@@ -287,8 +287,6 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
                                                 all,
                                               ),
                                               onClear: _clearSelection,
-                                              selectedClients:
-                                                  selectedClients,
                                             ),
                                           ),
                                           const SizedBox(width: 24),
@@ -686,7 +684,6 @@ class _ClientTable extends StatelessWidget {
     required this.pinnedIds,
     required this.mutedIds,
     required this.selected,
-    required this.selectedClients,
     required this.onToggle,
     required this.onOpen,
     required this.onSelectAll,
@@ -697,7 +694,6 @@ class _ClientTable extends StatelessWidget {
   final Set<int> pinnedIds;
   final Set<int> mutedIds;
   final Set<int> selected;
-  final List<Client> selectedClients;
   final ValueChanged<int> onToggle;
   final ValueChanged<int> onOpen;
   final ValueChanged<bool> onSelectAll;
@@ -747,15 +743,7 @@ class _ClientTable extends StatelessWidget {
                       color: c.pink700,
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      selectedClients.map(clientDisplayName).join(', '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: c.pink700),
-                    ),
-                  ),
+                  const Spacer(),
                   TextButton(
                     onPressed: onClear,
                     style: TextButton.styleFrom(
