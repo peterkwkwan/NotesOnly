@@ -718,7 +718,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     }
     setState(() => _saving = true);
     try {
-      final apptId = await db.insertAppointment(
+      await db.insertAppointment(
         clientId: clientId,
         startsAt: startsAt,
         endsAt: endsAt,
@@ -732,31 +732,6 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         _notesCtrl.clear();
         _status = AppointmentStatus.scheduled;
       });
-      final startNote = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Start a SOAP note for this visit?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Not now'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Yes'),
-            ),
-          ],
-        ),
-      );
-      if (!mounted) return;
-      if (startNote == true) {
-        await openNoteForAppointment(
-          context,
-          appointmentId: apptId,
-          clientId: clientId,
-          noteDate: startsAt,
-        );
-      }
     } on AppointmentConflictException catch (e) {
       if (!mounted) return;
       showPelviSnackBar(

@@ -581,11 +581,6 @@ class _AgendaPanel extends StatelessWidget {
                 practitionerName: practitionerName,
               ),
             ],
-            const SizedBox(height: 18),
-            Text(
-              '* Default duration when an end time is not set.',
-              style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-            ),
           ],
         ],
       ),
@@ -615,8 +610,6 @@ class _AgendaVisit extends StatelessWidget {
     return end.difference(appointment.startsAt).inMinutes;
   }
 
-  bool get _usedDefault => appointment.endsAt == null;
-
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
@@ -645,7 +638,7 @@ class _AgendaVisit extends StatelessWidget {
                 ),
               ),
               Text(
-                '$_durationMins min${_usedDefault ? '*' : ''}',
+                '$_durationMins min',
                 style: TextStyle(
                   fontSize: 11,
                   height: 1.5,

@@ -218,38 +218,12 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
         return;
       }
 
-      final apptId = await db.insertAppointment(
+      await db.insertAppointment(
         clientId: clientId,
         startsAt: _startsAt,
         status: _status,
       );
       if (!mounted) return;
-      final startNote = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Start a SOAP note for this visit?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Not now'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Yes'),
-            ),
-          ],
-        ),
-      );
-      if (!mounted) return;
-      if (startNote == true) {
-        await openNoteForAppointment(
-          context,
-          appointmentId: apptId,
-          clientId: clientId,
-          noteDate: _startsAt,
-        );
-        if (!mounted) return;
-      }
       Navigator.of(context).pop();
     } on AppointmentConflictException catch (e) {
       if (!mounted) return;
