@@ -5,7 +5,7 @@ import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
-import '../appointments/appointment_form_screen.dart';
+import '../appointments/web_new_appointment_page.dart';
 import '../clients/client_format.dart';
 import '../clients/client_profile_screen.dart';
 import '../notes/note_editor_screen.dart';
@@ -20,7 +20,8 @@ class WebTodayDashboard extends StatelessWidget {
   void _addAppointment(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => AppointmentFormScreen(initialDay: DateTime.now()),
+        builder: (_) =>
+            WebNewAppointmentPage(initialDay: DateTime.now()),
       ),
     );
   }

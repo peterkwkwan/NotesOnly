@@ -5,6 +5,7 @@ import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../appointments/appointment_form_screen.dart';
+import '../appointments/web_new_appointment_page.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
@@ -244,8 +245,10 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                         Navigator.of(context).push(
                                           MaterialPageRoute<void>(
                                             builder: (_) =>
-                                                AppointmentFormScreen(
+                                                WebNewAppointmentPage(
                                               clientId: client.id,
+                                              breadcrumb:
+                                                  'Clients / New appointment',
                                             ),
                                           ),
                                         );
