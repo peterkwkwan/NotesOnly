@@ -98,10 +98,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   void _scheduleSave() {
     _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 400), _save);
+    _saveDebounce = Timer(const Duration(milliseconds: 400), _autosave);
   }
 
-  Future<void> _save() async {
+  Future<void> _refreshNoteRow() async {
+    final id = _note?.id;
+    if (id == null || !mounted) return;
+    final fresh = await AppDatabaseProvider.of(context).getNote(id);
+    if (!mounted || fresh == null) return;
+    setState(() => _note = fresh);
+  }
+
+  /// Silent debounce — live body only (no revision).
+  Future<void> _autosave() async {
     final note = _note;
     if (note == null) return;
     setState(() => _saving = true);
@@ -114,7 +123,200 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       plan: _plan.text,
     );
     if (!mounted) return;
+    await _refreshNoteRow();
+    if (!mounted) return;
     setState(() => _saving = false);
+  }
+
+  Future<void> _saveDraft() async {
+    final note = _note;
+    if (note == null) return;
+    _saveDebounce?.cancel();
+    setState(() => _saving = true);
+    final db = AppDatabaseProvider.of(context);
+    await db.saveDraftWithRevision(
+      id: note.id,
+      subjective: _subjective.text,
+      objective: _objective.text,
+      assessment: _assessment.text,
+      plan: _plan.text,
+    );
+    if (!mounted) return;
+    await _refreshNoteRow();
+    if (!mounted) return;
+    setState(() => _saving = false);
+    showPelviSnackBar(context, 'Draft saved.');
+  }
+
+  bool get _publishDisabled {
+    final note = _note;
+    if (note == null || !_soapFieldsNonEmpty) return true;
+    if (note.status != NoteStatus.published) return false;
+    return note.subjective == _subjective.text &&
+        note.objective == _objective.text &&
+        note.assessment == _assessment.text &&
+        note.plan == _plan.text;
+  }
+
+  Future<void> _publish() async {
+    final note = _note;
+    if (note == null) return;
+    _saveDebounce?.cancel();
+    setState(() => _saving = true);
+    final db = AppDatabaseProvider.of(context);
+    final result = await db.publishNote(
+      id: note.id,
+      subjective: _subjective.text,
+      objective: _objective.text,
+      assessment: _assessment.text,
+      plan: _plan.text,
+    );
+    if (!mounted) return;
+    await _refreshNoteRow();
+    if (!mounted) return;
+    setState(() => _saving = false);
+    switch (result) {
+      case PublishNoteResult.published:
+        showPelviSnackBar(context, 'Published.');
+      case PublishNoteResult.noop:
+        showPelviSnackBar(context, 'Already published — no changes.');
+      case PublishNoteResult.empty:
+        showPelviSnackBar(context, 'Add clinical text before publishing.');
+      case PublishNoteResult.missing:
+        showPelviSnackBar(context, 'Note not found.');
+    }
+  }
+
+  Future<void> _confirmRestoreRevision(NoteRevision rev) async {
+    final when = formatRevisionDateTime(rev.createdAt);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Revert to this version?'),
+        content: Text('Revert to this version from $when?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Revert'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || ok != true) return;
+    _saveDebounce?.cancel();
+    final db = AppDatabaseProvider.of(context);
+    final restored = await db.restoreNoteRevision(
+      noteId: rev.noteId,
+      revisionId: rev.id,
+    );
+    if (!mounted) return;
+    if (!restored) {
+      showPelviSnackBar(context, 'Could not restore that version.');
+      return;
+    }
+    setState(() {
+      _subjective.text = rev.subjective;
+      _objective.text = rev.objective;
+      _assessment.text = rev.assessment;
+      _plan.text = rev.plan;
+      _template = soapTemplateBlank;
+    });
+    await _refreshNoteRow();
+    if (!mounted) return;
+    showPelviSnackBar(
+      context,
+      'Reverted — Save draft or Publish to keep a new version.',
+    );
+  }
+
+  Future<void> _openRevisionHistory() async {
+    final note = _note;
+    if (note == null) return;
+    final db = AppDatabaseProvider.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        final c = PelviColors.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              PelviSpace.page,
+              0,
+              PelviSpace.page,
+              PelviSpace.lg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Revision history',
+                  style: Theme.of(ctx).textTheme.titleMedium,
+                ),
+                const SizedBox(height: PelviSpace.sm),
+                Flexible(
+                  child: StreamBuilder<List<NoteRevision>>(
+                    stream: db.watchNoteRevisions(note.id),
+                    builder: (context, snap) {
+                      final rows = snap.data ?? const <NoteRevision>[];
+                      if (rows.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: PelviSpace.lg,
+                          ),
+                          child: Text(
+                            'Save draft or Publish to keep a version here.',
+                            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                  color: c.inkMuted,
+                                ),
+                          ),
+                        );
+                      }
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: rows.length,
+                        separatorBuilder: (_, _) => Divider(color: c.border),
+                        itemBuilder: (context, i) {
+                          final rev = rows[i];
+                          final published =
+                              rev.reason == NoteRevisionReason.publish;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              formatRevisionDateTime(rev.createdAt),
+                            ),
+                            subtitle: Text(
+                              '${published ? 'Published' : 'Draft save'} · '
+                              '${soapRevisionPreview(
+                                subjective: rev.subjective,
+                                objective: rev.objective,
+                                assessment: rev.assessment,
+                                plan: rev.plan,
+                              )}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              unawaited(_confirmRestoreRevision(rev));
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _copyLastNote() async {
@@ -295,7 +497,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   Future<bool> _onWillPop() async {
     if (_listening) await _speech.cancel();
     _saveDebounce?.cancel();
-    await _save();
+    await _autosave();
     return true;
   }
 
@@ -355,7 +557,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           actions: [
             if (_saving)
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: PelviSpace.page),
+                padding: const EdgeInsets.only(right: 8),
                 child: Center(
                   child: SizedBox(
                     width: 16,
@@ -367,6 +569,41 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   ),
                 ),
               ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: _StatusChip(
+                  published: note.status == NoteStatus.published,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Revision history',
+              onPressed: _openRevisionHistory,
+              icon: const Icon(Icons.history),
+            ),
+            PopupMenuButton<_NoteAction>(
+              tooltip: 'Note actions',
+              onSelected: (action) {
+                switch (action) {
+                  case _NoteAction.saveDraft:
+                    unawaited(_saveDraft());
+                  case _NoteAction.publish:
+                    unawaited(_publish());
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: _NoteAction.saveDraft,
+                  child: Text('Save draft'),
+                ),
+                PopupMenuItem(
+                  value: _NoteAction.publish,
+                  enabled: !_publishDisabled && !_saving,
+                  child: const Text('Publish'),
+                ),
+              ],
+            ),
             if (_client != null)
               IconButton(
                 tooltip: 'Client profile',
@@ -430,6 +667,34 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               style: text.labelMedium,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _NoteAction { saveDraft, publish }
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.published});
+
+  final bool published;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: published ? c.pink50 : c.purple50,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        published ? 'Published' : 'Draft',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: published ? c.pink700 : c.purple700,
         ),
       ),
     );

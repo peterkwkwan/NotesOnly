@@ -33,6 +33,7 @@ class FirestoreSyncEngine implements SyncEngine {
     'clients',
     'appointments',
     'notes',
+    'noteRevisions',
     'settings',
     'templates',
   ];
@@ -342,6 +343,10 @@ class FirestoreSyncEngine implements SyncEngine {
           ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
               t.syncStatus.equals(RowSyncStatus.error.index)))
         .get();
+    final noteRevs = await (db.select(db.noteRevisions)
+          ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
+              t.syncStatus.equals(RowSyncStatus.error.index)))
+        .get();
     final settings = await (db.select(db.settings)
           ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
               t.syncStatus.equals(RowSyncStatus.error.index)))
@@ -355,6 +360,7 @@ class FirestoreSyncEngine implements SyncEngine {
     return clients.length +
         appts.length +
         notes.length +
+        noteRevs.length +
         cloudSettings.length +
         templates.length;
   }
@@ -366,7 +372,10 @@ class FirestoreSyncEngine implements SyncEngine {
     final roles = await _roleNames();
     await _pushClients(orgId);
     await _pushAppointments(orgId, user);
-    if (_seesNotes(roles)) await _pushNotes(orgId, user);
+    if (_seesNotes(roles)) {
+      await _pushNotes(orgId, user);
+      await _pushNoteRevisions(orgId, user);
+    }
     await _pushTemplates(orgId, user);
     await _pushSettings(orgId, roles);
   }
@@ -489,6 +498,50 @@ class FirestoreSyncEngine implements SyncEngine {
     }
   }
 
+  Future<void> _pushNoteRevisions(String orgId, User user) async {
+    final rows = await (db.select(db.noteRevisions)
+          ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
+              t.syncStatus.equals(RowSyncStatus.error.index)))
+        .get();
+    for (final row in rows) {
+      var practitioner = row.practitionerUid;
+      if (practitioner.isEmpty) {
+        final note = await db.getNote(row.noteId);
+        practitioner = note?.practitionerUid ?? '';
+      }
+      if (practitioner.isEmpty) practitioner = user.uid;
+      try {
+        await _col(orgId, 'noteRevisions').doc(row.remoteId).set({
+          'noteId': row.noteRemoteId,
+          'practitionerUid': practitioner,
+          'subjective': row.subjective,
+          'objective': row.objective,
+          'assessment': row.assessment,
+          'plan': row.plan,
+          'reason': row.reason.index,
+          'createdByUid': row.createdByUid,
+          'createdAt': _ts(row.createdAt)!,
+          'updatedAt': _ts(row.updatedAt)!,
+          'deletedAt': _ts(row.deletedAt),
+        });
+        await (db.update(db.noteRevisions)..where((t) => t.id.equals(row.id)))
+            .write(
+          const NoteRevisionsCompanion(
+            syncStatus: Value(RowSyncStatus.synced),
+          ),
+        );
+      } catch (e) {
+        await (db.update(db.noteRevisions)..where((t) => t.id.equals(row.id)))
+            .write(
+          const NoteRevisionsCompanion(
+            syncStatus: Value(RowSyncStatus.error),
+          ),
+        );
+        rethrow;
+      }
+    }
+  }
+
   Future<void> _pushTemplates(String orgId, User user) async {
     final rows = await (db.select(db.templates)
           ..where((t) => t.syncStatus.equals(RowSyncStatus.pending.index) |
@@ -580,9 +633,12 @@ class FirestoreSyncEngine implements SyncEngine {
   Future<void> _pullAll(String orgId, User user) async {
     final roles = await _roleNames();
     for (final name in _collections) {
-      if (name == 'notes' && !_seesNotes(roles)) continue;
+      if ((name == 'notes' || name == 'noteRevisions') && !_seesNotes(roles)) {
+        continue;
+      }
       final filter = (name == 'appointments' && !_seesAllAppointments(roles)) ||
-              (name == 'notes' && !roles.contains('owner'))
+              ((name == 'notes' || name == 'noteRevisions') &&
+                  !roles.contains('owner'))
           ? user.uid
           : null;
       await _pullCollection(orgId, name, practitionerUid: filter);
@@ -625,6 +681,8 @@ class FirestoreSyncEngine implements SyncEngine {
             await _applyAppointment(doc.id, data);
           case 'notes':
             await _applyNote(doc.id, data);
+          case 'noteRevisions':
+            await _applyNoteRevision(doc.id, data);
           case 'settings':
             await _applySetting(doc.id, data);
           case 'templates':
@@ -876,6 +934,59 @@ class FirestoreSyncEngine implements SyncEngine {
       await db.into(db.notes).insert(companion);
     } else {
       await (db.update(db.notes)..where((t) => t.id.equals(existing.id)))
+          .write(companion);
+    }
+  }
+
+  Future<void> _applyNoteRevision(
+    String remoteId,
+    Map<String, dynamic> data, {
+    bool pending = false,
+  }) async {
+    final remoteUpdated = _readTs(data['updatedAt']) ??
+        _readTs(data['createdAt']) ??
+        DateTime.now().toUtc();
+    final noteRemote = data['noteId'] as String?;
+    if (noteRemote == null || noteRemote.isEmpty) return;
+    final note = await (db.select(db.notes)
+          ..where((t) => t.remoteId.equals(noteRemote)))
+        .getSingleOrNull();
+    if (note == null) return;
+
+    final existing = await (db.select(db.noteRevisions)
+          ..where((t) => t.remoteId.equals(remoteId)))
+        .getSingleOrNull();
+    if (existing != null &&
+        !remoteWinsLww(existing.updatedAt.toUtc(), remoteUpdated)) {
+      return;
+    }
+    final reasonIdx = data['reason'];
+    final reason = reasonIdx is int &&
+            reasonIdx >= 0 &&
+            reasonIdx < NoteRevisionReason.values.length
+        ? NoteRevisionReason.values[reasonIdx]
+        : NoteRevisionReason.saveDraft;
+    final createdAt = _readTs(data['createdAt']) ?? remoteUpdated;
+    final companion = NoteRevisionsCompanion(
+      remoteId: Value(remoteId),
+      noteRemoteId: Value(noteRemote),
+      noteId: Value(note.id),
+      practitionerUid: Value((data['practitionerUid'] as String?) ?? ''),
+      subjective: Value((data['subjective'] as String?) ?? ''),
+      objective: Value((data['objective'] as String?) ?? ''),
+      assessment: Value((data['assessment'] as String?) ?? ''),
+      plan: Value((data['plan'] as String?) ?? ''),
+      reason: Value(reason),
+      createdByUid: Value((data['createdByUid'] as String?) ?? ''),
+      createdAt: Value(createdAt),
+      updatedAt: Value(remoteUpdated),
+      deletedAt: Value(_readTs(data['deletedAt'])),
+      syncStatus: Value(pending ? RowSyncStatus.pending : RowSyncStatus.synced),
+    );
+    if (existing == null) {
+      await db.into(db.noteRevisions).insert(companion);
+    } else {
+      await (db.update(db.noteRevisions)..where((t) => t.id.equals(existing.id)))
           .write(companion);
     }
   }

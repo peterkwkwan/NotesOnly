@@ -172,10 +172,19 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
 
   void _scheduleSave() {
     _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 400), _save);
+    _saveDebounce = Timer(const Duration(milliseconds: 400), _autosave);
   }
 
-  Future<void> _save() async {
+  Future<void> _refreshNoteRow() async {
+    final id = _note?.id;
+    if (id == null || !mounted) return;
+    final fresh = await AppDatabaseProvider.of(context).getNote(id);
+    if (!mounted || fresh == null) return;
+    setState(() => _note = fresh);
+  }
+
+  /// Silent debounce — updates live body only (no revision).
+  Future<void> _autosave() async {
     final note = _note;
     if (note == null) return;
     setState(() => _saving = true);
@@ -188,7 +197,114 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       plan: _plan.text,
     );
     if (!mounted) return;
+    await _refreshNoteRow();
+    if (!mounted) return;
     setState(() => _saving = false);
+  }
+
+  Future<void> _saveDraft() async {
+    final note = _note;
+    if (note == null) return;
+    _saveDebounce?.cancel();
+    setState(() => _saving = true);
+    final db = AppDatabaseProvider.of(context);
+    await db.saveDraftWithRevision(
+      id: note.id,
+      subjective: _subjective.text,
+      objective: _objective.text,
+      assessment: _assessment.text,
+      plan: _plan.text,
+    );
+    if (!mounted) return;
+    await _refreshNoteRow();
+    if (!mounted) return;
+    setState(() => _saving = false);
+    showPelviSnackBar(context, 'Draft saved.');
+  }
+
+  bool get _publishDisabled {
+    final note = _note;
+    if (note == null || !_soapFieldsNonEmpty) return true;
+    if (note.status != NoteStatus.published) return false;
+    return note.subjective == _subjective.text &&
+        note.objective == _objective.text &&
+        note.assessment == _assessment.text &&
+        note.plan == _plan.text;
+  }
+
+  Future<void> _publish() async {
+    final note = _note;
+    if (note == null) return;
+    _saveDebounce?.cancel();
+    setState(() => _saving = true);
+    final db = AppDatabaseProvider.of(context);
+    final result = await db.publishNote(
+      id: note.id,
+      subjective: _subjective.text,
+      objective: _objective.text,
+      assessment: _assessment.text,
+      plan: _plan.text,
+    );
+    if (!mounted) return;
+    await _refreshNoteRow();
+    if (!mounted) return;
+    setState(() => _saving = false);
+    switch (result) {
+      case PublishNoteResult.published:
+        showPelviSnackBar(context, 'Published.');
+      case PublishNoteResult.noop:
+        showPelviSnackBar(context, 'Already published — no changes.');
+      case PublishNoteResult.empty:
+        showPelviSnackBar(context, 'Add clinical text before publishing.');
+      case PublishNoteResult.missing:
+        showPelviSnackBar(context, 'Note not found.');
+    }
+  }
+
+  Future<void> _confirmRestoreRevision(NoteRevision rev) async {
+    final when = formatRevisionDateTime(rev.createdAt);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Revert to this version?'),
+        content: Text('Revert to this version from $when?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Revert'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || ok != true) return;
+    _saveDebounce?.cancel();
+    final db = AppDatabaseProvider.of(context);
+    final restored = await db.restoreNoteRevision(
+      noteId: rev.noteId,
+      revisionId: rev.id,
+    );
+    if (!mounted) return;
+    if (!restored) {
+      showPelviSnackBar(context, 'Could not restore that version.');
+      return;
+    }
+    setState(() {
+      _subjective.text = rev.subjective;
+      _objective.text = rev.objective;
+      _assessment.text = rev.assessment;
+      _plan.text = rev.plan;
+      _template = soapTemplateBlank;
+    });
+    await _refreshNoteRow();
+    if (!mounted) return;
+    showPelviSnackBar(
+      context,
+      'Reverted — Save draft or Publish to keep a new version.',
+    );
   }
 
   Future<void> _copyLastNote() async {
@@ -439,12 +555,14 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                     ),
                     const SizedBox(height: 24),
                     _ContextColumn(
+                      noteId: note.id,
                       templateLabel: _template.label,
                       when: when,
                       appointment: _appointment,
-                      practitioner: _practitioner,
                       filledCount: filled,
                       saving: _saving,
+                      noteStatus: note.status,
+                      onRestoreRevision: _confirmRestoreRevision,
                     ),
                   ],
                 )
@@ -491,12 +609,14 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                     SizedBox(
                       width: 258,
                       child: _ContextColumn(
+                        noteId: note.id,
                         templateLabel: _template.label,
                         when: when,
                         appointment: _appointment,
-                        practitioner: _practitioner,
                         filledCount: filled,
                         saving: _saving,
+                        noteStatus: note.status,
+                        onRestoreRevision: _confirmRestoreRevision,
                       ),
                     ),
                   ],
@@ -510,7 +630,10 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                 _PageHeader(
                   subtitle: '$name · ${formatNoteDate(when)}',
                   saving: _saving,
-                  onSaveDraft: _save,
+                  status: note.status,
+                  publishDisabled: _publishDisabled,
+                  onSaveDraft: _saveDraft,
+                  onPublish: _publish,
                   onClientCrumbTap:
                       client == null ? null : _goToClientProfile,
                 ),
@@ -523,24 +646,6 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       ),
     );
   }
-}
-
-String _shortDate(DateTime dt) {
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
 }
 
 String _longDate(DateTime dt) {
@@ -565,18 +670,25 @@ class _PageHeader extends StatelessWidget {
   const _PageHeader({
     required this.subtitle,
     required this.saving,
+    required this.status,
+    required this.publishDisabled,
     required this.onSaveDraft,
+    required this.onPublish,
     this.onClientCrumbTap,
   });
 
   final String subtitle;
   final bool saving;
+  final NoteStatus status;
+  final bool publishDisabled;
   final VoidCallback onSaveDraft;
+  final VoidCallback onPublish;
   final VoidCallback? onClientCrumbTap;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
+    final published = status == NoteStatus.published;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -609,28 +721,27 @@ class _PageHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
-            color: c.purple50,
+            color: published ? c.pink50 : c.purple50,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
-            'Draft',
+            published ? 'Published' : 'Draft',
             style: TextStyle(
               fontSize: 11,
               height: 1.5,
               fontWeight: FontWeight.w500,
-              color: c.purple700,
+              color: published ? c.pink700 : c.purple700,
             ),
           ),
         ),
         const SizedBox(width: 10),
-        FilledButton(
-          onPressed: onSaveDraft,
-          style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
-            elevation: 0,
+        OutlinedButton(
+          onPressed: saving ? null : onSaveDraft,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: c.ink,
             minimumSize: const Size(0, 38),
             padding: const EdgeInsets.symmetric(horizontal: 14),
+            side: BorderSide(color: c.border),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(PelviRadius.sm),
             ),
@@ -638,6 +749,28 @@ class _PageHeader extends StatelessWidget {
           child: Text(
             saving ? 'Saving…' : 'Save draft',
             style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        FilledButton(
+          onPressed: saving || publishDisabled ? null : onPublish,
+          style: FilledButton.styleFrom(
+            backgroundColor: c.pink700,
+            foregroundColor: c.inkInverse,
+            disabledBackgroundColor: c.pink50,
+            elevation: 0,
+            minimumSize: const Size(0, 38),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(PelviRadius.sm),
+            ),
+          ),
+          child: const Text(
+            'Publish',
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -1190,31 +1323,33 @@ class _SoapSectionField extends StatelessWidget {
 
 class _ContextColumn extends StatelessWidget {
   const _ContextColumn({
+    required this.noteId,
     required this.templateLabel,
     required this.when,
     required this.appointment,
-    required this.practitioner,
     required this.filledCount,
     required this.saving,
+    required this.noteStatus,
+    required this.onRestoreRevision,
   });
 
+  final int noteId;
   final String templateLabel;
   final DateTime when;
   final Appointment? appointment;
-  final String? practitioner;
   final int filledCount;
   final bool saving;
+  final NoteStatus noteStatus;
+  final ValueChanged<NoteRevision> onRestoreRevision;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    final pract = (practitioner ?? '').trim();
-    final statusLine = filledCount == 0
-        ? 'No clinical text has been entered in this draft.'
-        : '$filledCount of 4 sections have clinical text.';
     final apptLine = appointment == null
         ? 'Appointment time not linked'
         : 'Appointment · ${formatApptTime(appointment!.startsAt)}';
+    final currentLabel =
+        noteStatus == NoteStatus.published ? 'Current published' : 'Current';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1317,76 +1452,70 @@ class _ContextColumn extends StatelessWidget {
                   color: c.ink,
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                  color: c.purple50,
+                  color: noteStatus == NoteStatus.published
+                      ? c.pink50
+                      : c.purple50,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  'Current draft',
+                  currentLabel,
                   style: TextStyle(
                     fontSize: 11,
                     height: 1.5,
                     fontWeight: FontWeight.w500,
-                    color: c.purple700,
+                    color: noteStatus == NoteStatus.published
+                        ? c.pink700
+                        : c.purple700,
                   ),
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 8),
               Text(
-                statusLine,
+                filledCount == 0
+                    ? 'No clinical text in the editor yet.'
+                    : '$filledCount of 4 sections have clinical text.',
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.5,
                   color: c.inkMuted,
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Divider(height: 1, color: c.border),
-              const SizedBox(height: 18),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.history, size: 16, color: c.inkMuted),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '$templateLabel note',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.ink,
-                          ),
-                        ),
-                        Text(
-                          '${_shortDate(when)} · ${pract.isEmpty ? 'Practitioner' : pract}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            height: 1.5,
-                            color: c.inkMuted,
-                          ),
+              const SizedBox(height: 10),
+              StreamBuilder<List<NoteRevision>>(
+                stream: AppDatabaseProvider.of(context)
+                    .watchNoteRevisions(noteId),
+                builder: (context, snap) {
+                  final rows = snap.data ?? const <NoteRevision>[];
+                  if (rows.isEmpty) {
+                    return Text(
+                      saving
+                          ? 'Saving on this device…'
+                          : 'Save draft or Publish to keep a version here.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.5,
+                        color: c.inkMuted,
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      for (var i = 0; i < rows.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 8),
+                        _RevisionRow(
+                          revision: rows[i],
+                          onTap: () => onRestoreRevision(rows[i]),
                         ),
                       ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Text(
-                saving
-                    ? 'Saving on this device…'
-                    : 'Save a draft to keep your writing before continuing.',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -1401,6 +1530,84 @@ class _ContextColumn extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _RevisionRow extends StatelessWidget {
+  const _RevisionRow({required this.revision, required this.onTap});
+
+  final NoteRevision revision;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final published = revision.reason == NoteRevisionReason.publish;
+    final preview = soapRevisionPreview(
+      subjective: revision.subjective,
+      objective: revision.objective,
+      assessment: revision.assessment,
+      plan: revision.plan,
+    );
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(PelviRadius.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.history, size: 16, color: c.inkMuted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    formatRevisionDateTime(revision.createdAt),
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      fontWeight: FontWeight.w500,
+                      color: c.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: published ? c.pink50 : c.purple50,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      published ? 'Published' : 'Draft save',
+                      style: TextStyle(
+                        fontSize: 10,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                        color: published ? c.pink700 : c.purple700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    preview,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.4,
+                      color: c.inkMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

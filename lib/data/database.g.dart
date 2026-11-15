@@ -2086,8 +2086,10 @@ class Note extends DataClass implements Insertable<Note> {
   /// Legacy column; unused (notes stay editable).
   final String addendum;
 
-  /// Legacy draft/final; unused (no lock).
+  /// Draft vs published (live note badge).
   final NoteStatus status;
+
+  /// Last publish time (product: publishedAt). Column name kept for sync.
   final DateTime? finalizedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -2586,6 +2588,862 @@ class NotesCompanion extends UpdateCompanion<Note> {
           ..write('addendum: $addendum, ')
           ..write('status: $status, ')
           ..write('finalizedAt: $finalizedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $NoteRevisionsTable extends NoteRevisions
+    with TableInfo<$NoteRevisionsTable, NoteRevision> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NoteRevisionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _remoteIdMeta = const VerificationMeta(
+    'remoteId',
+  );
+  @override
+  late final GeneratedColumn<String> remoteId = GeneratedColumn<String>(
+    'remote_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _noteRemoteIdMeta = const VerificationMeta(
+    'noteRemoteId',
+  );
+  @override
+  late final GeneratedColumn<String> noteRemoteId = GeneratedColumn<String>(
+    'note_remote_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<int> noteId = GeneratedColumn<int>(
+    'note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES notes (id)',
+    ),
+  );
+  static const VerificationMeta _practitionerUidMeta = const VerificationMeta(
+    'practitionerUid',
+  );
+  @override
+  late final GeneratedColumn<String> practitionerUid = GeneratedColumn<String>(
+    'practitioner_uid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _subjectiveMeta = const VerificationMeta(
+    'subjective',
+  );
+  @override
+  late final GeneratedColumn<String> subjective = GeneratedColumn<String>(
+    'subjective',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _objectiveMeta = const VerificationMeta(
+    'objective',
+  );
+  @override
+  late final GeneratedColumn<String> objective = GeneratedColumn<String>(
+    'objective',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _assessmentMeta = const VerificationMeta(
+    'assessment',
+  );
+  @override
+  late final GeneratedColumn<String> assessment = GeneratedColumn<String>(
+    'assessment',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _planMeta = const VerificationMeta('plan');
+  @override
+  late final GeneratedColumn<String> plan = GeneratedColumn<String>(
+    'plan',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<NoteRevisionReason, int> reason =
+      GeneratedColumn<int>(
+        'reason',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<NoteRevisionReason>($NoteRevisionsTable.$converterreason);
+  static const VerificationMeta _createdByUidMeta = const VerificationMeta(
+    'createdByUid',
+  );
+  @override
+  late final GeneratedColumn<String> createdByUid = GeneratedColumn<String>(
+    'created_by_uid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<RowSyncStatus, int> syncStatus =
+      GeneratedColumn<int>(
+        'sync_status',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: Constant(RowSyncStatus.pending.index),
+      ).withConverter<RowSyncStatus>($NoteRevisionsTable.$convertersyncStatus);
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    remoteId,
+    noteRemoteId,
+    noteId,
+    practitionerUid,
+    subjective,
+    objective,
+    assessment,
+    plan,
+    reason,
+    createdByUid,
+    createdAt,
+    updatedAt,
+    syncStatus,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'note_revisions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NoteRevision> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('remote_id')) {
+      context.handle(
+        _remoteIdMeta,
+        remoteId.isAcceptableOrUnknown(data['remote_id']!, _remoteIdMeta),
+      );
+    }
+    if (data.containsKey('note_remote_id')) {
+      context.handle(
+        _noteRemoteIdMeta,
+        noteRemoteId.isAcceptableOrUnknown(
+          data['note_remote_id']!,
+          _noteRemoteIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_noteRemoteIdMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteIdMeta);
+    }
+    if (data.containsKey('practitioner_uid')) {
+      context.handle(
+        _practitionerUidMeta,
+        practitionerUid.isAcceptableOrUnknown(
+          data['practitioner_uid']!,
+          _practitionerUidMeta,
+        ),
+      );
+    }
+    if (data.containsKey('subjective')) {
+      context.handle(
+        _subjectiveMeta,
+        subjective.isAcceptableOrUnknown(data['subjective']!, _subjectiveMeta),
+      );
+    }
+    if (data.containsKey('objective')) {
+      context.handle(
+        _objectiveMeta,
+        objective.isAcceptableOrUnknown(data['objective']!, _objectiveMeta),
+      );
+    }
+    if (data.containsKey('assessment')) {
+      context.handle(
+        _assessmentMeta,
+        assessment.isAcceptableOrUnknown(data['assessment']!, _assessmentMeta),
+      );
+    }
+    if (data.containsKey('plan')) {
+      context.handle(
+        _planMeta,
+        plan.isAcceptableOrUnknown(data['plan']!, _planMeta),
+      );
+    }
+    if (data.containsKey('created_by_uid')) {
+      context.handle(
+        _createdByUidMeta,
+        createdByUid.isAcceptableOrUnknown(
+          data['created_by_uid']!,
+          _createdByUidMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NoteRevision map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NoteRevision(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      remoteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_id'],
+      )!,
+      noteRemoteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_remote_id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}note_id'],
+      )!,
+      practitionerUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}practitioner_uid'],
+      )!,
+      subjective: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subjective'],
+      )!,
+      objective: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}objective'],
+      )!,
+      assessment: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}assessment'],
+      )!,
+      plan: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}plan'],
+      )!,
+      reason: $NoteRevisionsTable.$converterreason.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}reason'],
+        )!,
+      ),
+      createdByUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by_uid'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      syncStatus: $NoteRevisionsTable.$convertersyncStatus.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}sync_status'],
+        )!,
+      ),
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $NoteRevisionsTable createAlias(String alias) {
+    return $NoteRevisionsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<NoteRevisionReason, int, int> $converterreason =
+      const EnumIndexConverter<NoteRevisionReason>(NoteRevisionReason.values);
+  static JsonTypeConverter2<RowSyncStatus, int, int> $convertersyncStatus =
+      const EnumIndexConverter<RowSyncStatus>(RowSyncStatus.values);
+}
+
+class NoteRevision extends DataClass implements Insertable<NoteRevision> {
+  final int id;
+  final String remoteId;
+
+  /// Parent note Firestore id (stable across devices).
+  final String noteRemoteId;
+  final int noteId;
+
+  /// Denormalized for Firestore rules (Admin cannot read SOAP).
+  final String practitionerUid;
+  final String subjective;
+  final String objective;
+  final String assessment;
+  final String plan;
+  final NoteRevisionReason reason;
+  final String createdByUid;
+  final DateTime createdAt;
+
+  /// Equals createdAt on insert; bump on soft-delete for sync cursor.
+  final DateTime updatedAt;
+  final RowSyncStatus syncStatus;
+  final DateTime? deletedAt;
+  const NoteRevision({
+    required this.id,
+    required this.remoteId,
+    required this.noteRemoteId,
+    required this.noteId,
+    required this.practitionerUid,
+    required this.subjective,
+    required this.objective,
+    required this.assessment,
+    required this.plan,
+    required this.reason,
+    required this.createdByUid,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.syncStatus,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['remote_id'] = Variable<String>(remoteId);
+    map['note_remote_id'] = Variable<String>(noteRemoteId);
+    map['note_id'] = Variable<int>(noteId);
+    map['practitioner_uid'] = Variable<String>(practitionerUid);
+    map['subjective'] = Variable<String>(subjective);
+    map['objective'] = Variable<String>(objective);
+    map['assessment'] = Variable<String>(assessment);
+    map['plan'] = Variable<String>(plan);
+    {
+      map['reason'] = Variable<int>(
+        $NoteRevisionsTable.$converterreason.toSql(reason),
+      );
+    }
+    map['created_by_uid'] = Variable<String>(createdByUid);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    {
+      map['sync_status'] = Variable<int>(
+        $NoteRevisionsTable.$convertersyncStatus.toSql(syncStatus),
+      );
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  NoteRevisionsCompanion toCompanion(bool nullToAbsent) {
+    return NoteRevisionsCompanion(
+      id: Value(id),
+      remoteId: Value(remoteId),
+      noteRemoteId: Value(noteRemoteId),
+      noteId: Value(noteId),
+      practitionerUid: Value(practitionerUid),
+      subjective: Value(subjective),
+      objective: Value(objective),
+      assessment: Value(assessment),
+      plan: Value(plan),
+      reason: Value(reason),
+      createdByUid: Value(createdByUid),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      syncStatus: Value(syncStatus),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory NoteRevision.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NoteRevision(
+      id: serializer.fromJson<int>(json['id']),
+      remoteId: serializer.fromJson<String>(json['remoteId']),
+      noteRemoteId: serializer.fromJson<String>(json['noteRemoteId']),
+      noteId: serializer.fromJson<int>(json['noteId']),
+      practitionerUid: serializer.fromJson<String>(json['practitionerUid']),
+      subjective: serializer.fromJson<String>(json['subjective']),
+      objective: serializer.fromJson<String>(json['objective']),
+      assessment: serializer.fromJson<String>(json['assessment']),
+      plan: serializer.fromJson<String>(json['plan']),
+      reason: $NoteRevisionsTable.$converterreason.fromJson(
+        serializer.fromJson<int>(json['reason']),
+      ),
+      createdByUid: serializer.fromJson<String>(json['createdByUid']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      syncStatus: $NoteRevisionsTable.$convertersyncStatus.fromJson(
+        serializer.fromJson<int>(json['syncStatus']),
+      ),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'remoteId': serializer.toJson<String>(remoteId),
+      'noteRemoteId': serializer.toJson<String>(noteRemoteId),
+      'noteId': serializer.toJson<int>(noteId),
+      'practitionerUid': serializer.toJson<String>(practitionerUid),
+      'subjective': serializer.toJson<String>(subjective),
+      'objective': serializer.toJson<String>(objective),
+      'assessment': serializer.toJson<String>(assessment),
+      'plan': serializer.toJson<String>(plan),
+      'reason': serializer.toJson<int>(
+        $NoteRevisionsTable.$converterreason.toJson(reason),
+      ),
+      'createdByUid': serializer.toJson<String>(createdByUid),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'syncStatus': serializer.toJson<int>(
+        $NoteRevisionsTable.$convertersyncStatus.toJson(syncStatus),
+      ),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  NoteRevision copyWith({
+    int? id,
+    String? remoteId,
+    String? noteRemoteId,
+    int? noteId,
+    String? practitionerUid,
+    String? subjective,
+    String? objective,
+    String? assessment,
+    String? plan,
+    NoteRevisionReason? reason,
+    String? createdByUid,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    RowSyncStatus? syncStatus,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => NoteRevision(
+    id: id ?? this.id,
+    remoteId: remoteId ?? this.remoteId,
+    noteRemoteId: noteRemoteId ?? this.noteRemoteId,
+    noteId: noteId ?? this.noteId,
+    practitionerUid: practitionerUid ?? this.practitionerUid,
+    subjective: subjective ?? this.subjective,
+    objective: objective ?? this.objective,
+    assessment: assessment ?? this.assessment,
+    plan: plan ?? this.plan,
+    reason: reason ?? this.reason,
+    createdByUid: createdByUid ?? this.createdByUid,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    syncStatus: syncStatus ?? this.syncStatus,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  NoteRevision copyWithCompanion(NoteRevisionsCompanion data) {
+    return NoteRevision(
+      id: data.id.present ? data.id.value : this.id,
+      remoteId: data.remoteId.present ? data.remoteId.value : this.remoteId,
+      noteRemoteId: data.noteRemoteId.present
+          ? data.noteRemoteId.value
+          : this.noteRemoteId,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      practitionerUid: data.practitionerUid.present
+          ? data.practitionerUid.value
+          : this.practitionerUid,
+      subjective: data.subjective.present
+          ? data.subjective.value
+          : this.subjective,
+      objective: data.objective.present ? data.objective.value : this.objective,
+      assessment: data.assessment.present
+          ? data.assessment.value
+          : this.assessment,
+      plan: data.plan.present ? data.plan.value : this.plan,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      createdByUid: data.createdByUid.present
+          ? data.createdByUid.value
+          : this.createdByUid,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      syncStatus: data.syncStatus.present
+          ? data.syncStatus.value
+          : this.syncStatus,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteRevision(')
+          ..write('id: $id, ')
+          ..write('remoteId: $remoteId, ')
+          ..write('noteRemoteId: $noteRemoteId, ')
+          ..write('noteId: $noteId, ')
+          ..write('practitionerUid: $practitionerUid, ')
+          ..write('subjective: $subjective, ')
+          ..write('objective: $objective, ')
+          ..write('assessment: $assessment, ')
+          ..write('plan: $plan, ')
+          ..write('reason: $reason, ')
+          ..write('createdByUid: $createdByUid, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    remoteId,
+    noteRemoteId,
+    noteId,
+    practitionerUid,
+    subjective,
+    objective,
+    assessment,
+    plan,
+    reason,
+    createdByUid,
+    createdAt,
+    updatedAt,
+    syncStatus,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NoteRevision &&
+          other.id == this.id &&
+          other.remoteId == this.remoteId &&
+          other.noteRemoteId == this.noteRemoteId &&
+          other.noteId == this.noteId &&
+          other.practitionerUid == this.practitionerUid &&
+          other.subjective == this.subjective &&
+          other.objective == this.objective &&
+          other.assessment == this.assessment &&
+          other.plan == this.plan &&
+          other.reason == this.reason &&
+          other.createdByUid == this.createdByUid &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.syncStatus == this.syncStatus &&
+          other.deletedAt == this.deletedAt);
+}
+
+class NoteRevisionsCompanion extends UpdateCompanion<NoteRevision> {
+  final Value<int> id;
+  final Value<String> remoteId;
+  final Value<String> noteRemoteId;
+  final Value<int> noteId;
+  final Value<String> practitionerUid;
+  final Value<String> subjective;
+  final Value<String> objective;
+  final Value<String> assessment;
+  final Value<String> plan;
+  final Value<NoteRevisionReason> reason;
+  final Value<String> createdByUid;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<RowSyncStatus> syncStatus;
+  final Value<DateTime?> deletedAt;
+  const NoteRevisionsCompanion({
+    this.id = const Value.absent(),
+    this.remoteId = const Value.absent(),
+    this.noteRemoteId = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.practitionerUid = const Value.absent(),
+    this.subjective = const Value.absent(),
+    this.objective = const Value.absent(),
+    this.assessment = const Value.absent(),
+    this.plan = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.createdByUid = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+  });
+  NoteRevisionsCompanion.insert({
+    this.id = const Value.absent(),
+    this.remoteId = const Value.absent(),
+    required String noteRemoteId,
+    required int noteId,
+    this.practitionerUid = const Value.absent(),
+    this.subjective = const Value.absent(),
+    this.objective = const Value.absent(),
+    this.assessment = const Value.absent(),
+    this.plan = const Value.absent(),
+    required NoteRevisionReason reason,
+    this.createdByUid = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+  }) : noteRemoteId = Value(noteRemoteId),
+       noteId = Value(noteId),
+       reason = Value(reason);
+  static Insertable<NoteRevision> custom({
+    Expression<int>? id,
+    Expression<String>? remoteId,
+    Expression<String>? noteRemoteId,
+    Expression<int>? noteId,
+    Expression<String>? practitionerUid,
+    Expression<String>? subjective,
+    Expression<String>? objective,
+    Expression<String>? assessment,
+    Expression<String>? plan,
+    Expression<int>? reason,
+    Expression<String>? createdByUid,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? syncStatus,
+    Expression<DateTime>? deletedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (remoteId != null) 'remote_id': remoteId,
+      if (noteRemoteId != null) 'note_remote_id': noteRemoteId,
+      if (noteId != null) 'note_id': noteId,
+      if (practitionerUid != null) 'practitioner_uid': practitionerUid,
+      if (subjective != null) 'subjective': subjective,
+      if (objective != null) 'objective': objective,
+      if (assessment != null) 'assessment': assessment,
+      if (plan != null) 'plan': plan,
+      if (reason != null) 'reason': reason,
+      if (createdByUid != null) 'created_by_uid': createdByUid,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (syncStatus != null) 'sync_status': syncStatus,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+    });
+  }
+
+  NoteRevisionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? remoteId,
+    Value<String>? noteRemoteId,
+    Value<int>? noteId,
+    Value<String>? practitionerUid,
+    Value<String>? subjective,
+    Value<String>? objective,
+    Value<String>? assessment,
+    Value<String>? plan,
+    Value<NoteRevisionReason>? reason,
+    Value<String>? createdByUid,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<RowSyncStatus>? syncStatus,
+    Value<DateTime?>? deletedAt,
+  }) {
+    return NoteRevisionsCompanion(
+      id: id ?? this.id,
+      remoteId: remoteId ?? this.remoteId,
+      noteRemoteId: noteRemoteId ?? this.noteRemoteId,
+      noteId: noteId ?? this.noteId,
+      practitionerUid: practitionerUid ?? this.practitionerUid,
+      subjective: subjective ?? this.subjective,
+      objective: objective ?? this.objective,
+      assessment: assessment ?? this.assessment,
+      plan: plan ?? this.plan,
+      reason: reason ?? this.reason,
+      createdByUid: createdByUid ?? this.createdByUid,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      syncStatus: syncStatus ?? this.syncStatus,
+      deletedAt: deletedAt ?? this.deletedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (remoteId.present) {
+      map['remote_id'] = Variable<String>(remoteId.value);
+    }
+    if (noteRemoteId.present) {
+      map['note_remote_id'] = Variable<String>(noteRemoteId.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<int>(noteId.value);
+    }
+    if (practitionerUid.present) {
+      map['practitioner_uid'] = Variable<String>(practitionerUid.value);
+    }
+    if (subjective.present) {
+      map['subjective'] = Variable<String>(subjective.value);
+    }
+    if (objective.present) {
+      map['objective'] = Variable<String>(objective.value);
+    }
+    if (assessment.present) {
+      map['assessment'] = Variable<String>(assessment.value);
+    }
+    if (plan.present) {
+      map['plan'] = Variable<String>(plan.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<int>(
+        $NoteRevisionsTable.$converterreason.toSql(reason.value),
+      );
+    }
+    if (createdByUid.present) {
+      map['created_by_uid'] = Variable<String>(createdByUid.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (syncStatus.present) {
+      map['sync_status'] = Variable<int>(
+        $NoteRevisionsTable.$convertersyncStatus.toSql(syncStatus.value),
+      );
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteRevisionsCompanion(')
+          ..write('id: $id, ')
+          ..write('remoteId: $remoteId, ')
+          ..write('noteRemoteId: $noteRemoteId, ')
+          ..write('noteId: $noteId, ')
+          ..write('practitionerUid: $practitionerUid, ')
+          ..write('subjective: $subjective, ')
+          ..write('objective: $objective, ')
+          ..write('assessment: $assessment, ')
+          ..write('plan: $plan, ')
+          ..write('reason: $reason, ')
+          ..write('createdByUid: $createdByUid, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus, ')
@@ -3623,6 +4481,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ClientsTable clients = $ClientsTable(this);
   late final $AppointmentsTable appointments = $AppointmentsTable(this);
   late final $NotesTable notes = $NotesTable(this);
+  late final $NoteRevisionsTable noteRevisions = $NoteRevisionsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $TemplatesTable templates = $TemplatesTable(this);
   @override
@@ -3633,6 +4492,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     clients,
     appointments,
     notes,
+    noteRevisions,
     settings,
     templates,
   ];
@@ -4864,6 +5724,24 @@ final class $$NotesTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$NoteRevisionsTable, List<NoteRevision>>
+  _noteRevisionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.noteRevisions,
+    aliasName: $_aliasNameGenerator(db.notes.id, db.noteRevisions.noteId),
+  );
+
+  $$NoteRevisionsTableProcessedTableManager get noteRevisionsRefs {
+    final manager = $$NoteRevisionsTableTableManager(
+      $_db,
+      $_db.noteRevisions,
+    ).filter((f) => f.noteId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_noteRevisionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
@@ -4995,6 +5873,31 @@ class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
           ),
     );
     return composer;
+  }
+
+  Expression<bool> noteRevisionsRefs(
+    Expression<bool> Function($$NoteRevisionsTableFilterComposer f) f,
+  ) {
+    final $$NoteRevisionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.noteRevisions,
+      getReferencedColumn: (t) => t.noteId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NoteRevisionsTableFilterComposer(
+            $db: $db,
+            $table: $db.noteRevisions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -5239,6 +6142,31 @@ class $$NotesTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> noteRevisionsRefs<T extends Object>(
+    Expression<T> Function($$NoteRevisionsTableAnnotationComposer a) f,
+  ) {
+    final $$NoteRevisionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.noteRevisions,
+      getReferencedColumn: (t) => t.noteId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NoteRevisionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.noteRevisions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$NotesTableTableManager
@@ -5254,7 +6182,11 @@ class $$NotesTableTableManager
           $$NotesTableUpdateCompanionBuilder,
           (Note, $$NotesTableReferences),
           Note,
-          PrefetchHooks Function({bool clientId, bool appointmentId})
+          PrefetchHooks Function({
+            bool clientId,
+            bool appointmentId,
+            bool noteRevisionsRefs,
+          })
         > {
   $$NotesTableTableManager(_$AppDatabase db, $NotesTable table)
     : super(
@@ -5349,7 +6281,574 @@ class $$NotesTableTableManager
                     (e.readTable(table), $$NotesTableReferences(db, table, e)),
               )
               .toList(),
-          prefetchHooksCallback: ({clientId = false, appointmentId = false}) {
+          prefetchHooksCallback:
+              ({
+                clientId = false,
+                appointmentId = false,
+                noteRevisionsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (noteRevisionsRefs) db.noteRevisions,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (clientId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.clientId,
+                                    referencedTable: $$NotesTableReferences
+                                        ._clientIdTable(db),
+                                    referencedColumn: $$NotesTableReferences
+                                        ._clientIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (appointmentId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.appointmentId,
+                                    referencedTable: $$NotesTableReferences
+                                        ._appointmentIdTable(db),
+                                    referencedColumn: $$NotesTableReferences
+                                        ._appointmentIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (noteRevisionsRefs)
+                        await $_getPrefetchedData<
+                          Note,
+                          $NotesTable,
+                          NoteRevision
+                        >(
+                          currentTable: table,
+                          referencedTable: $$NotesTableReferences
+                              ._noteRevisionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$NotesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).noteRevisionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.noteId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$NotesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotesTable,
+      Note,
+      $$NotesTableFilterComposer,
+      $$NotesTableOrderingComposer,
+      $$NotesTableAnnotationComposer,
+      $$NotesTableCreateCompanionBuilder,
+      $$NotesTableUpdateCompanionBuilder,
+      (Note, $$NotesTableReferences),
+      Note,
+      PrefetchHooks Function({
+        bool clientId,
+        bool appointmentId,
+        bool noteRevisionsRefs,
+      })
+    >;
+typedef $$NoteRevisionsTableCreateCompanionBuilder =
+    NoteRevisionsCompanion Function({
+      Value<int> id,
+      Value<String> remoteId,
+      required String noteRemoteId,
+      required int noteId,
+      Value<String> practitionerUid,
+      Value<String> subjective,
+      Value<String> objective,
+      Value<String> assessment,
+      Value<String> plan,
+      required NoteRevisionReason reason,
+      Value<String> createdByUid,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<RowSyncStatus> syncStatus,
+      Value<DateTime?> deletedAt,
+    });
+typedef $$NoteRevisionsTableUpdateCompanionBuilder =
+    NoteRevisionsCompanion Function({
+      Value<int> id,
+      Value<String> remoteId,
+      Value<String> noteRemoteId,
+      Value<int> noteId,
+      Value<String> practitionerUid,
+      Value<String> subjective,
+      Value<String> objective,
+      Value<String> assessment,
+      Value<String> plan,
+      Value<NoteRevisionReason> reason,
+      Value<String> createdByUid,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<RowSyncStatus> syncStatus,
+      Value<DateTime?> deletedAt,
+    });
+
+final class $$NoteRevisionsTableReferences
+    extends BaseReferences<_$AppDatabase, $NoteRevisionsTable, NoteRevision> {
+  $$NoteRevisionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $NotesTable _noteIdTable(_$AppDatabase db) => db.notes.createAlias(
+    $_aliasNameGenerator(db.noteRevisions.noteId, db.notes.id),
+  );
+
+  $$NotesTableProcessedTableManager get noteId {
+    final $_column = $_itemColumn<int>('note_id')!;
+
+    final manager = $$NotesTableTableManager(
+      $_db,
+      $_db.notes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_noteIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$NoteRevisionsTableFilterComposer
+    extends Composer<_$AppDatabase, $NoteRevisionsTable> {
+  $$NoteRevisionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteId => $composableBuilder(
+    column: $table.remoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteRemoteId => $composableBuilder(
+    column: $table.noteRemoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subjective => $composableBuilder(
+    column: $table.subjective,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get objective => $composableBuilder(
+    column: $table.objective,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assessment => $composableBuilder(
+    column: $table.assessment,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get plan => $composableBuilder(
+    column: $table.plan,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<NoteRevisionReason, NoteRevisionReason, int>
+  get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<String> get createdByUid => $composableBuilder(
+    column: $table.createdByUid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<RowSyncStatus, RowSyncStatus, int>
+  get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$NotesTableFilterComposer get noteId {
+    final $$NotesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableFilterComposer(
+            $db: $db,
+            $table: $db.notes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NoteRevisionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $NoteRevisionsTable> {
+  $$NoteRevisionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteId => $composableBuilder(
+    column: $table.remoteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteRemoteId => $composableBuilder(
+    column: $table.noteRemoteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subjective => $composableBuilder(
+    column: $table.subjective,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get objective => $composableBuilder(
+    column: $table.objective,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assessment => $composableBuilder(
+    column: $table.assessment,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get plan => $composableBuilder(
+    column: $table.plan,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdByUid => $composableBuilder(
+    column: $table.createdByUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$NotesTableOrderingComposer get noteId {
+    final $$NotesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableOrderingComposer(
+            $db: $db,
+            $table: $db.notes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NoteRevisionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NoteRevisionsTable> {
+  $$NoteRevisionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get remoteId =>
+      $composableBuilder(column: $table.remoteId, builder: (column) => column);
+
+  GeneratedColumn<String> get noteRemoteId => $composableBuilder(
+    column: $table.noteRemoteId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get practitionerUid => $composableBuilder(
+    column: $table.practitionerUid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get subjective => $composableBuilder(
+    column: $table.subjective,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get objective =>
+      $composableBuilder(column: $table.objective, builder: (column) => column);
+
+  GeneratedColumn<String> get assessment => $composableBuilder(
+    column: $table.assessment,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get plan =>
+      $composableBuilder(column: $table.plan, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<NoteRevisionReason, int> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<String> get createdByUid => $composableBuilder(
+    column: $table.createdByUid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<RowSyncStatus, int> get syncStatus =>
+      $composableBuilder(
+        column: $table.syncStatus,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$NotesTableAnnotationComposer get noteId {
+    final $$NotesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.noteId,
+      referencedTable: $db.notes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.notes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NoteRevisionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NoteRevisionsTable,
+          NoteRevision,
+          $$NoteRevisionsTableFilterComposer,
+          $$NoteRevisionsTableOrderingComposer,
+          $$NoteRevisionsTableAnnotationComposer,
+          $$NoteRevisionsTableCreateCompanionBuilder,
+          $$NoteRevisionsTableUpdateCompanionBuilder,
+          (NoteRevision, $$NoteRevisionsTableReferences),
+          NoteRevision,
+          PrefetchHooks Function({bool noteId})
+        > {
+  $$NoteRevisionsTableTableManager(_$AppDatabase db, $NoteRevisionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NoteRevisionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NoteRevisionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NoteRevisionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> remoteId = const Value.absent(),
+                Value<String> noteRemoteId = const Value.absent(),
+                Value<int> noteId = const Value.absent(),
+                Value<String> practitionerUid = const Value.absent(),
+                Value<String> subjective = const Value.absent(),
+                Value<String> objective = const Value.absent(),
+                Value<String> assessment = const Value.absent(),
+                Value<String> plan = const Value.absent(),
+                Value<NoteRevisionReason> reason = const Value.absent(),
+                Value<String> createdByUid = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<RowSyncStatus> syncStatus = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+              }) => NoteRevisionsCompanion(
+                id: id,
+                remoteId: remoteId,
+                noteRemoteId: noteRemoteId,
+                noteId: noteId,
+                practitionerUid: practitionerUid,
+                subjective: subjective,
+                objective: objective,
+                assessment: assessment,
+                plan: plan,
+                reason: reason,
+                createdByUid: createdByUid,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                syncStatus: syncStatus,
+                deletedAt: deletedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> remoteId = const Value.absent(),
+                required String noteRemoteId,
+                required int noteId,
+                Value<String> practitionerUid = const Value.absent(),
+                Value<String> subjective = const Value.absent(),
+                Value<String> objective = const Value.absent(),
+                Value<String> assessment = const Value.absent(),
+                Value<String> plan = const Value.absent(),
+                required NoteRevisionReason reason,
+                Value<String> createdByUid = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<RowSyncStatus> syncStatus = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+              }) => NoteRevisionsCompanion.insert(
+                id: id,
+                remoteId: remoteId,
+                noteRemoteId: noteRemoteId,
+                noteId: noteId,
+                practitionerUid: practitionerUid,
+                subjective: subjective,
+                objective: objective,
+                assessment: assessment,
+                plan: plan,
+                reason: reason,
+                createdByUid: createdByUid,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                syncStatus: syncStatus,
+                deletedAt: deletedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$NoteRevisionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({noteId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -5369,28 +6868,15 @@ class $$NotesTableTableManager
                       dynamic
                     >
                   >(state) {
-                    if (clientId) {
+                    if (noteId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.clientId,
-                                referencedTable: $$NotesTableReferences
-                                    ._clientIdTable(db),
-                                referencedColumn: $$NotesTableReferences
-                                    ._clientIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
-                    if (appointmentId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.appointmentId,
-                                referencedTable: $$NotesTableReferences
-                                    ._appointmentIdTable(db),
-                                referencedColumn: $$NotesTableReferences
-                                    ._appointmentIdTable(db)
+                                currentColumn: table.noteId,
+                                referencedTable: $$NoteRevisionsTableReferences
+                                    ._noteIdTable(db),
+                                referencedColumn: $$NoteRevisionsTableReferences
+                                    ._noteIdTable(db)
                                     .id,
                               )
                               as T;
@@ -5407,19 +6893,19 @@ class $$NotesTableTableManager
       );
 }
 
-typedef $$NotesTableProcessedTableManager =
+typedef $$NoteRevisionsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $NotesTable,
-      Note,
-      $$NotesTableFilterComposer,
-      $$NotesTableOrderingComposer,
-      $$NotesTableAnnotationComposer,
-      $$NotesTableCreateCompanionBuilder,
-      $$NotesTableUpdateCompanionBuilder,
-      (Note, $$NotesTableReferences),
-      Note,
-      PrefetchHooks Function({bool clientId, bool appointmentId})
+      $NoteRevisionsTable,
+      NoteRevision,
+      $$NoteRevisionsTableFilterComposer,
+      $$NoteRevisionsTableOrderingComposer,
+      $$NoteRevisionsTableAnnotationComposer,
+      $$NoteRevisionsTableCreateCompanionBuilder,
+      $$NoteRevisionsTableUpdateCompanionBuilder,
+      (NoteRevision, $$NoteRevisionsTableReferences),
+      NoteRevision,
+      PrefetchHooks Function({bool noteId})
     >;
 typedef $$SettingsTableCreateCompanionBuilder =
     SettingsCompanion Function({
@@ -5941,6 +7427,8 @@ class $AppDatabaseManager {
       $$AppointmentsTableTableManager(_db, _db.appointments);
   $$NotesTableTableManager get notes =>
       $$NotesTableTableManager(_db, _db.notes);
+  $$NoteRevisionsTableTableManager get noteRevisions =>
+      $$NoteRevisionsTableTableManager(_db, _db.noteRevisions);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
   $$TemplatesTableTableManager get templates =>

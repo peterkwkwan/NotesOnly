@@ -105,6 +105,24 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Same ACL as notes (denormalized practitionerUid). Soft-delete only.
+      match /noteRevisions/{id} {
+        allow read: if isOrgOwner(orgId) || (
+          isOrgPractitioner(orgId)
+          && resource.data.practitionerUid == request.auth.uid
+        );
+        allow create: if isOrgOwner(orgId) || (
+          isOrgPractitioner(orgId)
+          && request.resource.data.practitionerUid == request.auth.uid
+        );
+        allow update: if isOrgOwner(orgId) || (
+          isOrgPractitioner(orgId)
+          && resource.data.practitionerUid == request.auth.uid
+          && request.resource.data.practitionerUid == request.auth.uid
+        );
+        allow delete: if false;
+      }
+
       match /templates/{id} {
         allow read: if isActiveMember(orgId);
         allow create: if isActiveMember(orgId)

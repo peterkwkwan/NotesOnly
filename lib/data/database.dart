@@ -33,10 +33,24 @@ enum AppointmentStatus {
   noShow,
 }
 
-/// Legacy note status; unused (notes stay editable).
+/// Live note lifecycle: draft working copy vs published snapshot marker.
 enum NoteStatus {
   draft,
-  finalized,
+  published, // was finalized (same index)
+}
+
+/// Why a note_revisions row was created (intentional Save draft / Publish only).
+enum NoteRevisionReason {
+  saveDraft,
+  publish,
+}
+
+/// Result of [AppDatabase.publishNote].
+enum PublishNoteResult {
+  published,
+  noop,
+  empty,
+  missing,
 }
 
 /// Per-row cloud sync flag (Drift ↔ Firestore).
@@ -100,11 +114,35 @@ class Notes extends Table {
   TextColumn get plan => text().withDefault(const Constant(''))();
   /// Legacy column; unused (notes stay editable).
   TextColumn get addendum => text().withDefault(const Constant(''))();
-  /// Legacy draft/final; unused (no lock).
+  /// Draft vs published (live note badge).
   IntColumn get status =>
       intEnum<NoteStatus>().withDefault(Constant(NoteStatus.draft.index))();
+  /// Last publish time (product: publishedAt). Column name kept for sync.
   DateTimeColumn get finalizedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get syncStatus => intEnum<RowSyncStatus>()
+      .withDefault(Constant(RowSyncStatus.pending.index))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+}
+
+/// Intentional SOAP snapshots (Save draft / Publish). Cap 5 live rows per note.
+class NoteRevisions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get remoteId => text().withDefault(const Constant(''))();
+  /// Parent note Firestore id (stable across devices).
+  TextColumn get noteRemoteId => text()();
+  IntColumn get noteId => integer().references(Notes, #id)();
+  /// Denormalized for Firestore rules (Admin cannot read SOAP).
+  TextColumn get practitionerUid => text().withDefault(const Constant(''))();
+  TextColumn get subjective => text().withDefault(const Constant(''))();
+  TextColumn get objective => text().withDefault(const Constant(''))();
+  TextColumn get assessment => text().withDefault(const Constant(''))();
+  TextColumn get plan => text().withDefault(const Constant(''))();
+  IntColumn get reason => intEnum<NoteRevisionReason>()();
+  TextColumn get createdByUid => text().withDefault(const Constant(''))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  /// Equals createdAt on insert; bump on soft-delete for sync cursor.
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   IntColumn get syncStatus => intEnum<RowSyncStatus>()
       .withDefault(Constant(RowSyncStatus.pending.index))();
@@ -144,7 +182,9 @@ class Templates extends Table {
   DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
-@DriftDatabase(tables: [Clients, Appointments, Notes, Settings, Templates])
+@DriftDatabase(
+  tables: [Clients, Appointments, Notes, NoteRevisions, Settings, Templates],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
       : super(executor ?? _openConnection());
@@ -162,7 +202,7 @@ class AppDatabase extends _$AppDatabase {
       onAppointmentChanged?.call(id, deleteGoogleEventId: deleteGoogleEventId);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   /// True if [table] exists (half-applied migrate / never-created templates).
   Future<bool> hasSqliteTable(String table) async {
@@ -316,6 +356,9 @@ class AppDatabase extends _$AppDatabase {
               appointments,
               appointments.googleEventId,
             );
+          }
+          if (from < 10) {
+            await createTableIfMissing(m, noteRevisions);
           }
         },
       );
@@ -1114,6 +1157,20 @@ class AppDatabase extends _$AppDatabase {
   /// Soft-delete client and owned appointments/notes; scrub id from settings lists.
   Future<void> deleteClient(int id) async {
     final now = DateTime.now();
+    final clientNotes = await (select(notes)
+          ..where((t) => t.clientId.equals(id)))
+        .get();
+    final noteIds = clientNotes.map((n) => n.id).toList();
+    if (noteIds.isNotEmpty) {
+      await (update(noteRevisions)..where((t) => t.noteId.isIn(noteIds)))
+          .write(
+        NoteRevisionsCompanion(
+          deletedAt: Value(now),
+          updatedAt: Value(now),
+          syncStatus: const Value(RowSyncStatus.pending),
+        ),
+      );
+    }
     await (update(notes)..where((t) => t.clientId.equals(id))).write(
       NotesCompanion(
         deletedAt: Value(now),
@@ -1568,6 +1625,7 @@ class AppDatabase extends _$AppDatabase {
     return (await getNote(id))!;
   }
 
+  /// Autosave path: body only, no revision. Published → draft on persist.
   Future<void> updateNoteSoap({
     required int id,
     required String subjective,
@@ -1583,11 +1641,292 @@ class AppDatabase extends _$AppDatabase {
         objective: Value(objective),
         assessment: Value(assessment),
         plan: Value(plan),
+        status: note.status == NoteStatus.published
+            ? const Value(NoteStatus.draft)
+            : const Value.absent(),
         updatedAt: Value(DateTime.now()),
         syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
     _notifyDirty();
+  }
+
+  /// Explicit Save draft: flush body + optional revision (dedup vs newest).
+  /// Skips blank snapshots (empty new notes).
+  Future<bool> saveDraftWithRevision({
+    required int id,
+    required String subjective,
+    required String objective,
+    required String assessment,
+    required String plan,
+  }) async {
+    final note = await getNote(id);
+    if (note == null) return false;
+    final now = DateTime.now();
+    await (update(notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        subjective: Value(subjective),
+        objective: Value(objective),
+        assessment: Value(assessment),
+        plan: Value(plan),
+        status: const Value(NoteStatus.draft),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    var created = false;
+    if (!_soapTextEmpty(subjective, objective, assessment, plan)) {
+      created = await _maybeInsertRevision(
+        note: note,
+        subjective: subjective,
+        objective: objective,
+        assessment: assessment,
+        plan: plan,
+        reason: NoteRevisionReason.saveDraft,
+        at: now,
+      );
+    }
+    _notifyDirty();
+    return created;
+  }
+
+  /// Publish: set published + optional revision. No-op if already published
+  /// with identical body to the newest revision.
+  Future<PublishNoteResult> publishNote({
+    required int id,
+    required String subjective,
+    required String objective,
+    required String assessment,
+    required String plan,
+  }) async {
+    final note = await getNote(id);
+    if (note == null) return PublishNoteResult.missing;
+    if (_soapTextEmpty(subjective, objective, assessment, plan)) {
+      return PublishNoteResult.empty;
+    }
+    final identicalLiveBody = _soapExactEquals(
+      note.subjective,
+      note.objective,
+      note.assessment,
+      note.plan,
+      subjective,
+      objective,
+      assessment,
+      plan,
+    );
+    if (note.status == NoteStatus.published && identicalLiveBody) {
+      return PublishNoteResult.noop;
+    }
+    final newest = await _newestRevisionForNote(note.id);
+    final sameAsNewest = newest != null &&
+        _soapExactEquals(
+          newest.subjective,
+          newest.objective,
+          newest.assessment,
+          newest.plan,
+          subjective,
+          objective,
+          assessment,
+          plan,
+        );
+    final now = DateTime.now();
+    await (update(notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        subjective: Value(subjective),
+        objective: Value(objective),
+        assessment: Value(assessment),
+        plan: Value(plan),
+        status: const Value(NoteStatus.published),
+        finalizedAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    if (!sameAsNewest) {
+      await _maybeInsertRevision(
+        note: note,
+        subjective: subjective,
+        objective: objective,
+        assessment: assessment,
+        plan: plan,
+        reason: NoteRevisionReason.publish,
+        at: now,
+        force: true,
+      );
+    }
+    _notifyDirty();
+    return PublishNoteResult.published;
+  }
+
+  /// Last 5 live revisions for [noteId], newest first.
+  Stream<List<NoteRevision>> watchNoteRevisions(int noteId) {
+    return (select(noteRevisions)
+          ..where(
+            (t) => t.noteId.equals(noteId) & t.deletedAt.isNull(),
+          )
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.createdAt),
+            (t) => OrderingTerm.desc(t.id),
+          ])
+          ..limit(5))
+        .watch();
+  }
+
+  Future<List<NoteRevision>> listNoteRevisions(int noteId) {
+    return (select(noteRevisions)
+          ..where(
+            (t) => t.noteId.equals(noteId) & t.deletedAt.isNull(),
+          )
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.createdAt),
+            (t) => OrderingTerm.desc(t.id),
+          ])
+          ..limit(5))
+        .get();
+  }
+
+  /// Restore revision into live note as draft. Does not create a revision.
+  Future<bool> restoreNoteRevision({
+    required int noteId,
+    required int revisionId,
+  }) async {
+    final note = await getNote(noteId);
+    if (note == null || note.deletedAt != null) return false;
+    final rev = await (select(noteRevisions)
+          ..where(
+            (t) =>
+                t.id.equals(revisionId) &
+                t.noteId.equals(noteId) &
+                t.deletedAt.isNull(),
+          ))
+        .getSingleOrNull();
+    if (rev == null) return false;
+    await (update(notes)..where((t) => t.id.equals(noteId))).write(
+      NotesCompanion(
+        subjective: Value(rev.subjective),
+        objective: Value(rev.objective),
+        assessment: Value(rev.assessment),
+        plan: Value(rev.plan),
+        status: const Value(NoteStatus.draft),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    _notifyDirty();
+    return true;
+  }
+
+  Future<NoteRevision?> _newestRevisionForNote(int noteId) {
+    return (select(noteRevisions)
+          ..where(
+            (t) => t.noteId.equals(noteId) & t.deletedAt.isNull(),
+          )
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.createdAt),
+            (t) => OrderingTerm.desc(t.id),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  /// Insert revision when content differs from newest (unless [force]).
+  /// Returns true when a row was inserted. Cap 5 via soft-delete prune.
+  Future<bool> _maybeInsertRevision({
+    required Note note,
+    required String subjective,
+    required String objective,
+    required String assessment,
+    required String plan,
+    required NoteRevisionReason reason,
+    required DateTime at,
+    bool force = false,
+  }) async {
+    if (!force) {
+      final newest = await _newestRevisionForNote(note.id);
+      if (newest != null &&
+          _soapExactEquals(
+            newest.subjective,
+            newest.objective,
+            newest.assessment,
+            newest.plan,
+            subjective,
+            objective,
+            assessment,
+            plan,
+          )) {
+        return false;
+      }
+    }
+    final uid = NotesAuth.currentUser?.uid ?? '';
+    var practitioner = note.practitionerUid;
+    if (practitioner.isEmpty) practitioner = uid;
+    await into(noteRevisions).insert(
+      NoteRevisionsCompanion.insert(
+        remoteId: Value(newRemoteId()),
+        noteRemoteId: note.remoteId,
+        noteId: note.id,
+        practitionerUid: Value(practitioner),
+        subjective: Value(subjective),
+        objective: Value(objective),
+        assessment: Value(assessment),
+        plan: Value(plan),
+        reason: reason,
+        createdByUid: Value(uid),
+        createdAt: Value(at),
+        updatedAt: Value(at),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    await _pruneNoteRevisionsToFive(note.id);
+    return true;
+  }
+
+  Future<void> _pruneNoteRevisionsToFive(int noteId) async {
+    final rows = await (select(noteRevisions)
+          ..where(
+            (t) => t.noteId.equals(noteId) & t.deletedAt.isNull(),
+          )
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.createdAt),
+            (t) => OrderingTerm.desc(t.id),
+          ]))
+        .get();
+    if (rows.length <= 5) return;
+    final now = DateTime.now();
+    for (final old in rows.skip(5)) {
+      await (update(noteRevisions)..where((t) => t.id.equals(old.id))).write(
+        NoteRevisionsCompanion(
+          deletedAt: Value(now),
+          updatedAt: Value(now),
+          syncStatus: const Value(RowSyncStatus.pending),
+        ),
+      );
+    }
+  }
+
+  static bool _soapTextEmpty(
+    String subjective,
+    String objective,
+    String assessment,
+    String plan,
+  ) {
+    return subjective.trim().isEmpty &&
+        objective.trim().isEmpty &&
+        assessment.trim().isEmpty &&
+        plan.trim().isEmpty;
+  }
+
+  static bool _soapExactEquals(
+    String aS,
+    String aO,
+    String aA,
+    String aP,
+    String bS,
+    String bO,
+    String bA,
+    String bP,
+  ) {
+    return aS == bS && aO == bO && aA == bA && aP == bP;
   }
 
   /// Empty S/O/A/P notes (web Today “Open SOAP drafts”), newest first.
@@ -1664,6 +2003,9 @@ class AppDatabase extends _$AppDatabase {
         objective: Value(source.objective),
         assessment: Value(source.assessment),
         plan: Value(source.plan),
+        status: target.status == NoteStatus.published
+            ? const Value(NoteStatus.draft)
+            : const Value.absent(),
         updatedAt: Value(DateTime.now()),
         syncStatus: const Value(RowSyncStatus.pending),
       ),
