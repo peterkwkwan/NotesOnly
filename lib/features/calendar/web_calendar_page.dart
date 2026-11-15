@@ -12,6 +12,7 @@ import '../../widgets/show_snack.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../clients/client_format.dart';
 import '../notes/note_format.dart';
+import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
 
 enum _CalView { day, week, month }
@@ -114,6 +115,13 @@ int _parseHour(String hhmm) {
 String _hhmm(TimeOfDay t) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
+/// Snap a grid Y offset to the same 30-min slots as [_DayColumn] taps.
+TimeOfDay _timeFromGridY(double dy, {required double hourH, int startHour = 0}) {
+  final slot = (dy / (hourH / 2)).floor();
+  final totalMins = (startHour * 60 + slot * 30).clamp(0, 24 * 60 - 30);
+  return TimeOfDay(hour: totalMins ~/ 60, minute: totalMins % 60);
+}
+
 String _weekRangeLabel(DateTime monday) {
   final sunday = monday.add(const Duration(days: 6));
   if (monday.month == sunday.month) {
@@ -145,6 +153,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   int? _clientId;
   final _notesCtrl = TextEditingController();
   bool _saving = false;
+  AppointmentStatus _status = AppointmentStatus.scheduled;
+  bool? _hasNote;
   ({Appointment appointment, Client client})? _reassign;
   String? _reassignUid;
   List<OrgMember> _members = const [];
@@ -154,6 +164,10 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   String _orgId = '';
   Set<String> _filterUids = {};
   Map<String, String> _memberNames = {};
+  /// Latest week/day grid geometry for drag-reschedule drops.
+  final GlobalKey _scheduleGridKey = GlobalKey();
+  List<DateTime> _gridDays = const [];
+  double _gridColW = 0;
 
   @override
   void initState() {
@@ -387,6 +401,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _panelOpen = true;
       _reassign = null;
       _reassignUid = null;
+      _hasNote = null;
+      _status = AppointmentStatus.scheduled;
       _selected = _dateOnly(d);
       _starts = s;
       _ends = TimeOfDay(hour: (s.hour + 1) % 24, minute: s.minute);
@@ -395,14 +411,35 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     });
   }
 
-  void _openReassign(({Appointment appointment, Client client}) row) {
+  void _openReassign(
+    ({Appointment appointment, Client client}) row, {
+    int defaultMins = 60,
+  }) {
+    final start = row.appointment.startsAt;
+    final end = appointmentEffectiveEnd(
+      start,
+      row.appointment.endsAt,
+      defaultMins,
+    );
     setState(() {
       _reassign = row;
       _reassignUid = row.appointment.practitionerUid;
       _panelOpen = true;
-      _selected = _dateOnly(row.appointment.startsAt);
+      _selected = _dateOnly(start);
+      _starts = TimeOfDay(hour: start.hour, minute: start.minute);
+      _ends = TimeOfDay(hour: end.hour, minute: end.minute);
+      _status = row.appointment.status;
+      _hasNote = null;
       if (_view == _CalView.week) _anchor = _mondayOf(_selected);
     });
+    _loadHasNote(row.appointment.id);
+  }
+
+  Future<void> _loadHasNote(int appointmentId) async {
+    final note = await AppDatabaseProvider.of(context)
+        .getNoteForAppointment(appointmentId);
+    if (!mounted || _reassign?.appointment.id != appointmentId) return;
+    setState(() => _hasNote = note != null);
   }
 
   void _closePanel() {
@@ -410,36 +447,100 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _panelOpen = false;
       _reassign = null;
       _reassignUid = null;
+      _hasNote = null;
     });
   }
 
-  Future<void> _saveReassign(AppDatabase db) async {
+  Future<void> _pickStatus() async {
+    final status = await showPelviPickerSheet<AppointmentStatus>(
+      context: context,
+      title: 'Status',
+      selected: _status,
+      options: [
+        for (final s in AppointmentStatus.values)
+          PelviPickerOption(
+            value: s,
+            label: appointmentStatusLabel(s),
+            labelColor: appointmentStatusColor(s),
+          ),
+      ],
+    );
+    if (status != null) setState(() => _status = status);
+  }
+
+  Future<void> _openSoapForReassign() async {
     final row = _reassign;
-    final uid = _reassignUid;
-    if (row == null || uid == null || uid.isEmpty || _saving) return;
-    if (!_canReassign || uid == row.appointment.practitionerUid) return;
-    OrgMember? target;
-    for (final member in _members) {
-      if (member.uid == uid) target = member;
+    if (row == null) return;
+    final startsAt = DateTime(
+      _selected.year,
+      _selected.month,
+      _selected.day,
+      _starts.hour,
+      _starts.minute,
+    );
+    await openNoteForAppointment(
+      context,
+      appointmentId: row.appointment.id,
+      clientId: row.client.id,
+      noteDate: startsAt,
+    );
+    if (!mounted) return;
+    await _loadHasNote(row.appointment.id);
+  }
+
+  Future<void> _saveEdit(AppDatabase db, int defaultMins) async {
+    final row = _reassign;
+    if (row == null || _saving) return;
+    final uid = _reassignUid ?? row.appointment.practitionerUid;
+    final pracChanged = uid != row.appointment.practitionerUid;
+    if (pracChanged) {
+      if (!_canReassign || uid.isEmpty) {
+        showPelviSnackBar(context, 'Choose an active practitioner');
+        return;
+      }
+      OrgMember? target;
+      for (final member in _members) {
+        if (member.uid == uid) target = member;
+      }
+      if (target == null || !isBookablePractitioner(target)) {
+        showPelviSnackBar(context, 'Choose an active practitioner');
+        return;
+      }
     }
-    if (target == null || !isBookablePractitioner(target)) {
-      showPelviSnackBar(context, 'Choose an active practitioner');
-      return;
+    final startsAt = DateTime(
+      _selected.year,
+      _selected.month,
+      _selected.day,
+      _starts.hour,
+      _starts.minute,
+    );
+    var endsAt = DateTime(
+      _selected.year,
+      _selected.month,
+      _selected.day,
+      _ends.hour,
+      _ends.minute,
+    );
+    if (!endsAt.isAfter(startsAt)) {
+      endsAt = startsAt.add(Duration(minutes: defaultMins));
     }
     setState(() => _saving = true);
     try {
       await db.updateAppointment(
         id: row.appointment.id,
-        startsAt: row.appointment.startsAt,
-        practitionerUid: uid,
+        startsAt: startsAt,
+        endsAt: endsAt,
+        status: _status,
+        practitionerUid: pracChanged ? uid : null,
       );
       if (!mounted) return;
       setState(() {
         _reassign = null;
         _reassignUid = null;
+        _hasNote = null;
         _panelOpen = false;
       });
-      showPelviSnackBar(context, 'Booking reassigned');
+      showPelviSnackBar(context, 'Appointment saved');
     } on AppointmentConflictException catch (e) {
       if (!mounted) return;
       showPelviSnackBar(
@@ -450,10 +551,108 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         ),
       );
     } catch (e) {
-      if (mounted) showPelviSnackBar(context, 'Could not reassign: $e');
+      if (mounted) showPelviSnackBar(context, 'Could not save: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _rescheduleByDrag(
+    AppDatabase db,
+    ({Appointment appointment, Client client}) row,
+    DateTime newStartsAt,
+    int defaultMins,
+  ) async {
+    final old = row.appointment;
+    final oldEnd = appointmentEffectiveEnd(old.startsAt, old.endsAt, defaultMins);
+    final duration = oldEnd.difference(old.startsAt);
+    final newEndsAt = newStartsAt.add(duration);
+    if (newStartsAt.isAtSameMomentAs(old.startsAt)) return;
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await db.updateAppointment(
+        id: old.id,
+        startsAt: newStartsAt,
+        endsAt: newEndsAt,
+      );
+      if (!mounted) return;
+      if (_reassign?.appointment.id == old.id) {
+        setState(() {
+          _selected = _dateOnly(newStartsAt);
+          _starts =
+              TimeOfDay(hour: newStartsAt.hour, minute: newStartsAt.minute);
+          _ends = TimeOfDay(hour: newEndsAt.hour, minute: newEndsAt.minute);
+          if (_view == _CalView.week) _anchor = _mondayOf(_selected);
+        });
+      }
+    } on AppointmentConflictException catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(
+        context,
+        appointmentConflictCopy(
+          clientName: clientDisplayName(e.client),
+          startsAt: e.appointment.startsAt,
+        ),
+      );
+    } catch (e) {
+      if (mounted) showPelviSnackBar(context, 'Could not reschedule: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _onAppointmentDragEnd(
+    AppDatabase db,
+    ({Appointment appointment, Client client}) row,
+    DraggableDetails details,
+    int defaultMins,
+  ) {
+    final gridCtx = _scheduleGridKey.currentContext;
+    if (gridCtx == null || _gridDays.isEmpty || _gridColW <= 0) {
+      _openReassign(row, defaultMins: defaultMins);
+      return;
+    }
+    final box = gridCtx.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      _openReassign(row, defaultMins: defaultMins);
+      return;
+    }
+    final local = box.globalToLocal(details.offset);
+    final start = row.appointment.startsAt;
+    final originDay = _gridDays.indexWhere((d) => _sameDay(d, start));
+    if (originDay < 0) {
+      _openReassign(row, defaultMins: defaultMins);
+      return;
+    }
+    final originX = _WeekSchedule._gutter + originDay * _gridColW + 4;
+    final originY =
+        (start.hour * 60 + start.minute) / 60.0 * _WeekSchedule._hourH;
+    // Click / tiny drag: open panel (avoid snapping mid-card to a new slot).
+    if ((local.dx - originX).abs() < 12 && (local.dy - originY).abs() < 12) {
+      _openReassign(row, defaultMins: defaultMins);
+      return;
+    }
+    final x = local.dx - _WeekSchedule._gutter;
+    if (x < 0 || local.dy < 0 || local.dy > box.size.height) {
+      _openReassign(row, defaultMins: defaultMins);
+      return;
+    }
+    final dayIndex = (x / _gridColW).floor().clamp(0, _gridDays.length - 1);
+    final time = _timeFromGridY(local.dy, hourH: _WeekSchedule._hourH);
+    final day = _gridDays[dayIndex];
+    final newStartsAt = DateTime(
+      day.year,
+      day.month,
+      day.day,
+      time.hour,
+      time.minute,
+    );
+    if (newStartsAt.isAtSameMomentAs(start)) {
+      _openReassign(row, defaultMins: defaultMins);
+      return;
+    }
+    _rescheduleByDrag(db, row, newStartsAt, defaultMins);
   }
 
   Future<void> _deleteAppointment(AppDatabase db) async {
@@ -486,6 +685,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       setState(() {
         _reassign = null;
         _reassignUid = null;
+        _hasNote = null;
         _panelOpen = false;
       });
       showPelviSnackBar(context, 'Appointment deleted');
@@ -518,10 +718,11 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     }
     setState(() => _saving = true);
     try {
-      await db.insertAppointment(
+      final apptId = await db.insertAppointment(
         clientId: clientId,
         startsAt: startsAt,
         endsAt: endsAt,
+        status: _status,
         notes: _notesCtrl.text,
       );
       if (!mounted) return;
@@ -529,7 +730,33 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         _panelOpen = false;
         _clientId = null;
         _notesCtrl.clear();
+        _status = AppointmentStatus.scheduled;
       });
+      final startNote = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Start a SOAP note for this visit?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Yes'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (startNote == true) {
+        await openNoteForAppointment(
+          context,
+          appointmentId: apptId,
+          clientId: clientId,
+          noteDate: startsAt,
+        );
+      }
     } on AppointmentConflictException catch (e) {
       if (!mounted) return;
       showPelviSnackBar(
@@ -682,6 +909,11 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                     rosterUids: _rosterUids,
                                                     filterUids: _filterUids,
                                                     nameForUid: _nameForUid,
+                                                    gridKey: _scheduleGridKey,
+                                                    onGridLayout: (days, colW) {
+                                                      _gridDays = days;
+                                                      _gridColW = colW;
+                                                    },
                                                     draft: _panelOpen &&
                                                             _reassign == null
                                                         ? (
@@ -689,8 +921,18 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                             starts: _starts,
                                                           )
                                                         : null,
-                                                    onTapAppointment:
-                                                        _openReassign,
+                                                    onTapAppointment: (row) =>
+                                                        _openReassign(
+                                                      row,
+                                                      defaultMins: defaultMins,
+                                                    ),
+                                                    onDragEnd: (row, details) =>
+                                                        _onAppointmentDragEnd(
+                                                      db,
+                                                      row,
+                                                      details,
+                                                      defaultMins,
+                                                    ),
                                                     onSelectDay: (day) =>
                                                         setState(() =>
                                                             _selected = day),
@@ -711,6 +953,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                 starts: _starts,
                                                 ends: _ends,
                                                 clientId: _clientId,
+                                                status: _status,
                                                 notesCtrl: _notesCtrl,
                                                 practitioner: practitioner,
                                                 defaultMins: defaultMins,
@@ -781,6 +1024,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                         () => _ends = picked);
                                                   }
                                                 },
+                                                onPickStatus: _pickStatus,
                                                 onSave: () =>
                                                     _save(db, defaultMins),
                                               )
@@ -792,14 +1036,92 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                           _reassign!
                                                               .appointment
                                                               .practitionerUid,
+                                                  day: _selected,
+                                                  starts: _starts,
+                                                  ends: _ends,
+                                                  status: _status,
+                                                  hasNote: _hasNote,
+                                                  defaultMins: defaultMins,
                                                   canReassign: _canReassign,
                                                   saving: _saving,
                                                   onClose: _closePanel,
                                                   onPick: (uid) => setState(
                                                     () => _reassignUid = uid,
                                                   ),
-                                                  onSave: () =>
-                                                      _saveReassign(db),
+                                                  onPickDate: () async {
+                                                    final picked =
+                                                        await showDatePicker(
+                                                      context: context,
+                                                      initialDate: _selected,
+                                                      firstDate:
+                                                          DateTime(2000),
+                                                      lastDate:
+                                                          DateTime(2100),
+                                                    );
+                                                    if (picked != null) {
+                                                      setState(() {
+                                                        _selected =
+                                                            _dateOnly(picked);
+                                                        if (_view ==
+                                                            _CalView.week) {
+                                                          _anchor =
+                                                              _mondayOf(
+                                                                  picked);
+                                                        }
+                                                      });
+                                                    }
+                                                  },
+                                                  onPickStarts: () async {
+                                                    final picked =
+                                                        await showTimePicker(
+                                                      context: context,
+                                                      initialTime: _starts,
+                                                    );
+                                                    if (picked != null) {
+                                                      setState(() {
+                                                        final span =
+                                                            (_ends.hour * 60 +
+                                                                    _ends
+                                                                        .minute) -
+                                                                (_starts.hour *
+                                                                        60 +
+                                                                    _starts
+                                                                        .minute);
+                                                        _starts = picked;
+                                                        final mins = span > 0
+                                                            ? span
+                                                            : defaultMins;
+                                                        final endTotal =
+                                                            picked.hour * 60 +
+                                                                picked.minute +
+                                                                mins;
+                                                        _ends = TimeOfDay(
+                                                          hour: (endTotal ~/
+                                                                  60) %
+                                                              24,
+                                                          minute:
+                                                              endTotal % 60,
+                                                        );
+                                                      });
+                                                    }
+                                                  },
+                                                  onPickEnds: () async {
+                                                    final picked =
+                                                        await showTimePicker(
+                                                      context: context,
+                                                      initialTime: _ends,
+                                                    );
+                                                    if (picked != null) {
+                                                      setState(() =>
+                                                          _ends = picked);
+                                                    }
+                                                  },
+                                                  onPickStatus: _pickStatus,
+                                                  onSoap: _openSoapForReassign,
+                                                  onSave: () => _saveEdit(
+                                                    db,
+                                                    defaultMins,
+                                                  ),
                                                   onDelete: () =>
                                                       _deleteAppointment(db),
                                                 ),
@@ -1442,10 +1764,13 @@ class _WeekSchedule extends StatefulWidget {
     required this.rosterUids,
     required this.filterUids,
     required this.nameForUid,
+    required this.gridKey,
+    required this.onGridLayout,
     required this.draft,
     required this.onSelectDay,
     required this.onTapSlot,
     required this.onTapAppointment,
+    required this.onDragEnd,
   });
 
   final List<DateTime> days;
@@ -1458,11 +1783,17 @@ class _WeekSchedule extends StatefulWidget {
   final List<String> rosterUids;
   final Set<String> filterUids;
   final String Function(String uid) nameForUid;
+  final GlobalKey gridKey;
+  final void Function(List<DateTime> days, double colW) onGridLayout;
   final ({DateTime day, TimeOfDay starts})? draft;
   final ValueChanged<DateTime> onSelectDay;
   final void Function(DateTime day, TimeOfDay time) onTapSlot;
   final void Function(({Appointment appointment, Client client}) row)
       onTapAppointment;
+  final void Function(
+    ({Appointment appointment, Client client}) row,
+    DraggableDetails details,
+  ) onDragEnd;
 
   static const _hourH = 66.0;
   static const _gutter = 52.0;
@@ -1527,6 +1858,7 @@ class _WeekSchedule extends StatefulWidget {
     required int lane,
     required int laneCount,
     required VoidCallback onTap,
+    required void Function(DraggableDetails details) onDragEnd,
   }) {
     final dayIndex = days.indexWhere(
       (d) => _sameDay(d, row.appointment.startsAt),
@@ -1544,63 +1876,85 @@ class _WeekSchedule extends StatefulWidget {
         (end.difference(start).inMinutes / 60.0 * hourH).clamp(44.0, 400.0);
     final lanes = laneCount < 1 ? 1 : laneCount;
     final slotW = (colW - 8) / lanes;
+    final width = slotW - (lanes > 1 ? 2 : 0);
     final clientName = clientDisplayName(row.client);
+    Widget card({required bool dragging}) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Opacity(
+          opacity: dragging ? 0.45 : 1,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.fill,
+              border: Border.all(
+                color: colors.accent.withValues(alpha: 0.45),
+              ),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 3, color: colors.accent),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          formatApptTime(start),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: colors.text,
+                          ),
+                        ),
+                        Text(
+                          clientName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: colors.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Positioned(
       left: gutter + dayIndex * colW + 4 + lane * slotW,
       top: top,
-      width: slotW - (lanes > 1 ? 2 : 0),
+      width: width,
       height: height,
       child: Tooltip(
         message:
             '${formatApptTime(start)} · $clientName · $practitionerLabel',
         waitDuration: const Duration(milliseconds: 400),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.fill,
-                border: Border.all(
-                  color: colors.accent.withValues(alpha: 0.45),
-                ),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(width: 3, color: colors.accent),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            formatApptTime(start),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: colors.text,
-                            ),
-                          ),
-                          Text(
-                            clientName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: colors.text,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+        // Draggable wins the arena over onTap; same-slot drop opens the panel.
+        child: Draggable<int>(
+          data: row.appointment.id,
+          feedback: Material(
+            color: Colors.transparent,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: card(dragging: false),
             ),
+          ),
+          childWhenDragging: card(dragging: true),
+          onDragEnd: onDragEnd,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: card(dragging: false),
           ),
         ),
       ),
@@ -1723,6 +2077,8 @@ class _WeekScheduleState extends State<_WeekSchedule> {
           lane: lanes[i].lane,
           laneCount: lanes[i].laneCount,
           onTap: () => widget.onTapAppointment(dayRows[i]),
+          onDragEnd: (details) =>
+              widget.onDragEnd(dayRows[i], details),
         ),
     ];
   }
@@ -1797,7 +2153,9 @@ class _WeekScheduleState extends State<_WeekSchedule> {
                     final colW = (constraints.maxWidth -
                             _WeekSchedule._gutter) /
                         days.length;
+                    widget.onGridLayout(days, colW);
                     return Stack(
+                      key: widget.gridKey,
                       children: [
                         // Clinic-hours band stays emphasized; off-hours stay reachable.
                         Positioned(
@@ -2198,6 +2556,7 @@ class _NewAppointmentPanel extends StatelessWidget {
     required this.starts,
     required this.ends,
     required this.clientId,
+    required this.status,
     required this.notesCtrl,
     required this.practitioner,
     required this.defaultMins,
@@ -2210,6 +2569,7 @@ class _NewAppointmentPanel extends StatelessWidget {
     required this.onPickDate,
     required this.onPickStarts,
     required this.onPickEnds,
+    required this.onPickStatus,
     required this.onSave,
   });
 
@@ -2217,6 +2577,7 @@ class _NewAppointmentPanel extends StatelessWidget {
   final TimeOfDay starts;
   final TimeOfDay ends;
   final int? clientId;
+  final AppointmentStatus status;
   final TextEditingController notesCtrl;
   final String practitioner;
   final int defaultMins;
@@ -2229,6 +2590,7 @@ class _NewAppointmentPanel extends StatelessWidget {
   final VoidCallback onPickDate;
   final VoidCallback onPickStarts;
   final VoidCallback onPickEnds;
+  final VoidCallback onPickStatus;
   final VoidCallback onSave;
 
   @override
@@ -2402,6 +2764,14 @@ class _NewAppointmentPanel extends StatelessWidget {
                 style: TextStyle(fontSize: 11, color: c.inkMuted),
               ),
               const SizedBox(height: 16),
+              _FieldLabel('Status'),
+              const SizedBox(height: 7),
+              _FieldBox(
+                value: appointmentStatusLabel(status),
+                valueColor: appointmentStatusColor(status),
+                onTap: onPickStatus,
+              ),
+              const SizedBox(height: 16),
               _FieldLabel('Practitioner'),
               const SizedBox(height: 7),
               _FieldBox(
@@ -2509,10 +2879,21 @@ class _ReassignPanel extends StatelessWidget {
     required this.row,
     required this.members,
     required this.practitionerUid,
+    required this.day,
+    required this.starts,
+    required this.ends,
+    required this.status,
+    required this.hasNote,
+    required this.defaultMins,
     required this.canReassign,
     required this.saving,
     required this.onClose,
     required this.onPick,
+    required this.onPickDate,
+    required this.onPickStarts,
+    required this.onPickEnds,
+    required this.onPickStatus,
+    required this.onSoap,
     required this.onSave,
     required this.onDelete,
   });
@@ -2520,10 +2901,21 @@ class _ReassignPanel extends StatelessWidget {
   final ({Appointment appointment, Client client}) row;
   final List<OrgMember> members;
   final String practitionerUid;
+  final DateTime day;
+  final TimeOfDay starts;
+  final TimeOfDay ends;
+  final AppointmentStatus status;
+  final bool? hasNote;
+  final int defaultMins;
   final bool canReassign;
   final bool saving;
   final VoidCallback onClose;
   final ValueChanged<String> onPick;
+  final VoidCallback onPickDate;
+  final VoidCallback onPickStarts;
+  final VoidCallback onPickEnds;
+  final VoidCallback onPickStatus;
+  final VoidCallback onSoap;
   final VoidCallback onSave;
   final VoidCallback onDelete;
 
@@ -2547,16 +2939,25 @@ class _ReassignPanel extends StatelessWidget {
     final c = PelviColors.of(context);
     final appt = row.appointment;
     final bookable = _bookable;
-    final changed = practitionerUid != appt.practitionerUid;
+    final pracChanged = practitionerUid != appt.practitionerUid;
     OrgMember? selected;
     for (final member in bookable) {
       if (member.uid == practitionerUid) selected = member;
     }
-    final canSave = canReassign && changed && selected != null && !saving;
-    final when = appt.endsAt == null
-        ? '${formatNoteDate(appt.startsAt)} · ${formatApptTime(appt.startsAt)}'
-        : '${formatNoteDate(appt.startsAt)} · ${formatApptTime(appt.startsAt)}'
-            '–${formatApptTime(appt.endsAt!)}';
+    final oldEnd = appointmentEffectiveEnd(
+      appt.startsAt,
+      appt.endsAt,
+      defaultMins,
+    );
+    final fieldsDirty = status != appt.status ||
+        !_sameDay(day, appt.startsAt) ||
+        starts.hour != appt.startsAt.hour ||
+        starts.minute != appt.startsAt.minute ||
+        ends.hour != oldEnd.hour ||
+        ends.minute != oldEnd.minute;
+    final canSave = !saving &&
+        (fieldsDirty ||
+            (pracChanged && canReassign && selected != null));
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -2588,13 +2989,55 @@ class _ReassignPanel extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            when,
-            style: TextStyle(fontSize: 12, height: 1.5, color: c.inkMuted),
-          ),
           const SizedBox(height: 16),
           Divider(height: 1, color: c.border),
+          const SizedBox(height: 16),
+          const _FieldLabel('Status'),
+          const SizedBox(height: 7),
+          _FieldBox(
+            value: appointmentStatusLabel(status),
+            valueColor: appointmentStatusColor(status),
+            onTap: onPickStatus,
+          ),
+          const SizedBox(height: 16),
+          const _FieldLabel('Date'),
+          const SizedBox(height: 7),
+          _FieldBox(
+            value: formatNoteDate(day),
+            onTap: onPickDate,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _FieldLabel('Starts'),
+                    const SizedBox(height: 7),
+                    _FieldBox(
+                      value: _hhmm(starts),
+                      onTap: onPickStarts,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _FieldLabel('Ends'),
+                    const SizedBox(height: 7),
+                    _FieldBox(
+                      value: _hhmm(ends),
+                      onTap: onPickEnds,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           const _FieldLabel('Practitioner'),
           const SizedBox(height: 7),
@@ -2640,8 +3083,28 @@ class _ReassignPanel extends StatelessWidget {
               ),
             ),
             child: Text(
-              saving ? 'Saving…' : 'Reassign',
+              saving ? 'Saving…' : 'Save changes',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: saving ? null : onSoap,
+            style: OutlinedButton.styleFrom(
+              backgroundColor: c.surface,
+              side: BorderSide(color: c.border),
+              minimumSize: const Size(0, 38),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+              ),
+            ),
+            child: Text(
+              hasNote == true ? 'Open SOAP note' : 'Create SOAP note',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: c.ink,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -2684,11 +3147,13 @@ class _FieldBox extends StatelessWidget {
   const _FieldBox({
     required this.value,
     this.muted = false,
+    this.valueColor,
     this.onTap,
   });
 
   final String value;
   final bool muted;
+  final Color? valueColor;
   final VoidCallback? onTap;
 
   @override
@@ -2712,7 +3177,7 @@ class _FieldBox extends StatelessWidget {
             value,
             style: TextStyle(
               fontSize: 13,
-              color: muted ? c.inkMuted : c.ink,
+              color: muted ? c.inkMuted : (valueColor ?? c.ink),
             ),
           ),
         ),
