@@ -2,6 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
+import 'calendar_token_store_stub.dart'
+    if (dart.library.html) 'calendar_token_store_web.dart' as gcalTokenStore;
+
 /// Google → Firebase Auth (Android: google_sign_in; web: Auth popup).
 class NotesAuth {
   NotesAuth._();
@@ -15,6 +18,8 @@ class NotesAuth {
       'https://www.googleapis.com/auth/calendar.events';
 
   /// In-memory Calendar access token (never Firestore).
+  /// Web also mirrors to sessionStorage so a hard refresh does not force a
+  /// Google account-chooser popup on the next appointment write.
   static String? _calendarAccessToken;
 
   static Stream<User?> authStateChanges() => _auth.authStateChanges();
@@ -28,7 +33,26 @@ class NotesAuth {
     }
   }
 
-  static String? get calendarAccessToken => _calendarAccessToken;
+  static String? get calendarAccessToken {
+    if (_calendarAccessToken != null && _calendarAccessToken!.isNotEmpty) {
+      return _calendarAccessToken;
+    }
+    final restored = gcalTokenStore.readCalendarAccessToken();
+    if (restored != null && restored.isNotEmpty) {
+      _calendarAccessToken = restored;
+    }
+    return _calendarAccessToken;
+  }
+
+  static void _setCalendarAccessToken(String? token) {
+    if (token == null || token.isEmpty) {
+      _calendarAccessToken = null;
+      gcalTokenStore.clearCalendarAccessTokenStore();
+      return;
+    }
+    _calendarAccessToken = token;
+    gcalTokenStore.saveCalendarAccessToken(token);
+  }
 
   static Future<void> ensureGoogleInitialized() async {
     if (kIsWeb || _googleReady) return;
@@ -77,33 +101,40 @@ class NotesAuth {
   /// Request Calendar write scope. [interactive] shows the consent UI.
   ///
   /// Returns the access token, or null if the user cancelled / denied.
-  /// Does not change the Firebase session identity on Android; on web may
-  /// re-prompt via popup with the extra scope (plan option A).
+  /// Does not change the Firebase session identity on Android; on web,
+  /// interactive uses a popup with the extra scope (plan option A). Silent
+  /// web calls never open a popup — they restore sessionStorage or return null.
   static Future<String?> requestCalendarAccess({
     bool interactive = true,
   }) async {
     if (kIsWeb) {
+      // Hard refresh clears Dart memory but not sessionStorage. Never call
+      // signInWithPopup here when interactive is false — that always shows
+      // Google's account chooser and was firing on every appointment edit.
+      if (!interactive) {
+        final existing = calendarAccessToken;
+        if (existing != null && existing.isNotEmpty) return existing;
+        return null;
+      }
       try {
         final provider = GoogleAuthProvider()
           ..addScope(calendarEventsScope);
-        if (interactive) {
-          // Prefer the already-signed-in Firebase Google account so Calendar
-          // events land on that primary calendar (not a different picker pick).
-          final params = <String, String>{'prompt': 'consent'};
-          final email = currentUser?.email?.trim();
-          if (email != null && email.isNotEmpty) {
-            params['login_hint'] = email;
-          } else {
-            params['prompt'] = 'consent select_account';
-          }
-          provider.setCustomParameters(params);
+        // Prefer the already-signed-in Firebase Google account so Calendar
+        // events land on that primary calendar (not a different picker pick).
+        final params = <String, String>{'prompt': 'consent'};
+        final email = currentUser?.email?.trim();
+        if (email != null && email.isNotEmpty) {
+          params['login_hint'] = email;
+        } else {
+          params['prompt'] = 'consent select_account';
         }
+        provider.setCustomParameters(params);
         final result = await _auth.signInWithPopup(provider);
         final cred = result.credential;
         if (cred is OAuthCredential &&
             cred.accessToken != null &&
             cred.accessToken!.isNotEmpty) {
-          _calendarAccessToken = cred.accessToken;
+          _setCalendarAccessToken(cred.accessToken);
           return _calendarAccessToken;
         }
         return null;
@@ -129,7 +160,7 @@ class NotesAuth {
       }
       final token = authz?.accessToken;
       if (token == null || token.isEmpty) return null;
-      _calendarAccessToken = token;
+      _setCalendarAccessToken(token);
       return token;
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) return null;
@@ -140,7 +171,7 @@ class NotesAuth {
   /// Drop a bad token from the platform cache (401 recovery).
   static Future<void> clearCalendarAccessToken() async {
     final token = _calendarAccessToken;
-    _calendarAccessToken = null;
+    _setCalendarAccessToken(null);
     if (token == null || kIsWeb) return;
     try {
       await ensureGoogleInitialized();
@@ -153,7 +184,7 @@ class NotesAuth {
   }
 
   static Future<void> signOut() async {
-    _calendarAccessToken = null;
+    _setCalendarAccessToken(null);
     if (!kIsWeb) {
       await ensureGoogleInitialized();
       await _google.signOut();
@@ -161,3 +192,4 @@ class NotesAuth {
     await _auth.signOut();
   }
 }
+
