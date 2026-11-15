@@ -152,11 +152,8 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
         : await db.getAppointment(note.appointmentId!);
     final name = await db.watchPractitionerName().first;
     if (!mounted) return;
-    final when = appt?.startsAt ?? note.noteDate;
     final crumbClient = client == null ? 'Note' : clientDisplayName(client);
-    widget.onBreadcrumb(
-      'SOAP notes / $crumbClient / ${_shortDate(when)}',
-    );
+    widget.onBreadcrumb(crumbClient);
     setState(() {
       _note = note;
       _client = client;
@@ -514,6 +511,8 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                   subtitle: '$name · ${formatNoteDate(when)}',
                   saving: _saving,
                   onSaveDraft: _save,
+                  onClientCrumbTap:
+                      client == null ? null : _goToClientProfile,
                 ),
                 const SizedBox(height: 26),
                 body,
@@ -567,11 +566,13 @@ class _PageHeader extends StatelessWidget {
     required this.subtitle,
     required this.saving,
     required this.onSaveDraft,
+    this.onClientCrumbTap,
   });
 
   final String subtitle;
   final bool saving;
   final VoidCallback onSaveDraft;
+  final VoidCallback? onClientCrumbTap;
 
   @override
   Widget build(BuildContext context) {
@@ -583,7 +584,7 @@ class _PageHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const DesktopBreadcrumb(),
+              DesktopBreadcrumb(onLeafTap: onClientCrumbTap),
               Text(
                 'SOAP note',
                 style: TextStyle(

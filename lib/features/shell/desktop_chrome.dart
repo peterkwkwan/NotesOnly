@@ -338,13 +338,21 @@ class _NavItem extends StatelessWidget {
 
 /// Crumb line for desktop page headers (above the title), not the top bar.
 class DesktopBreadcrumb extends StatelessWidget {
-  const DesktopBreadcrumb({super.key, this.text, this.onAncestorTap});
+  const DesktopBreadcrumb({
+    super.key,
+    this.text,
+    this.onAncestorTap,
+    this.onLeafTap,
+  });
 
   /// Override when [ShellNavigation] is absent or a page needs a local crumb.
   final String? text;
 
   /// Called for every segment except the last (`Clients / Name` → index 0).
   final ValueChanged<int>? onAncestorTap;
+
+  /// When set, the last segment is a link (e.g. SOAP workspace → client profile).
+  final VoidCallback? onLeafTap;
 
   @override
   Widget build(BuildContext context) {
@@ -354,7 +362,8 @@ class DesktopBreadcrumb extends StatelessWidget {
     final c = PelviColors.of(context);
     const style = TextStyle(fontSize: 12, height: 1.5);
     final parts = label.split(' / ');
-    final interactive = onAncestorTap != null && parts.length > 1;
+    final interactive =
+        (onAncestorTap != null && parts.length > 1) || onLeafTap != null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -368,10 +377,15 @@ class DesktopBreadcrumb extends StatelessWidget {
                       ' / ',
                       style: style.copyWith(color: c.inkMuted),
                     ),
-                  if (i < parts.length - 1)
+                  if (i < parts.length - 1 && onAncestorTap != null)
                     _DesktopBreadcrumbLink(
                       label: parts[i],
                       onTap: () => onAncestorTap!(i),
+                    )
+                  else if (i == parts.length - 1 && onLeafTap != null)
+                    _DesktopBreadcrumbLink(
+                      label: parts[i],
+                      onTap: onLeafTap!,
                     )
                   else
                     Text(

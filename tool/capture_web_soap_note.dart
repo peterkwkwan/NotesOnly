@@ -66,7 +66,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1440, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    const crumb = 'SOAP notes / Tom Brady / 7 Nov 2026';
+    const crumb = 'Tom Brady';
     await tester.pumpWidget(
       RepaintBoundary(
         key: key,
