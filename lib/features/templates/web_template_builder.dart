@@ -4,6 +4,7 @@ import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/show_snack.dart';
 import '../notes/soap_dictation.dart';
 import 'template_body.dart';
 
@@ -284,12 +285,10 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
       );
       if (!mounted) return;
       setState(() => _remoteId = saved.remoteId);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Saved for the clinic.')));
+      showPelviSnackBar(context, 'Saved for the clinic.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Could not save template: $e')));
+      showPelviSnackBar(context, 'Could not save template: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

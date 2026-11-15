@@ -67,6 +67,41 @@ void main() {
     expect(find.text(message), findsOneWidget);
   });
 
+  testWidgets('desktop snack is dark bottom toast with dismiss', (tester) async {
+    const message = 'Draft saved.';
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => showPelviSnackBar(context, message),
+                  child: const Text('Show'),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.text('Show'));
+    await tester.pumpAndSettle();
+
+    final snack = tester.widget<SnackBar>(find.byType(SnackBar));
+    expect(snack.backgroundColor, const Color(0xFF2A2430));
+    expect(snack.behavior, SnackBarBehavior.floating);
+    final margin = snack.margin! as EdgeInsets;
+    expect(margin.bottom, 28);
+    expect(margin.top, 0);
+    expect(find.text(message), findsOneWidget);
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byIcon(Icons.sync), findsOneWidget);
+  });
+
   test('LWW remote wins when updatedAt >= local', () {
     final older = DateTime.utc(2026, 1, 1);
     final newer = DateTime.utc(2026, 1, 2);

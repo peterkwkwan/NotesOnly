@@ -4,6 +4,7 @@ import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/show_snack.dart';
 import '../shell/desktop_chrome.dart';
 import '../templates/template_body.dart';
 import 'soap_templates.dart';
@@ -123,13 +124,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   }
 
   void _stubAction(String label) {
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(
-        content: Text('$label — not available yet'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showPelviSnackBar(context, '$label — not available yet');
   }
 
   void _openBuilder({
