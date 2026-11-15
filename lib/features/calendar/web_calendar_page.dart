@@ -2572,7 +2572,7 @@ class _ReassignPanel extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Appointment',
+                  clientDisplayName(row.client),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -2587,15 +2587,6 @@ class _ReassignPanel extends StatelessWidget {
                 tooltip: 'Close',
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            clientDisplayName(row.client),
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: c.ink,
-            ),
           ),
           const SizedBox(height: 4),
           Text(
