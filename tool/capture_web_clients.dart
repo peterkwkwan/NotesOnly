@@ -174,7 +174,7 @@ void main() {
         findsOneWidget);
     expect(find.text('Recall review'), findsOneWidget);
     expect(find.text('Your recall window'), findsOneWidget);
-    expect(find.text('PINNED'), findsOneWidget);
+    expect(find.text('Recently Viewed'), findsOneWidget);
     expect(find.text('Due (1)'), findsOneWidget);
     expect(find.text('Stewie Brown'), findsWidgets);
     expect(find.text('14 days'), findsOneWidget);

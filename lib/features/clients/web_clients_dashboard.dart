@@ -210,10 +210,6 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
                                 pinnedIds: pinnedIds,
                                 dueIds: dueIds,
                               );
-                              final pinnedClients = clientsInIdOrder(
-                                clients,
-                                pinSnap.data ?? const [],
-                              );
                               final recentClients = clientsInIdOrder(
                                 clients,
                                 recentIds,
@@ -259,8 +255,7 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
                                           setState(() => _sort = v),
                                     ),
                                     const SizedBox(height: 26),
-                                    _PinnedRecentRow(
-                                      pinned: pinnedClients,
+                                    _RecentlyViewedRow(
                                       recent: recentClients,
                                       onOpen: _openProfile,
                                     ),
@@ -292,8 +287,6 @@ class _WebClientsDashboardState extends State<WebClientsDashboard> {
                                                 all,
                                               ),
                                               onClear: _clearSelection,
-                                              selectedClients:
-                                                  selectedClients,
                                             ),
                                           ),
                                           const SizedBox(width: 24),
@@ -547,79 +540,51 @@ class _MenuChip<T> extends StatelessWidget {
   }
 }
 
-class _PinnedRecentRow extends StatelessWidget {
-  const _PinnedRecentRow({
-    required this.pinned,
+class _RecentlyViewedRow extends StatelessWidget {
+  const _RecentlyViewedRow({
     required this.recent,
     required this.onOpen,
   });
 
-  final List<Client> pinned;
   final List<Client> recent;
   final ValueChanged<int> onOpen;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    if (pinned.isEmpty && recent.isEmpty) return const SizedBox.shrink();
+    if (recent.isEmpty) return const SizedBox.shrink();
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          if (pinned.isNotEmpty) ...[
-            Icon(Icons.push_pin, size: 14, color: c.purple700),
-            const SizedBox(width: 12),
-            Text(
-              'PINNED',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: c.purple700,
+          Text(
+            'Recently Viewed',
+            style: TextStyle(fontSize: 11, color: c.inkMuted),
+          ),
+          const SizedBox(width: 12),
+          for (final client in recent.take(6)) ...[
+            OutlinedButton(
+              onPressed: () => onOpen(client.id),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: c.ink,
+                backgroundColor: c.surface,
+                side: BorderSide(color: c.border),
+                minimumSize: const Size(0, 38),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(PelviRadius.sm),
+                ),
+              ),
+              child: Text(
+                clientDisplayName(client),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const SizedBox(width: 12),
-            for (final client in pinned) ...[
-              OutlinedButton(
-                onPressed: () => onOpen(client.id),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: c.ink,
-                  backgroundColor: c.surface,
-                  side: BorderSide(color: c.border),
-                  minimumSize: const Size(0, 38),
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(PelviRadius.sm),
-                  ),
-                ),
-                child: Text(
-                  clientDisplayName(client),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ],
-          if (recent.isNotEmpty) ...[
-            if (pinned.isNotEmpty) const SizedBox(width: 4),
-            Text(
-              'Recently opened:',
-              style: TextStyle(fontSize: 11, color: c.inkMuted),
-            ),
-            const SizedBox(width: 12),
-            for (final client in recent.take(6)) ...[
-              InkWell(
-                onTap: () => onOpen(client.id),
-                child: Text(
-                  clientDisplayName(client),
-                  style: TextStyle(fontSize: 12, color: c.inkMuted),
-                ),
-              ),
-              const SizedBox(width: 12),
-            ],
+            const SizedBox(width: 8),
           ],
         ],
       ),
@@ -719,7 +684,6 @@ class _ClientTable extends StatelessWidget {
     required this.pinnedIds,
     required this.mutedIds,
     required this.selected,
-    required this.selectedClients,
     required this.onToggle,
     required this.onOpen,
     required this.onSelectAll,
@@ -730,7 +694,6 @@ class _ClientTable extends StatelessWidget {
   final Set<int> pinnedIds;
   final Set<int> mutedIds;
   final Set<int> selected;
-  final List<Client> selectedClients;
   final ValueChanged<int> onToggle;
   final ValueChanged<int> onOpen;
   final ValueChanged<bool> onSelectAll;
@@ -780,15 +743,7 @@ class _ClientTable extends StatelessWidget {
                       color: c.pink700,
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      selectedClients.map(clientDisplayName).join(', '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: c.pink700),
-                    ),
-                  ),
+                  const Spacer(),
                   TextButton(
                     onPressed: onClear,
                     style: TextButton.styleFrom(
