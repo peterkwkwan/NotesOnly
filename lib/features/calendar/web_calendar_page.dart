@@ -1188,8 +1188,7 @@ class _Header extends StatelessWidget {
                 ),
               ),
               Text(
-                '${_monthNames[subtitleMonth.month - 1]} ${subtitleMonth.year}'
-                ' · Plan the week without losing the detail',
+                '${_monthNames[subtitleMonth.month - 1]} ${subtitleMonth.year}',
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.5,

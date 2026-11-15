@@ -71,17 +71,9 @@ abstract final class DesktopDest {
   static const practiceSettings = 5;
   static const accountSettings = 6;
 
-  static String breadcrumbFor(int index) => switch (index) {
-        today => 'Practice / Today',
-        calendar => 'Practice / Calendar',
-        // Clients list is root — no crumb; profile supplies `Clients / Name`.
-        clients => '',
-        soapNotes => 'Practice / SOAP notes',
-        templates => 'Practice / Templates',
-        practiceSettings => 'Practice / Settings',
-        accountSettings => 'Practice / Account',
-        _ => 'Practice',
-      };
+  /// First-layer tabs have no crumb; deeper pages supply their own
+  /// (e.g. Clients profile → `Clients / Name`, SOAP note → `SOAP notes / …`).
+  static String breadcrumbFor(int index) => switch (index) { _ => '' };
 }
 
 /// Figma sidebar fill (`#f8f4f3`) — slightly warmer than [PelviColors.surfaceMuted].
@@ -553,53 +545,42 @@ class DesktopTopBar extends StatelessWidget {
                               child: Text('Sign out'),
                             ),
                           ],
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: c.pink50,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  initials,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: c.pink700,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: c.pink50,
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    display,
+                                  child: Text(
+                                    initials,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      height: 1.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: c.ink,
+                                      fontWeight: FontWeight.w500,
+                                      color: c.pink700,
                                     ),
                                   ),
-                                  Text(
-                                    'Practitioner',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      height: 1.5,
-                                      color: c.inkMuted,
-                                    ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  display,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    height: 1.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: c.ink,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(Icons.expand_more,
-                                  size: 14, color: c.inkMuted),
-                            ],
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(Icons.expand_more,
+                                    size: 14, color: c.inkMuted),
+                              ],
+                            ),
                           ),
                         );
                       },
