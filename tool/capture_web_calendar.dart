@@ -58,10 +58,9 @@ void main() {
     );
 
     final now = DateTime.now();
-    final monday = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: now.weekday - 1));
-    // Place a Sunday 15:00 appointment like the Figma frame.
-    final sunday = monday.add(const Duration(days: 6));
+    // Sunday-first week; place a Sunday 15:00 appointment like the Figma frame.
+    final sunday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday % 7));
     await db.insertAppointment(
       clientId: steve,
       startsAt: DateTime(sunday.year, sunday.month, sunday.day, 15),

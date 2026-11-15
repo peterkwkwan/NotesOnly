@@ -96,13 +96,15 @@ const _monthNames = [
   'December',
 ];
 
-const _weekdayShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/// Sunday-first (Google Calendar style). Index with `date.weekday % 7`.
+const _weekdayShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
-DateTime _mondayOf(DateTime d) {
+/// Start of the week containing [d], Sunday through Saturday.
+DateTime _sundayOf(DateTime d) {
   final day = _dateOnly(d);
-  return day.subtract(Duration(days: day.weekday - 1));
+  return day.subtract(Duration(days: day.weekday % 7));
 }
 
 bool _sameDay(DateTime a, DateTime b) =>
@@ -123,17 +125,17 @@ TimeOfDay _timeFromGridY(double dy, {required double hourH, int startHour = 0}) 
   return TimeOfDay(hour: totalMins ~/ 60, minute: totalMins % 60);
 }
 
-String _weekRangeLabel(DateTime monday) {
-  final sunday = monday.add(const Duration(days: 6));
-  if (monday.month == sunday.month) {
-    return '${monday.day}–${sunday.day} ${_monthNames[monday.month - 1]} ${monday.year}';
+String _weekRangeLabel(DateTime sunday) {
+  final saturday = sunday.add(const Duration(days: 6));
+  if (sunday.month == saturday.month) {
+    return '${sunday.day}–${saturday.day} ${_monthNames[sunday.month - 1]} ${sunday.year}';
   }
-  if (monday.year == sunday.year) {
-    return '${monday.day} ${_monthNames[monday.month - 1]} – '
-        '${sunday.day} ${_monthNames[sunday.month - 1]} ${monday.year}';
+  if (sunday.year == saturday.year) {
+    return '${sunday.day} ${_monthNames[sunday.month - 1]} – '
+        '${saturday.day} ${_monthNames[saturday.month - 1]} ${sunday.year}';
   }
-  return '${monday.day} ${_monthNames[monday.month - 1]} ${monday.year} – '
-      '${sunday.day} ${_monthNames[sunday.month - 1]} ${sunday.year}';
+  return '${sunday.day} ${_monthNames[sunday.month - 1]} ${sunday.year} – '
+      '${saturday.day} ${_monthNames[saturday.month - 1]} ${saturday.year}';
 }
 
 /// Figma `NotesOnly · Calendar` page body (desktop shell supplies chrome).
@@ -145,7 +147,7 @@ class WebCalendarPage extends StatefulWidget {
 }
 
 class _WebCalendarPageState extends State<WebCalendarPage> {
-  late DateTime _anchor; // week Monday for week view; day for day; month for month
+  late DateTime _anchor; // week Sunday for week view; day for day; month for month
   late DateTime _selected;
   _CalView _view = _CalView.week;
   bool _panelOpen = false;
@@ -173,7 +175,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     super.initState();
     final now = DateTime.now();
     _selected = _dateOnly(now);
-    _anchor = _mondayOf(now);
+    _anchor = _sundayOf(now);
     _starts = nextWholeHour(now);
     _ends = TimeOfDay(hour: (_starts.hour + 1) % 24, minute: _starts.minute);
   }
@@ -335,7 +337,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   DateTime get _rangeStart {
     return switch (_view) {
       _CalView.day => _selected,
-      _CalView.week => _mondayOf(_anchor),
+      _CalView.week => _sundayOf(_anchor),
       _CalView.month => DateTime(_anchor.year, _anchor.month),
     };
   }
@@ -343,7 +345,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   DateTime get _rangeEnd {
     return switch (_view) {
       _CalView.day => _selected.add(const Duration(days: 1)),
-      _CalView.week => _mondayOf(_anchor).add(const Duration(days: 7)),
+      _CalView.week => _sundayOf(_anchor).add(const Duration(days: 7)),
       _CalView.month => DateTime(_anchor.year, _anchor.month + 1),
     };
   }
@@ -353,7 +355,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _CalView.day => [_selected],
       _CalView.week => [
           for (var i = 0; i < 7; i++)
-            _mondayOf(_anchor).add(Duration(days: i)),
+            _sundayOf(_anchor).add(Duration(days: i)),
         ],
       _CalView.month => const [],
     };
@@ -365,7 +367,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _selected = _dateOnly(now);
       _anchor = _view == _CalView.month
           ? DateTime(now.year, now.month)
-          : _mondayOf(now);
+          : _sundayOf(now);
       _starts = nextWholeHour(now);
       _ends = TimeOfDay(hour: (_starts.hour + 1) % 24, minute: _starts.minute);
     });
@@ -376,9 +378,9 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       switch (_view) {
         case _CalView.day:
           _selected = _selected.add(Duration(days: delta));
-          _anchor = _mondayOf(_selected);
+          _anchor = _sundayOf(_selected);
         case _CalView.week:
-          _anchor = _mondayOf(_anchor).add(Duration(days: 7 * delta));
+          _anchor = _sundayOf(_anchor).add(Duration(days: 7 * delta));
           _selected = _anchor;
         case _CalView.month:
           _anchor = DateTime(_anchor.year, _anchor.month + delta);
@@ -424,7 +426,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _ends = TimeOfDay(hour: end.hour, minute: end.minute);
       _status = row.appointment.status;
       _hasNote = null;
-      if (_view == _CalView.week) _anchor = _mondayOf(_selected);
+      if (_view == _CalView.week) _anchor = _sundayOf(_selected);
     });
     _loadHasNote(row.appointment.id);
   }
@@ -577,7 +579,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
           _starts =
               TimeOfDay(hour: newStartsAt.hour, minute: newStartsAt.minute);
           _ends = TimeOfDay(hour: newEndsAt.hour, minute: newEndsAt.minute);
-          if (_view == _CalView.week) _anchor = _mondayOf(_selected);
+          if (_view == _CalView.week) _anchor = _sundayOf(_selected);
         });
       }
     } on AppointmentConflictException catch (e) {
@@ -753,7 +755,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                             formatNoteDate(_selected),
                                           _CalView.week =>
                                             _weekRangeLabel(
-                                                _mondayOf(_anchor)),
+                                                _sundayOf(_anchor)),
                                           _CalView.month =>
                                             '${_monthNames[_anchor.month - 1]} ${_anchor.year}',
                                         },
@@ -763,7 +765,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                         onView: (v) => setState(() {
                                           _view = v;
                                           if (v == _CalView.week) {
-                                            _anchor = _mondayOf(_selected);
+                                            _anchor = _sundayOf(_selected);
                                           } else if (v == _CalView.month) {
                                             _anchor = DateTime(
                                               _selected.year,
@@ -800,7 +802,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                         _selected = day;
                                                         _view = _CalView.day;
                                                         _anchor =
-                                                            _mondayOf(day);
+                                                            _sundayOf(day);
                                                       });
                                                       _openNewAppointment(
                                                         day: day,
@@ -888,7 +890,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                         if (_view ==
                                                             _CalView.week) {
                                                           _anchor =
-                                                              _mondayOf(
+                                                              _sundayOf(
                                                                   picked);
                                                         }
                                                       });
@@ -2152,7 +2154,7 @@ class _DayHeading extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              _weekdayShort[day.weekday - 1],
+              _weekdayShort[day.weekday % 7],
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
@@ -2240,7 +2242,8 @@ class _MonthPanel extends StatelessWidget {
       counts[d] = (counts[d] ?? 0) + 1;
     }
     final first = DateTime(month.year, month.month);
-    final leading = first.weekday - 1;
+    // Sunday-first: weekday % 7 → col (Sun=0 … Sat=6).
+    final leading = first.weekday % 7;
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final cellCount = ((leading + daysInMonth + 6) ~/ 7) * 7;
     final today = _dateOnly(DateTime.now());

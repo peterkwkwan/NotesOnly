@@ -24,7 +24,7 @@ const _monthNames = [
   'December',
 ];
 
-const _weekdayLetters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const _weekdayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -278,8 +278,8 @@ class _MonthGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final first = DateTime(month.year, month.month);
-    // Monday-first: weekday 1 → col 0.
-    final leading = first.weekday - 1;
+    // Sunday-first: weekday % 7 → col (Sun=0 … Sat=6).
+    final leading = first.weekday % 7;
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final cellCount = ((leading + daysInMonth + 6) ~/ 7) * 7;
 
