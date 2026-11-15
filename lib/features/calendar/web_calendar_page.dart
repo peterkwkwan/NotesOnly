@@ -1853,7 +1853,6 @@ class _WeekSchedule extends StatefulWidget {
     required int defaultMins,
     required ({Appointment appointment, Client client}) row,
     required _PracColors colors,
-    required String practitionerLabel,
     required int lane,
     required int laneCount,
     required VoidCallback onTap,
@@ -1928,33 +1927,28 @@ class _WeekSchedule extends StatefulWidget {
       );
     }
 
+    // Draggable wins the arena over onTap; same-slot drop opens the panel.
     return Positioned(
       left: gutter + dayIndex * colW + 4 + lane * slotW,
       top: top,
       width: width,
       height: height,
-      child: Tooltip(
-        message:
-            '${formatApptTime(start)} · $clientName · $practitionerLabel',
-        waitDuration: const Duration(milliseconds: 400),
-        // Draggable wins the arena over onTap; same-slot drop opens the panel.
-        child: Draggable<int>(
-          data: row.appointment.id,
-          feedback: Material(
-            color: Colors.transparent,
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: card(dragging: false),
-            ),
-          ),
-          childWhenDragging: card(dragging: true),
-          onDragEnd: onDragEnd,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
+      child: Draggable<int>(
+        data: row.appointment.id,
+        feedback: Material(
+          color: Colors.transparent,
+          child: SizedBox(
+            width: width,
+            height: height,
             child: card(dragging: false),
           ),
+        ),
+        childWhenDragging: card(dragging: true),
+        onDragEnd: onDragEnd,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: card(dragging: false),
         ),
       ),
     );
@@ -2066,13 +2060,6 @@ class _WeekScheduleState extends State<_WeekSchedule> {
             selfUid: widget.selfUid,
             rosterUids: widget.rosterUids,
           ),
-          practitionerLabel: () {
-            final raw = dayRows[i].appointment.practitionerUid;
-            final uid = raw.isEmpty ? widget.selfUid : raw;
-            final name = widget.nameForUid(uid);
-            if (uid == widget.selfUid) return '$name (me)';
-            return name;
-          }(),
           lane: lanes[i].lane,
           laneCount: lanes[i].laneCount,
           onTap: () => widget.onTapAppointment(dayRows[i]),
