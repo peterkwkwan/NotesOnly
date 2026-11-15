@@ -28,6 +28,8 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
   int? _soapNoteId;
+  /// Primary nav to keep highlighted while SOAP (no sidebar row) is open.
+  int? _soapNavOrigin;
   String? _soapBreadcrumb;
   int _clientsDueEpoch = 0;
   StreamSubscription<List<RecallDueEntry>>? _recallSub;
@@ -106,11 +108,19 @@ class _AppShellState extends State<AppShell> {
       nav.popUntil((route) => route.isFirst);
     }
     if (next == _index) return;
-    setState(() => _index = next);
+    setState(() {
+      _index = next;
+      _soapNavOrigin = null;
+    });
   }
 
   void _openSoapNote(int noteId) {
     setState(() {
+      if (_index == DesktopDest.today ||
+          _index == DesktopDest.calendar ||
+          _index == DesktopDest.clients) {
+        _soapNavOrigin = _index;
+      }
       _index = DesktopDest.soapNotes;
       _soapNoteId = noteId;
     });
@@ -123,9 +133,13 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _index = DesktopDest.clients;
+      _soapNavOrigin = null;
       _clientsDueEpoch++;
     });
   }
+
+  int get _sidebarIndex =>
+      _index == DesktopDest.soapNotes ? (_soapNavOrigin ?? _index) : _index;
 
   void _onSoapBreadcrumb(String? crumb) {
     if (_soapBreadcrumb == crumb) return;
@@ -169,7 +183,7 @@ class _AppShellState extends State<AppShell> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               DesktopSidebar(
-                index: _index,
+                index: _sidebarIndex,
                 onSelect: _goTo,
               ),
               Expanded(
