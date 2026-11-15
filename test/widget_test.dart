@@ -1805,7 +1805,6 @@ void main() {
 
   testWidgets('web profile edits client details in place', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1440, 1000);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -1833,7 +1832,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Edit details'), findsOneWidget);
-    expect(find.text('Stewie Brown'), findsOneWidget);
+    expect(find.text('Stewie Brown'), findsWidgets);
     expect(find.text('New appointment'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
 
@@ -1861,7 +1860,10 @@ void main() {
     expect(find.text('New appointment'), findsOneWidget);
     expect(find.byType(PhoneField), findsOneWidget);
     expect(find.text('EMERGENCY PHONE'), findsOneWidget);
-    expect(find.text('All history'), findsOneWidget);
+    expect(find.text('Appointments'), findsOneWidget);
+    expect(find.text('Notes'), findsWidgets);
+    expect(find.text('All history'), findsNothing);
+    expect(find.text('Appointment and Notes'), findsNothing);
     expect(find.byType(TextField), findsNWidgets(7));
 
     await tester.enterText(find.byType(TextField).at(0), 'Stewart');
@@ -1869,7 +1871,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Edit details'), findsOneWidget);
-    expect(find.text('Stewie Brown'), findsOneWidget);
+    expect(find.text('Stewie Brown'), findsWidgets);
     expect((await db.getClient(clientId))!.firstName, 'Stewie');
 
     await tester.tap(find.text('Edit details'));
@@ -1889,7 +1891,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Edit details'), findsOneWidget);
-    expect(find.text('Stewart Brown'), findsOneWidget);
+    expect(find.text('Stewart Brown'), findsWidgets);
     expect(find.text('updated note'), findsOneWidget);
     final saved = await db.getClient(clientId);
     expect(saved!.firstName, 'Stewart');
@@ -1899,6 +1901,67 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));
+    await db.close();
+  });
+
+  testWidgets('web profile appointment tap selects, edit opens from panel',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1440, 1000);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final clientId = await db.insertClient(
+      firstName: 'Stewie',
+      lastName: 'Brown',
+    );
+    final first = DateTime(2026, 11, 9, 14);
+    final second = DateTime(2026, 10, 28, 16);
+    await db.insertAppointment(clientId: clientId, startsAt: first);
+    await db.insertAppointment(clientId: clientId, startsAt: second);
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          home: ClientProfileScreen(clientId: clientId),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('All history'), findsNothing);
+    expect(find.text('Appointments'), findsOneWidget);
+    expect(find.text('Appointment and Notes'), findsOneWidget);
+    expect(find.text('Edit appointment'), findsOneWidget);
+    expect(find.text('Selected'), findsOneWidget);
+    expect(find.text('Save changes'), findsNothing);
+
+    await tester.tap(find.text(formatNoteDate(second)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Save changes'), findsNothing);
+    expect(find.text('Appointment and Notes'), findsOneWidget);
+    expect(find.text('Edit appointment'), findsOneWidget);
+    expect(find.text('Selected'), findsOneWidget);
+    expect(
+      find.textContaining(formatApptTime(second)),
+      findsWidgets,
+    );
+
+    await tester.tap(find.text('Edit appointment'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Save changes'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+    await db.close();
   });
 
   testWidgets('template builder saves an org template once', (tester) async {

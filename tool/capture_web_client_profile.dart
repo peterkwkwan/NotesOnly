@@ -135,8 +135,9 @@ void main() {
     expect(find.text('Client profile'), findsOneWidget);
     expect(find.text('Stewie Brown'), findsWidgets);
     expect(find.text('Contact & preferences'), findsOneWidget);
-    expect(find.text('Visit & note detail'), findsOneWidget);
-    expect(find.text('All history'), findsOneWidget);
+    expect(find.text('Appointment and Notes'), findsOneWidget);
+    expect(find.text('Appointments'), findsOneWidget);
+    expect(find.text('All history'), findsNothing);
     expect(find.text('Create SOAP note'), findsOneWidget);
 
     final boundary =

@@ -12,7 +12,7 @@ import '../shell/desktop_chrome.dart';
 import 'client_format.dart';
 import 'phone_field.dart';
 
-enum _HistoryTab { all, appointments, notes }
+enum _HistoryTab { appointments, notes }
 
 /// In-place draft for the profile fields. Seeded on edit, discarded on cancel.
 class _ClientDraft {
@@ -56,7 +56,7 @@ class WebClientProfile extends StatefulWidget {
 }
 
 class _WebClientProfileState extends State<WebClientProfile> {
-  _HistoryTab _tab = _HistoryTab.all;
+  _HistoryTab _tab = _HistoryTab.appointments;
   int? _selectedApptId;
   final _draft = _ClientDraft();
   bool _editing = false;
@@ -311,16 +311,19 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                           noteDate: appt.startsAt,
                                         );
                                       },
-                                      onOpenAppt: (appt) {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute<void>(
-                                            builder: (_) =>
-                                                AppointmentFormScreen(
-                                              existing: appt,
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                      onEditAppt: selected == null
+                                          ? null
+                                          : () {
+                                              final appt = selected!;
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute<void>(
+                                                  builder: (_) =>
+                                                      AppointmentFormScreen(
+                                                    existing: appt,
+                                                  ),
+                                                ),
+                                              );
+                                            },
                                     ),
                                   ]),
                                 ),
@@ -648,7 +651,7 @@ class _WorkspaceRow extends StatelessWidget {
     required this.onMute,
     required this.muteStream,
     required this.onCreateSoap,
-    required this.onOpenAppt,
+    required this.onEditAppt,
   });
 
   final Client client;
@@ -667,7 +670,7 @@ class _WorkspaceRow extends StatelessWidget {
   final ValueChanged<bool> onMute;
   final Stream<bool> muteStream;
   final VoidCallback? onCreateSoap;
-  final ValueChanged<Appointment> onOpenAppt;
+  final VoidCallback? onEditAppt;
 
   @override
   Widget build(BuildContext context) {
@@ -689,13 +692,13 @@ class _WorkspaceRow extends StatelessWidget {
           practitioner: practitioner,
           onTab: onTab,
           onSelectAppt: onSelectAppt,
-          onOpenAppt: onOpenAppt,
         );
         final detail = _VisitDetailPanel(
           name: name,
           appointment: selectedAppt,
           note: selectedNote,
           onCreateSoap: onCreateSoap,
+          onEditAppt: onEditAppt,
         );
 
         if (!wide) {
@@ -949,7 +952,6 @@ class _HistoryColumn extends StatelessWidget {
     required this.practitioner,
     required this.onTab,
     required this.onSelectAppt,
-    required this.onOpenAppt,
   });
 
   final _HistoryTab tab;
@@ -959,14 +961,11 @@ class _HistoryColumn extends StatelessWidget {
   final String practitioner;
   final ValueChanged<_HistoryTab> onTab;
   final ValueChanged<int> onSelectAppt;
-  final ValueChanged<Appointment> onOpenAppt;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    // Figma All history shows appointment cards; Notes tab is SOAP-only.
-    final showAppts =
-        tab == _HistoryTab.all || tab == _HistoryTab.appointments;
+    final showAppts = tab == _HistoryTab.appointments;
     final showNotes = tab == _HistoryTab.notes;
 
     return Column(
@@ -978,14 +977,6 @@ class _HistoryColumn extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Flexible(
-                child: _HistTab(
-                  label: 'All history',
-                  selected: tab == _HistoryTab.all,
-                  onTap: () => onTab(_HistoryTab.all),
-                ),
-              ),
-              const SizedBox(width: 12),
               Flexible(
                 child: _HistTab(
                   label: 'Appointments',
@@ -1026,10 +1017,7 @@ class _HistoryColumn extends StatelessWidget {
                 appointment: appt,
                 practitioner: practitioner,
                 selected: appt.id == selectedApptId,
-                onTap: () {
-                  onSelectAppt(appt.id);
-                  onOpenAppt(appt);
-                },
+                onTap: () => onSelectAppt(appt.id),
               ),
               const SizedBox(height: 12),
             ],
@@ -1043,7 +1031,6 @@ class _HistoryColumn extends StatelessWidget {
           ),
         ],
         if (showNotes) ...[
-          if (showAppts) const SizedBox(height: 22),
           Text(
             'SOAP NOTES',
             style: TextStyle(
@@ -1249,12 +1236,14 @@ class _VisitDetailPanel extends StatelessWidget {
     required this.appointment,
     required this.note,
     required this.onCreateSoap,
+    required this.onEditAppt,
   });
 
   final String name;
   final Appointment? appointment;
   final Note? note;
   final VoidCallback? onCreateSoap;
+  final VoidCallback? onEditAppt;
 
   @override
   Widget build(BuildContext context) {
@@ -1286,7 +1275,7 @@ class _VisitDetailPanel extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Visit & note detail',
+                  'Appointment and Notes',
                   style: TextStyle(
                     fontSize: 16,
                     height: 1.5,
@@ -1308,8 +1297,37 @@ class _VisitDetailPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _StatusPill(
-            label: '${appointmentStatusLabel(a.status)} visit',
+          Row(
+            children: [
+              _StatusPill(
+                label: '${appointmentStatusLabel(a.status)} visit',
+              ),
+              if (onEditAppt != null) ...[
+                const SizedBox(width: 10),
+                OutlinedButton(
+                  onPressed: onEditAppt,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: c.surface,
+                    foregroundColor: c.ink,
+                    side: BorderSide(color: c.border),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    visualDensity: VisualDensity.compact,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(PelviRadius.sm),
+                    ),
+                  ),
+                  child: const Text(
+                    'Edit appointment',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 18),
           Divider(height: 1, color: c.border),
