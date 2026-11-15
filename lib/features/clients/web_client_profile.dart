@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
-import '../appointments/appointment_form_screen.dart';
+import '../appointments/web_edit_appointment_page.dart';
 import '../appointments/web_new_appointment_page.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
@@ -318,8 +318,9 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                               Navigator.of(context).push(
                                                 MaterialPageRoute<void>(
                                                   builder: (_) =>
-                                                      AppointmentFormScreen(
-                                                    existing: appt,
+                                                      WebEditAppointmentPage(
+                                                    appointment: appt,
+                                                    clientName: name,
                                                   ),
                                                 ),
                                               );

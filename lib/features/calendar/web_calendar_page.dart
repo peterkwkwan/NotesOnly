@@ -9,7 +9,8 @@ import '../../data/org_directory.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
-import '../appointments/appointment_form_screen.dart';
+import '../appointments/appointment_form_screen.dart' show nextWholeHour;
+import '../appointments/web_edit_appointment_page.dart';
 import '../appointments/web_new_appointment_page.dart';
 import '../clients/client_format.dart';
 import '../notes/note_format.dart';
@@ -407,28 +408,27 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     );
   }
 
-  void _openReassign(
-    ({Appointment appointment, Client client}) row, {
-    int defaultMins = 60,
-  }) {
-    final start = row.appointment.startsAt;
-    final end = appointmentEffectiveEnd(
-      start,
-      row.appointment.endsAt,
-      defaultMins,
-    );
+  void _openEditAppointment(
+    ({Appointment appointment, Client client}) row,
+  ) {
     setState(() {
-      _reassign = row;
-      _reassignUid = row.appointment.practitionerUid;
-      _panelOpen = true;
-      _selected = _dateOnly(start);
-      _starts = TimeOfDay(hour: start.hour, minute: start.minute);
-      _ends = TimeOfDay(hour: end.hour, minute: end.minute);
-      _status = row.appointment.status;
+      _selected = _dateOnly(row.appointment.startsAt);
+      if (_view == _CalView.week) {
+        _anchor = _sundayOf(_selected);
+      }
+      _panelOpen = false;
+      _reassign = null;
+      _reassignUid = null;
       _hasNote = null;
-      if (_view == _CalView.week) _anchor = _sundayOf(_selected);
     });
-    _loadHasNote(row.appointment.id);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => WebEditAppointmentPage(
+          appointment: row.appointment,
+          clientName: clientDisplayName(row.client),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadHasNote(int appointmentId) async {
@@ -606,19 +606,19 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   ) {
     final gridCtx = _scheduleGridKey.currentContext;
     if (gridCtx == null || _gridDays.isEmpty || _gridColW <= 0) {
-      _openReassign(row, defaultMins: defaultMins);
+      _openEditAppointment(row);
       return;
     }
     final box = gridCtx.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) {
-      _openReassign(row, defaultMins: defaultMins);
+      _openEditAppointment(row);
       return;
     }
     final local = box.globalToLocal(details.offset);
     final start = row.appointment.startsAt;
     final originDay = _gridDays.indexWhere((d) => _sameDay(d, start));
     if (originDay < 0) {
-      _openReassign(row, defaultMins: defaultMins);
+      _openEditAppointment(row);
       return;
     }
     final originX = _WeekSchedule._gutter + originDay * _gridColW + 4;
@@ -626,12 +626,12 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         (start.hour * 60 + start.minute) / 60.0 * _WeekSchedule._hourH;
     // Click / tiny drag: open panel (avoid snapping mid-card to a new slot).
     if ((local.dx - originX).abs() < 12 && (local.dy - originY).abs() < 12) {
-      _openReassign(row, defaultMins: defaultMins);
+      _openEditAppointment(row);
       return;
     }
     final x = local.dx - _WeekSchedule._gutter;
     if (x < 0 || local.dy < 0 || local.dy > box.size.height) {
-      _openReassign(row, defaultMins: defaultMins);
+      _openEditAppointment(row);
       return;
     }
     final dayIndex = (x / _gridColW).floor().clamp(0, _gridDays.length - 1);
@@ -645,7 +645,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       time.minute,
     );
     if (newStartsAt.isAtSameMomentAs(start)) {
-      _openReassign(row, defaultMins: defaultMins);
+      _openEditAppointment(row);
       return;
     }
     _rescheduleByDrag(db, row, newStartsAt, defaultMins);
@@ -827,10 +827,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                     },
                                                     draft: null,
                                                     onTapAppointment: (row) =>
-                                                        _openReassign(
-                                                      row,
-                                                      defaultMins: defaultMins,
-                                                    ),
+                                                        _openEditAppointment(row),
                                                     onDragEnd: (row, details) =>
                                                         _onAppointmentDragEnd(
                                                       db,
