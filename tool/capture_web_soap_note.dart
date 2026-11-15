@@ -144,7 +144,7 @@ void main() {
     expect(find.text('Tom Brady'), findsWidgets);
     expect(find.text('NOTE OUTLINE'), findsOneWidget);
     expect(find.text('Subjective'), findsWidgets);
-    expect(find.text('Note context'), findsOneWidget);
+    expect(find.text('Note context'), findsNothing);
     expect(find.text('Revision history'), findsOneWidget);
     expect(find.text('Save draft'), findsOneWidget);
     expect(find.textContaining('Appointment'), findsWidgets);

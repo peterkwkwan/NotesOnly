@@ -556,9 +556,6 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                     const SizedBox(height: 24),
                     _ContextColumn(
                       noteId: note.id,
-                      templateLabel: _template.label,
-                      when: when,
-                      appointment: _appointment,
                       filledCount: filled,
                       saving: _saving,
                       noteStatus: note.status,
@@ -610,9 +607,6 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                       width: 258,
                       child: _ContextColumn(
                         noteId: note.id,
-                        templateLabel: _template.label,
-                        when: when,
-                        appointment: _appointment,
                         filledCount: filled,
                         saving: _saving,
                         noteStatus: note.status,
@@ -646,24 +640,6 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       ),
     );
   }
-}
-
-String _longDate(DateTime dt) {
-  const months = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-  return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
 }
 
 class _PageHeader extends StatelessWidget {
@@ -1324,9 +1300,6 @@ class _SoapSectionField extends StatelessWidget {
 class _ContextColumn extends StatelessWidget {
   const _ContextColumn({
     required this.noteId,
-    required this.templateLabel,
-    required this.when,
-    required this.appointment,
     required this.filledCount,
     required this.saving,
     required this.noteStatus,
@@ -1334,9 +1307,6 @@ class _ContextColumn extends StatelessWidget {
   });
 
   final int noteId;
-  final String templateLabel;
-  final DateTime when;
-  final Appointment? appointment;
   final int filledCount;
   final bool saving;
   final NoteStatus noteStatus;
@@ -1345,94 +1315,12 @@ class _ContextColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    final apptLine = appointment == null
-        ? 'Appointment time not linked'
-        : 'Appointment · ${formatApptTime(appointment!.startsAt)}';
     final currentLabel =
         noteStatus == NoteStatus.published ? 'Current published' : 'Current';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: c.surface,
-            borderRadius: BorderRadius.circular(PelviRadius.button),
-            border: Border.all(color: c.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Note context',
-                style: TextStyle(
-                  fontSize: 17,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'TEMPLATE',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                templateLabel,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Four open SOAP sections. Prompts are guidance, not recorded findings.',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Divider(height: 1, color: c.border),
-              const SizedBox(height: 18),
-              Text(
-                'VISIT DATE',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                _longDate(when),
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                apptLine,
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 22),
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
