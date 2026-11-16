@@ -59,6 +59,10 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
   bool _hydrated = false;
   Timer? _saveDebounce;
   SoapTemplate _template = soapTemplateBlank;
+  String _baselineSubjective = '';
+  String _baselineObjective = '';
+  String _baselineAssessment = '';
+  String _baselinePlan = '';
 
   @override
   void initState() {
@@ -164,11 +168,25 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
         _objective.text = note.objective;
         _assessment.text = note.assessment;
         _plan.text = note.plan;
+        _captureSoapBaseline();
         _hydrated = true;
       }
       _loading = false;
     });
   }
+
+  void _captureSoapBaseline() {
+    _baselineSubjective = _subjective.text;
+    _baselineObjective = _objective.text;
+    _baselineAssessment = _assessment.text;
+    _baselinePlan = _plan.text;
+  }
+
+  bool get _isDirty =>
+      _subjective.text != _baselineSubjective ||
+      _objective.text != _baselineObjective ||
+      _assessment.text != _baselineAssessment ||
+      _plan.text != _baselinePlan;
 
   void _scheduleSave() {
     _saveDebounce?.cancel();
@@ -218,9 +236,14 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
     if (!mounted) return;
     await _refreshNoteRow();
     if (!mounted) return;
-    setState(() => _saving = false);
+    setState(() {
+      _captureSoapBaseline();
+      _saving = false;
+    });
     showPelviSnackBar(context, 'Draft saved.');
   }
+
+  bool get _saveDraftDisabled => _saving || !_isDirty;
 
   bool get _publishDisabled {
     final note = _note;
@@ -248,7 +271,12 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
     if (!mounted) return;
     await _refreshNoteRow();
     if (!mounted) return;
-    setState(() => _saving = false);
+    setState(() {
+      if (result == PublishNoteResult.published) {
+        _captureSoapBaseline();
+      }
+      _saving = false;
+    });
     switch (result) {
       case PublishNoteResult.published:
         showPelviSnackBar(context, 'Published.');
@@ -625,6 +653,7 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                   subtitle: '$name · ${formatNoteDate(when)}',
                   saving: _saving,
                   status: note.status,
+                  saveDraftDisabled: _saveDraftDisabled,
                   publishDisabled: _publishDisabled,
                   onSaveDraft: _saveDraft,
                   onPublish: _publish,
@@ -647,6 +676,7 @@ class _PageHeader extends StatelessWidget {
     required this.subtitle,
     required this.saving,
     required this.status,
+    required this.saveDraftDisabled,
     required this.publishDisabled,
     required this.onSaveDraft,
     required this.onPublish,
@@ -656,6 +686,7 @@ class _PageHeader extends StatelessWidget {
   final String subtitle;
   final bool saving;
   final NoteStatus status;
+  final bool saveDraftDisabled;
   final bool publishDisabled;
   final VoidCallback onSaveDraft;
   final VoidCallback onPublish;
@@ -712,7 +743,7 @@ class _PageHeader extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         OutlinedButton(
-          onPressed: saving ? null : onSaveDraft,
+          onPressed: saveDraftDisabled ? null : onSaveDraft,
           style: OutlinedButton.styleFrom(
             foregroundColor: c.ink,
             minimumSize: const Size(0, 38),
@@ -1398,6 +1429,7 @@ class _ContextColumn extends StatelessWidget {
                         if (i > 0) const SizedBox(height: 8),
                         _RevisionRow(
                           revision: rows[i],
+                          previous: i + 1 < rows.length ? rows[i + 1] : null,
                           onTap: () => onRestoreRevision(rows[i]),
                         ),
                       ],
@@ -1423,9 +1455,14 @@ class _ContextColumn extends StatelessWidget {
 }
 
 class _RevisionRow extends StatelessWidget {
-  const _RevisionRow({required this.revision, required this.onTap});
+  const _RevisionRow({
+    required this.revision,
+    required this.previous,
+    required this.onTap,
+  });
 
   final NoteRevision revision;
+  final NoteRevision? previous;
   final VoidCallback onTap;
 
   @override
@@ -1437,6 +1474,10 @@ class _RevisionRow extends StatelessWidget {
       objective: revision.objective,
       assessment: revision.assessment,
       plan: revision.plan,
+      previousSubjective: previous?.subjective,
+      previousObjective: previous?.objective,
+      previousAssessment: previous?.assessment,
+      previousPlan: previous?.plan,
     );
     return InkWell(
       onTap: onTap,

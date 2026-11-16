@@ -48,6 +48,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _hydrated = false;
   Timer? _saveDebounce;
   SoapTemplate _template = soapTemplateBlank;
+  String _baselineSubjective = '';
+  String _baselineObjective = '';
+  String _baselineAssessment = '';
+  String _baselinePlan = '';
 
   @override
   void initState() {
@@ -90,11 +94,25 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _objective.text = note.objective;
         _assessment.text = note.assessment;
         _plan.text = note.plan;
+        _captureSoapBaseline();
         _hydrated = true;
       }
       _loading = false;
     });
   }
+
+  void _captureSoapBaseline() {
+    _baselineSubjective = _subjective.text;
+    _baselineObjective = _objective.text;
+    _baselineAssessment = _assessment.text;
+    _baselinePlan = _plan.text;
+  }
+
+  bool get _isDirty =>
+      _subjective.text != _baselineSubjective ||
+      _objective.text != _baselineObjective ||
+      _assessment.text != _baselineAssessment ||
+      _plan.text != _baselinePlan;
 
   void _scheduleSave() {
     _saveDebounce?.cancel();
@@ -144,9 +162,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     if (!mounted) return;
     await _refreshNoteRow();
     if (!mounted) return;
-    setState(() => _saving = false);
+    setState(() {
+      _captureSoapBaseline();
+      _saving = false;
+    });
     showPelviSnackBar(context, 'Draft saved.');
   }
+
+  bool get _saveDraftDisabled => _saving || !_isDirty;
 
   bool get _publishDisabled {
     final note = _note;
@@ -174,7 +197,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     if (!mounted) return;
     await _refreshNoteRow();
     if (!mounted) return;
-    setState(() => _saving = false);
+    setState(() {
+      if (result == PublishNoteResult.published) {
+        _captureSoapBaseline();
+      }
+      _saving = false;
+    });
     switch (result) {
       case PublishNoteResult.published:
         showPelviSnackBar(context, 'Published.');
@@ -283,6 +311,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                         separatorBuilder: (_, _) => Divider(color: c.border),
                         itemBuilder: (context, i) {
                           final rev = rows[i];
+                          final prev =
+                              i + 1 < rows.length ? rows[i + 1] : null;
                           final published =
                               rev.reason == NoteRevisionReason.publish;
                           return ListTile(
@@ -297,6 +327,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                                 objective: rev.objective,
                                 assessment: rev.assessment,
                                 plan: rev.plan,
+                                previousSubjective: prev?.subjective,
+                                previousObjective: prev?.objective,
+                                previousAssessment: prev?.assessment,
+                                previousPlan: prev?.plan,
                               )}',
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -593,9 +627,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: _NoteAction.saveDraft,
-                  child: Text('Save draft'),
+                  enabled: !_saveDraftDisabled,
+                  child: const Text('Save draft'),
                 ),
                 PopupMenuItem(
                   value: _NoteAction.publish,
