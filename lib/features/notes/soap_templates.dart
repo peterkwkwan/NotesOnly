@@ -1,3 +1,5 @@
+import '../templates/template_fields.dart';
+
 /// Built-in SOAP fill templates for the note editor.
 
 /// One SOAP template choice (blank = no fill).
@@ -9,6 +11,7 @@ class SoapTemplate {
     this.objective = '',
     this.assessment = '',
     this.plan = '',
+    this.fields = const [],
   });
 
   final String id;
@@ -18,9 +21,15 @@ class SoapTemplate {
   final String assessment;
   final String plan;
 
+  /// Org builder questions. When non-empty, note fill uses typed controls.
+  final List<TemplateField> fields;
+
   bool get isBlank => id == blankId;
 
+  bool get hasFields => fields.isNotEmpty;
+
   bool get hasFill =>
+      hasFields ||
       subjective.isNotEmpty ||
       objective.isNotEmpty ||
       assessment.isNotEmpty ||

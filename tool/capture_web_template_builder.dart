@@ -127,6 +127,7 @@ void main() {
     expect(find.text('Single choice'), findsOneWidget);
     expect(find.text('Multiple choice'), findsOneWidget);
     expect(find.text('Numeric'), findsOneWidget);
+    expect(find.text('Yes/No'), findsOneWidget);
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
 

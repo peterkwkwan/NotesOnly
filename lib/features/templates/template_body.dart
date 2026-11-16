@@ -1,132 +1,20 @@
-import 'dart:convert';
-
 import '../../data/database.dart';
-import '../notes/soap_dictation.dart';
 import '../notes/soap_templates.dart';
+import 'template_fields.dart';
 
-enum FieldType { longText, shortText, singleChoice, multipleChoice, numeric }
-
-extension FieldTypeLabel on FieldType {
-  String get label => switch (this) {
-    FieldType.longText => 'Long text',
-    FieldType.shortText => 'Short text',
-    FieldType.singleChoice => 'Single choice',
-    FieldType.multipleChoice => 'Multiple choice',
-    FieldType.numeric => 'Numeric',
-  };
-
-  bool get isMultiline => this == FieldType.longText;
-}
-
-/// One prompt in an org SOAP template.
-class TemplateField {
-  TemplateField({
-    required this.id,
-    required this.type,
-    required this.section,
-    required this.label,
-    this.helpText = '',
-    this.placeholder = '',
-    this.required = false,
-  });
-
-  final String id;
-  FieldType type;
-  SoapSection section;
-  String label;
-  String helpText;
-  String placeholder;
-  bool required;
-}
-
-FieldType fieldTypeFromName(String raw) {
-  for (final type in FieldType.values) {
-    if (type.name == raw) return type;
-  }
-  return FieldType.longText;
-}
-
-SoapSection soapSectionFromName(String raw) {
-  for (final section in SoapSection.values) {
-    if (section.name == raw) return section;
-  }
-  return SoapSection.subjective;
-}
-
-String encodeTemplateFields(List<TemplateField> fields) {
-  return jsonEncode([
-    for (final field in fields)
-      {
-        'id': field.id,
-        'type': field.type.name,
-        'section': field.section.name,
-        'label': field.label,
-        'helpText': field.helpText,
-        'placeholder': field.placeholder,
-        'required': field.required,
-      },
-  ]);
-}
-
-List<TemplateField> decodeTemplateFields(String raw) {
-  try {
-    final decoded = jsonDecode(raw);
-    if (decoded is! List) return [];
-    final out = <TemplateField>[];
-    for (final item in decoded) {
-      if (item is! Map) continue;
-      final id = item['id']?.toString() ?? '';
-      if (id.isEmpty) continue;
-      out.add(
-        TemplateField(
-          id: id,
-          type: fieldTypeFromName(item['type']?.toString() ?? ''),
-          section: soapSectionFromName(item['section']?.toString() ?? ''),
-          label: item['label']?.toString() ?? '',
-          helpText: item['helpText']?.toString() ?? '',
-          placeholder: item['placeholder']?.toString() ?? '',
-          required: item['required'] == true,
-        ),
-      );
-    }
-    return out;
-  } catch (_) {
-    return [];
-  }
-}
-
-/// Note fill: field labels, grouped into S/O/A/P. Placeholders stay in the builder.
-({String subjective, String objective, String assessment, String plan})
-soapFillFromFields(List<TemplateField> fields) {
-  String join(SoapSection section) {
-    return [
-      for (final field in fields)
-        if (field.section == section && field.label.trim().isNotEmpty)
-          field.label.trim(),
-    ].join('\n');
-  }
-
-  return (
-    subjective: join(SoapSection.subjective),
-    objective: join(SoapSection.objective),
-    assessment: join(SoapSection.assessment),
-    plan: join(SoapSection.plan),
-  );
-}
+export 'template_fields.dart';
 
 const orgTemplateIdPrefix = 'org:';
 
 String orgTemplateChoiceId(String remoteId) => '$orgTemplateIdPrefix$remoteId';
 
 SoapTemplate soapTemplateFromOrgRow(Template row) {
-  final fill = soapFillFromFields(decodeTemplateFields(row.fieldsJson));
+  final fields = decodeTemplateFields(row.fieldsJson);
+  // Org builder templates drive typed controls; do not dump labels into textareas.
   return SoapTemplate(
     id: orgTemplateChoiceId(row.remoteId),
     label: row.name,
-    subjective: fill.subjective,
-    objective: fill.objective,
-    assessment: fill.assessment,
-    plan: fill.plan,
+    fields: fields,
   );
 }
 

@@ -363,16 +363,50 @@ void main() {
         section: SoapSection.plan,
         label: 'Follow-up',
       ),
+      TemplateField(
+        id: 'f3',
+        type: FieldType.yesNo,
+        section: SoapSection.objective,
+        label: 'Pain today',
+      ),
+      TemplateField(
+        id: 'f4',
+        type: FieldType.multipleChoice,
+        section: SoapSection.assessment,
+        label: 'Tone',
+        options: ['Low', 'Normal'],
+      ),
     ]);
     final back = decodeTemplateFields(raw);
-    expect(back, hasLength(2));
+    expect(back, hasLength(4));
     expect(back.first.required, isTrue);
     expect(back.first.type, FieldType.longText);
+    expect(back[2].type, FieldType.yesNo);
+    expect(back[2].type.label, 'Yes/No');
+    expect(back[3].options, ['Low', 'Normal']);
     final fill = soapFillFromFields(back);
     expect(fill.subjective, 'Concerns');
     expect(fill.plan, 'Follow-up');
-    expect(fill.objective, isEmpty);
-    expect(fill.assessment, isEmpty);
+    expect(fill.objective, 'Pain today');
+    expect(fill.assessment, 'Tone');
+    final answers = soapTextFromAnswers(back, {
+      'f1': 'Pelvic pain',
+      'f3': 'Yes',
+      'f4': 'Low',
+    });
+    expect(answers.subjective, 'Concerns: Pelvic pain');
+    expect(answers.objective, 'Pain today: Yes');
+    expect(answers.assessment, 'Tone: Low');
+    expect(answers.plan, 'Follow-up');
+    final envelope = encodeFieldAnswersEnvelope(
+      fields: back,
+      answers: {'f3': 'No'},
+    );
+    final decoded = tryDecodeFieldAnswersEnvelope(envelope);
+    expect(decoded, isNotNull);
+    expect(decoded!.fields, hasLength(4));
+    expect(decoded.answers['f3'], 'No');
+    expect(tryDecodeFieldAnswersEnvelope(''), isNull);
     expect(decodeTemplateFields('nope'), isEmpty);
     expect(templateMatchesMine(createdBy: 'a', viewerUid: 'a'), isTrue);
     expect(templateMatchesMine(createdBy: 'a', viewerUid: 'b'), isFalse);

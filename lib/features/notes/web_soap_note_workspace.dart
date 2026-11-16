@@ -14,8 +14,10 @@ import '../shell/desktop_chrome.dart';
 import 'dictation_apply_sheet.dart';
 import 'note_format.dart';
 import '../templates/template_body.dart';
+import '../templates/template_fields.dart';
 import 'soap_dictation.dart';
 import 'soap_templates.dart';
+import 'soap_typed_fields.dart';
 
 /// Figma `NotesOnly · SOAP note workspace` page body (shell supplies chrome).
 class WebSoapNoteWorkspace extends StatefulWidget {
@@ -59,10 +61,19 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
   bool _hydrated = false;
   Timer? _saveDebounce;
   SoapTemplate _template = soapTemplateBlank;
+  List<TemplateField> _typedFields = [];
+  Map<String, String> _answers = {};
   String _baselineSubjective = '';
   String _baselineObjective = '';
   String _baselineAssessment = '';
   String _baselinePlan = '';
+  String _baselineAddendum = '';
+
+  bool get _usesTypedFields => _typedFields.isNotEmpty;
+
+  String get _addendumPayload => _usesTypedFields
+      ? encodeFieldAnswersEnvelope(fields: _typedFields, answers: _answers)
+      : '';
 
   @override
   void initState() {
@@ -87,6 +98,8 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       _hydrated = false;
       _loading = true;
       _template = soapTemplateBlank;
+      _typedFields = [];
+      _answers = {};
       _load();
     }
   }
@@ -168,6 +181,7 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
         _objective.text = note.objective;
         _assessment.text = note.assessment;
         _plan.text = note.plan;
+        _hydrateTypedFromAddendum(note.addendum);
         _captureSoapBaseline();
         _hydrated = true;
       }
@@ -175,18 +189,73 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
     });
   }
 
+  void _hydrateTypedFromAddendum(String addendum) {
+    final envelope = tryDecodeFieldAnswersEnvelope(addendum);
+    if (envelope == null) {
+      _typedFields = [];
+      _answers = {};
+      return;
+    }
+    _typedFields = envelope.fields;
+    _answers = Map<String, String>.from(envelope.answers);
+  }
+
+  void _syncSoapTextFromAnswers() {
+    final text = soapTextFromAnswers(_typedFields, _answers);
+    _subjective.text = text.subjective;
+    _objective.text = text.objective;
+    _assessment.text = text.assessment;
+    _plan.text = text.plan;
+  }
+
+  void _applyTypedFields(
+    List<TemplateField> fields, [
+    Map<String, String>? answers,
+  ]) {
+    _typedFields = [
+      for (final f in fields)
+        TemplateField(
+          id: f.id,
+          type: f.type,
+          section: f.section,
+          label: f.label,
+          helpText: f.helpText,
+          placeholder: f.placeholder,
+          required: f.required,
+          options: List<String>.from(f.options),
+        ),
+    ];
+    _answers = answers ?? {for (final f in _typedFields) f.id: ''};
+    _syncSoapTextFromAnswers();
+  }
+
+  void _clearTypedFields() {
+    _typedFields = [];
+    _answers = {};
+  }
+
+  void _onTypedAnswer(String fieldId, String value) {
+    setState(() {
+      _answers[fieldId] = value;
+      _syncSoapTextFromAnswers();
+    });
+    _scheduleSave();
+  }
+
   void _captureSoapBaseline() {
     _baselineSubjective = _subjective.text;
     _baselineObjective = _objective.text;
     _baselineAssessment = _assessment.text;
     _baselinePlan = _plan.text;
+    _baselineAddendum = _addendumPayload;
   }
 
   bool get _isDirty =>
       _subjective.text != _baselineSubjective ||
       _objective.text != _baselineObjective ||
       _assessment.text != _baselineAssessment ||
-      _plan.text != _baselinePlan;
+      _plan.text != _baselinePlan ||
+      _addendumPayload != _baselineAddendum;
 
   void _scheduleSave() {
     _saveDebounce?.cancel();
@@ -213,6 +282,7 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       objective: _objective.text,
       assessment: _assessment.text,
       plan: _plan.text,
+      addendum: _addendumPayload,
     );
     if (!mounted) return;
     await _refreshNoteRow();
@@ -232,6 +302,7 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       objective: _objective.text,
       assessment: _assessment.text,
       plan: _plan.text,
+      addendum: _addendumPayload,
     );
     if (!mounted) return;
     await _refreshNoteRow();
@@ -267,6 +338,7 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       objective: _objective.text,
       assessment: _assessment.text,
       plan: _plan.text,
+      addendum: _addendumPayload,
     );
     if (!mounted) return;
     await _refreshNoteRow();
@@ -325,6 +397,10 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       _objective.text = rev.objective;
       _assessment.text = rev.assessment;
       _plan.text = rev.plan;
+      // shortcut: revisions omit addendum; keep typed shell, clear answers
+      if (_usesTypedFields) {
+        _answers = {for (final f in _typedFields) f.id: ''};
+      }
       _template = soapTemplateBlank;
     });
     await _refreshNoteRow();
@@ -355,12 +431,14 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       _objective.text = last.objective;
       _assessment.text = last.assessment;
       _plan.text = last.plan;
+      _hydrateTypedFromAddendum(last.addendum);
       _template = soapTemplateBlank;
     });
     showPelviSnackBar(context, 'Copied last note.');
   }
 
   bool get _soapFieldsNonEmpty =>
+      _usesTypedFields ||
       _subjective.text.trim().isNotEmpty ||
       _objective.text.trim().isNotEmpty ||
       _assessment.text.trim().isNotEmpty ||
@@ -388,7 +466,10 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
     );
     if (!mounted || picked == null) return;
     if (picked.isBlank || !picked.hasFill) {
-      setState(() => _template = soapTemplateBlank);
+      setState(() {
+        _template = soapTemplateBlank;
+        _clearTypedFields();
+      });
       return;
     }
     if (_soapFieldsNonEmpty) {
@@ -416,10 +497,15 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
     }
     setState(() {
       _template = picked;
-      _subjective.text = picked.subjective;
-      _objective.text = picked.objective;
-      _assessment.text = picked.assessment;
-      _plan.text = picked.plan;
+      if (picked.hasFields) {
+        _applyTypedFields(picked.fields);
+      } else {
+        _clearTypedFields();
+        _subjective.text = picked.subjective;
+        _objective.text = picked.objective;
+        _assessment.text = picked.assessment;
+        _plan.text = picked.plan;
+      }
     });
     _scheduleSave();
   }
@@ -565,6 +651,9 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                       listening: _listening,
                       liveWords: _liveWords,
                       templateLabel: _template.label,
+                      typedFields: _typedFields,
+                      answers: _answers,
+                      onAnswerChanged: _onTypedAnswer,
                       subjective: _subjective,
                       objective: _objective,
                       assessment: _assessment,
@@ -613,6 +702,9 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
                         listening: _listening,
                         liveWords: _liveWords,
                         templateLabel: _template.label,
+                        typedFields: _typedFields,
+                        answers: _answers,
+                        onAnswerChanged: _onTypedAnswer,
                         subjective: _subjective,
                         objective: _objective,
                         assessment: _assessment,
@@ -1015,6 +1107,9 @@ class _EditorColumn extends StatelessWidget {
     required this.listening,
     required this.liveWords,
     required this.templateLabel,
+    required this.typedFields,
+    required this.answers,
+    required this.onAnswerChanged,
     required this.subjective,
     required this.objective,
     required this.assessment,
@@ -1032,6 +1127,9 @@ class _EditorColumn extends StatelessWidget {
   final bool listening;
   final String liveWords;
   final String templateLabel;
+  final List<TemplateField> typedFields;
+  final Map<String, String> answers;
+  final void Function(String fieldId, String value) onAnswerChanged;
   final TextEditingController subjective;
   final TextEditingController objective;
   final TextEditingController assessment;
@@ -1044,6 +1142,8 @@ class _EditorColumn extends StatelessWidget {
   final VoidCallback onPickTemplate;
   final VoidCallback onCopyLast;
   final VoidCallback onDictate;
+
+  bool get _typed => typedFields.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -1188,48 +1288,89 @@ class _EditorColumn extends StatelessWidget {
             ),
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                _SoapSectionField(
-                  letter: 'S',
-                  label: 'Subjective',
-                  hint:
-                      'Document the client’s reported concerns, history and goals.',
-                  controller: subjective,
-                  focusNode: subjectiveFocus,
-                  onChanged: onChanged,
-                ),
-                const SizedBox(height: 22),
-                _SoapSectionField(
-                  letter: 'O',
-                  label: 'Objective',
-                  hint:
-                      'Record observations and measurements, where relevant.',
-                  controller: objective,
-                  focusNode: objectiveFocus,
-                  onChanged: onChanged,
-                ),
-                const SizedBox(height: 22),
-                _SoapSectionField(
-                  letter: 'A',
-                  label: 'Assessment',
-                  hint: 'Enter your clinical interpretation and reasoning.',
-                  controller: assessment,
-                  focusNode: assessmentFocus,
-                  onChanged: onChanged,
-                ),
-                const SizedBox(height: 22),
-                _SoapSectionField(
-                  letter: 'P',
-                  label: 'Plan',
-                  hint:
-                      'Document agreed next steps and follow-up considerations.',
-                  controller: plan,
-                  focusNode: planFocus,
-                  onChanged: onChanged,
-                ),
-              ],
-            ),
+            child: _typed
+                ? Column(
+                    children: [
+                      SoapTypedSection(
+                        letter: 'S',
+                        label: 'Subjective',
+                        section: SoapSection.subjective,
+                        fields: typedFields,
+                        answers: answers,
+                        onAnswerChanged: onAnswerChanged,
+                      ),
+                      const SizedBox(height: 22),
+                      SoapTypedSection(
+                        letter: 'O',
+                        label: 'Objective',
+                        section: SoapSection.objective,
+                        fields: typedFields,
+                        answers: answers,
+                        onAnswerChanged: onAnswerChanged,
+                      ),
+                      const SizedBox(height: 22),
+                      SoapTypedSection(
+                        letter: 'A',
+                        label: 'Assessment',
+                        section: SoapSection.assessment,
+                        fields: typedFields,
+                        answers: answers,
+                        onAnswerChanged: onAnswerChanged,
+                      ),
+                      const SizedBox(height: 22),
+                      SoapTypedSection(
+                        letter: 'P',
+                        label: 'Plan',
+                        section: SoapSection.plan,
+                        fields: typedFields,
+                        answers: answers,
+                        onAnswerChanged: onAnswerChanged,
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      _SoapSectionField(
+                        letter: 'S',
+                        label: 'Subjective',
+                        hint:
+                            'Document the client’s reported concerns, history and goals.',
+                        controller: subjective,
+                        focusNode: subjectiveFocus,
+                        onChanged: onChanged,
+                      ),
+                      const SizedBox(height: 22),
+                      _SoapSectionField(
+                        letter: 'O',
+                        label: 'Objective',
+                        hint:
+                            'Record observations and measurements, where relevant.',
+                        controller: objective,
+                        focusNode: objectiveFocus,
+                        onChanged: onChanged,
+                      ),
+                      const SizedBox(height: 22),
+                      _SoapSectionField(
+                        letter: 'A',
+                        label: 'Assessment',
+                        hint:
+                            'Enter your clinical interpretation and reasoning.',
+                        controller: assessment,
+                        focusNode: assessmentFocus,
+                        onChanged: onChanged,
+                      ),
+                      const SizedBox(height: 22),
+                      _SoapSectionField(
+                        letter: 'P',
+                        label: 'Plan',
+                        hint:
+                            'Document agreed next steps and follow-up considerations.',
+                        controller: plan,
+                        focusNode: planFocus,
+                        onChanged: onChanged,
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),

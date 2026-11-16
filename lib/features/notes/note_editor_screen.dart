@@ -13,8 +13,10 @@ import '../clients/client_profile_screen.dart';
 import 'dictation_apply_sheet.dart';
 import 'note_format.dart';
 import '../templates/template_body.dart';
+import '../templates/template_fields.dart';
 import 'soap_dictation.dart';
 import 'soap_templates.dart';
+import 'soap_typed_fields.dart';
 
 /// Always-editable SOAP note editor with autosave.
 class NoteEditorScreen extends StatefulWidget {
@@ -48,10 +50,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _hydrated = false;
   Timer? _saveDebounce;
   SoapTemplate _template = soapTemplateBlank;
+  List<TemplateField> _typedFields = [];
+  Map<String, String> _answers = {};
   String _baselineSubjective = '';
   String _baselineObjective = '';
   String _baselineAssessment = '';
   String _baselinePlan = '';
+  String _baselineAddendum = '';
+
+  bool get _usesTypedFields => _typedFields.isNotEmpty;
+
+  String get _addendumPayload => _usesTypedFields
+      ? encodeFieldAnswersEnvelope(fields: _typedFields, answers: _answers)
+      : '';
 
   @override
   void initState() {
@@ -94,6 +105,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _objective.text = note.objective;
         _assessment.text = note.assessment;
         _plan.text = note.plan;
+        _hydrateTypedFromAddendum(note.addendum);
         _captureSoapBaseline();
         _hydrated = true;
       }
@@ -101,18 +113,73 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     });
   }
 
+  void _hydrateTypedFromAddendum(String addendum) {
+    final envelope = tryDecodeFieldAnswersEnvelope(addendum);
+    if (envelope == null) {
+      _typedFields = [];
+      _answers = {};
+      return;
+    }
+    _typedFields = envelope.fields;
+    _answers = Map<String, String>.from(envelope.answers);
+  }
+
+  void _syncSoapTextFromAnswers() {
+    final text = soapTextFromAnswers(_typedFields, _answers);
+    _subjective.text = text.subjective;
+    _objective.text = text.objective;
+    _assessment.text = text.assessment;
+    _plan.text = text.plan;
+  }
+
+  void _applyTypedFields(
+    List<TemplateField> fields, [
+    Map<String, String>? answers,
+  ]) {
+    _typedFields = [
+      for (final f in fields)
+        TemplateField(
+          id: f.id,
+          type: f.type,
+          section: f.section,
+          label: f.label,
+          helpText: f.helpText,
+          placeholder: f.placeholder,
+          required: f.required,
+          options: List<String>.from(f.options),
+        ),
+    ];
+    _answers = answers ?? {for (final f in _typedFields) f.id: ''};
+    _syncSoapTextFromAnswers();
+  }
+
+  void _clearTypedFields() {
+    _typedFields = [];
+    _answers = {};
+  }
+
+  void _onTypedAnswer(String fieldId, String value) {
+    setState(() {
+      _answers[fieldId] = value;
+      _syncSoapTextFromAnswers();
+    });
+    _scheduleSave();
+  }
+
   void _captureSoapBaseline() {
     _baselineSubjective = _subjective.text;
     _baselineObjective = _objective.text;
     _baselineAssessment = _assessment.text;
     _baselinePlan = _plan.text;
+    _baselineAddendum = _addendumPayload;
   }
 
   bool get _isDirty =>
       _subjective.text != _baselineSubjective ||
       _objective.text != _baselineObjective ||
       _assessment.text != _baselineAssessment ||
-      _plan.text != _baselinePlan;
+      _plan.text != _baselinePlan ||
+      _addendumPayload != _baselineAddendum;
 
   void _scheduleSave() {
     _saveDebounce?.cancel();
@@ -139,6 +206,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       objective: _objective.text,
       assessment: _assessment.text,
       plan: _plan.text,
+      addendum: _addendumPayload,
     );
     if (!mounted) return;
     await _refreshNoteRow();
@@ -158,6 +226,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       objective: _objective.text,
       assessment: _assessment.text,
       plan: _plan.text,
+      addendum: _addendumPayload,
     );
     if (!mounted) return;
     await _refreshNoteRow();
@@ -193,6 +262,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       objective: _objective.text,
       assessment: _assessment.text,
       plan: _plan.text,
+      addendum: _addendumPayload,
     );
     if (!mounted) return;
     await _refreshNoteRow();
@@ -251,6 +321,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _objective.text = rev.objective;
       _assessment.text = rev.assessment;
       _plan.text = rev.plan;
+      if (_usesTypedFields) {
+        _answers = {for (final f in _typedFields) f.id: ''};
+      }
       _template = soapTemplateBlank;
     });
     await _refreshNoteRow();
@@ -373,12 +446,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _objective.text = last.objective;
       _assessment.text = last.assessment;
       _plan.text = last.plan;
+      _hydrateTypedFromAddendum(last.addendum);
       _template = soapTemplateBlank;
     });
     showPelviSnackBar(context, 'Copied last note.');
   }
 
   bool get _soapFieldsNonEmpty =>
+      _usesTypedFields ||
       _subjective.text.trim().isNotEmpty ||
       _objective.text.trim().isNotEmpty ||
       _assessment.text.trim().isNotEmpty ||
@@ -397,7 +472,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     );
     if (!mounted || picked == null) return;
     if (picked.isBlank || !picked.hasFill) {
-      setState(() => _template = soapTemplateBlank);
+      setState(() {
+        _template = soapTemplateBlank;
+        _clearTypedFields();
+      });
       return;
     }
     if (_soapFieldsNonEmpty) {
@@ -425,10 +503,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
     setState(() {
       _template = picked;
-      _subjective.text = picked.subjective;
-      _objective.text = picked.objective;
-      _assessment.text = picked.assessment;
-      _plan.text = picked.plan;
+      if (picked.hasFields) {
+        _applyTypedFields(picked.fields);
+      } else {
+        _clearTypedFields();
+        _subjective.text = picked.subjective;
+        _objective.text = picked.objective;
+        _assessment.text = picked.assessment;
+        _plan.text = picked.plan;
+      }
     });
     _scheduleSave();
   }
@@ -668,33 +751,71 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               onPickTemplate: _pickTemplate,
             ),
             const SizedBox(height: PelviSpace.lg),
-            _SoapField(
-              icon: Icons.hearing_outlined,
-              label: 'Subjective',
-              controller: _subjective,
-              onChanged: (_) => _scheduleSave(),
-            ),
-            const SizedBox(height: PelviSpace.lg),
-            _SoapField(
-              icon: Icons.visibility_outlined,
-              label: 'Objective',
-              controller: _objective,
-              onChanged: (_) => _scheduleSave(),
-            ),
-            const SizedBox(height: PelviSpace.lg),
-            _SoapField(
-              icon: Icons.psychology_outlined,
-              label: 'Assessment',
-              controller: _assessment,
-              onChanged: (_) => _scheduleSave(),
-            ),
-            const SizedBox(height: PelviSpace.lg),
-            _SoapField(
-              icon: Icons.checklist_rtl,
-              label: 'Plan',
-              controller: _plan,
-              onChanged: (_) => _scheduleSave(),
-            ),
+            if (_usesTypedFields) ...[
+              SoapTypedSection(
+                letter: 'S',
+                label: 'Subjective',
+                section: SoapSection.subjective,
+                fields: _typedFields,
+                answers: _answers,
+                onAnswerChanged: _onTypedAnswer,
+              ),
+              const SizedBox(height: PelviSpace.lg),
+              SoapTypedSection(
+                letter: 'O',
+                label: 'Objective',
+                section: SoapSection.objective,
+                fields: _typedFields,
+                answers: _answers,
+                onAnswerChanged: _onTypedAnswer,
+              ),
+              const SizedBox(height: PelviSpace.lg),
+              SoapTypedSection(
+                letter: 'A',
+                label: 'Assessment',
+                section: SoapSection.assessment,
+                fields: _typedFields,
+                answers: _answers,
+                onAnswerChanged: _onTypedAnswer,
+              ),
+              const SizedBox(height: PelviSpace.lg),
+              SoapTypedSection(
+                letter: 'P',
+                label: 'Plan',
+                section: SoapSection.plan,
+                fields: _typedFields,
+                answers: _answers,
+                onAnswerChanged: _onTypedAnswer,
+              ),
+            ] else ...[
+              _SoapField(
+                icon: Icons.hearing_outlined,
+                label: 'Subjective',
+                controller: _subjective,
+                onChanged: (_) => _scheduleSave(),
+              ),
+              const SizedBox(height: PelviSpace.lg),
+              _SoapField(
+                icon: Icons.visibility_outlined,
+                label: 'Objective',
+                controller: _objective,
+                onChanged: (_) => _scheduleSave(),
+              ),
+              const SizedBox(height: PelviSpace.lg),
+              _SoapField(
+                icon: Icons.psychology_outlined,
+                label: 'Assessment',
+                controller: _assessment,
+                onChanged: (_) => _scheduleSave(),
+              ),
+              const SizedBox(height: PelviSpace.lg),
+              _SoapField(
+                icon: Icons.checklist_rtl,
+                label: 'Plan',
+                controller: _plan,
+                onChanged: (_) => _scheduleSave(),
+              ),
+            ],
             const SizedBox(height: PelviSpace.md),
             Text(
               'Saves on this device automatically.',

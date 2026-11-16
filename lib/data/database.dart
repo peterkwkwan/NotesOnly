@@ -112,7 +112,7 @@ class Notes extends Table {
   TextColumn get objective => text().withDefault(const Constant(''))();
   TextColumn get assessment => text().withDefault(const Constant(''))();
   TextColumn get plan => text().withDefault(const Constant(''))();
-  /// Legacy column; unused (notes stay editable).
+  /// Typed template answers envelope JSON (fields + answers). Empty for free-text notes.
   TextColumn get addendum => text().withDefault(const Constant(''))();
   /// Draft vs published (live note badge).
   IntColumn get status =>
@@ -1632,6 +1632,7 @@ class AppDatabase extends _$AppDatabase {
     required String objective,
     required String assessment,
     required String plan,
+    String? addendum,
   }) async {
     final note = await getNote(id);
     if (note == null) return;
@@ -1641,6 +1642,7 @@ class AppDatabase extends _$AppDatabase {
         objective: Value(objective),
         assessment: Value(assessment),
         plan: Value(plan),
+        addendum: addendum == null ? const Value.absent() : Value(addendum),
         status: note.status == NoteStatus.published
             ? const Value(NoteStatus.draft)
             : const Value.absent(),
@@ -1659,6 +1661,7 @@ class AppDatabase extends _$AppDatabase {
     required String objective,
     required String assessment,
     required String plan,
+    String? addendum,
   }) async {
     final note = await getNote(id);
     if (note == null) return false;
@@ -1669,6 +1672,7 @@ class AppDatabase extends _$AppDatabase {
         objective: Value(objective),
         assessment: Value(assessment),
         plan: Value(plan),
+        addendum: addendum == null ? const Value.absent() : Value(addendum),
         status: const Value(NoteStatus.draft),
         updatedAt: Value(now),
         syncStatus: const Value(RowSyncStatus.pending),
@@ -1698,6 +1702,7 @@ class AppDatabase extends _$AppDatabase {
     required String objective,
     required String assessment,
     required String plan,
+    String? addendum,
   }) async {
     final note = await getNote(id);
     if (note == null) return PublishNoteResult.missing;
@@ -1736,6 +1741,7 @@ class AppDatabase extends _$AppDatabase {
         objective: Value(objective),
         assessment: Value(assessment),
         plan: Value(plan),
+        addendum: addendum == null ? const Value.absent() : Value(addendum),
         status: const Value(NoteStatus.published),
         finalizedAt: Value(now),
         updatedAt: Value(now),
@@ -1990,7 +1996,7 @@ class AppDatabase extends _$AppDatabase {
         note.plan.trim().isEmpty;
   }
 
-  /// Copy S/O/A/P from [source] into [targetId] (same-client caller checks).
+  /// Copy S/O/A/P (+ typed answers envelope) from [source] into [targetId].
   Future<bool> copySoapIntoNote({
     required int targetId,
     required Note source,
@@ -2003,6 +2009,7 @@ class AppDatabase extends _$AppDatabase {
         objective: Value(source.objective),
         assessment: Value(source.assessment),
         plan: Value(source.plan),
+        addendum: Value(source.addendum),
         status: target.status == NoteStatus.published
             ? const Value(NoteStatus.draft)
             : const Value.absent(),

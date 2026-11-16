@@ -7,6 +7,7 @@ import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../notes/soap_dictation.dart';
 import '../shell/desktop_chrome.dart';
+import 'template_answer_control.dart';
 import 'template_body.dart';
 
 extension on SoapSection {
@@ -648,9 +649,13 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
               key: ValueKey(field.id),
               field: field,
               onSelect: () => _selectField(field),
+              onChanged: () => setState(() {}),
               onType: (type) {
                 setState(() {
                   field.type = type;
+                  if (type.usesOptions && field.options.isEmpty) {
+                    field.options = List<String>.from(defaultChoiceOptions);
+                  }
                   _section = field.section;
                   _selectedId = field.id;
                 });
@@ -739,11 +744,13 @@ class _QuestionRow extends StatefulWidget {
     required this.field,
     required this.onSelect,
     required this.onType,
+    required this.onChanged,
   });
 
   final TemplateField field;
   final VoidCallback onSelect;
   final ValueChanged<FieldType> onType;
+  final VoidCallback onChanged;
 
   @override
   State<_QuestionRow> createState() => _QuestionRowState();
@@ -777,77 +784,75 @@ class _QuestionRowState extends State<_QuestionRow> {
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
     final field = widget.field;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: SizedBox(
-            height: 36,
-            child: TextField(
-              controller: _labelCtrl,
-              onTap: widget.onSelect,
-              onChanged: (value) => field.label = value,
-              style: TextStyle(fontSize: 13, height: 1.2, color: c.ink),
-              decoration: _questionDecoration(c),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 136,
-          height: 36,
-          child: PopupMenuButton<FieldType>(
-            tooltip: 'Field type',
-            padding: EdgeInsets.zero,
-            onSelected: widget.onType,
-            itemBuilder: (context) => [
-              for (final type in FieldType.values)
-                PopupMenuItem(value: type, child: Text(type.label)),
-            ],
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: c.surface,
-                borderRadius: BorderRadius.circular(PelviRadius.sm),
-                border: Border.all(color: c.border),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.only(left: 12, right: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        field.type.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, color: c.ink),
-                      ),
-                    ),
-                    Icon(Icons.expand_more, size: 16, color: c.inkMuted),
-                  ],
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 36,
+                child: TextField(
+                  controller: _labelCtrl,
+                  onTap: widget.onSelect,
+                  onChanged: (value) => field.label = value,
+                  style: TextStyle(fontSize: 13, height: 1.2, color: c.ink),
+                  decoration: templateFieldDecoration(c, hint: 'Question'),
                 ),
               ),
             ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 136,
+              height: 36,
+              child: PopupMenuButton<FieldType>(
+                tooltip: 'Field type',
+                padding: EdgeInsets.zero,
+                onSelected: widget.onType,
+                itemBuilder: (context) => [
+                  for (final type in FieldType.values)
+                    PopupMenuItem(value: type, child: Text(type.label)),
+                ],
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(PelviRadius.sm),
+                    border: Border.all(color: c.border),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 12, right: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            field.type.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 13, color: c.ink),
+                          ),
+                        ),
+                        Icon(Icons.expand_more, size: 16, color: c.inkMuted),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: widget.onSelect,
+          behavior: HitTestBehavior.opaque,
+          child: TemplateAnswerControl(
+            field: field,
+            editingOptions: true,
+            onOptionsChanged: widget.onChanged,
           ),
         ),
       ],
     );
   }
-}
-
-InputDecoration _questionDecoration(PelviPalette c) {
-  OutlineInputBorder edge(Color color) => OutlineInputBorder(
-    borderRadius: BorderRadius.circular(PelviRadius.sm),
-    borderSide: BorderSide(color: color),
-  );
-  return InputDecoration(
-    isDense: true,
-    filled: true,
-    fillColor: c.surface,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-    hintText: 'Question',
-    border: edge(c.border),
-    enabledBorder: edge(c.border),
-    focusedBorder: edge(c.pink700),
-  );
 }
 
 class _MiniSwitch extends StatelessWidget {
@@ -892,22 +897,7 @@ class _PreviewField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 7),
-        Container(
-          width: double.infinity,
-          constraints: BoxConstraints(
-            minHeight: field.type.isMultiline ? 72 : 40,
-          ),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: c.surface,
-            border: Border.all(color: c.border),
-            borderRadius: BorderRadius.circular(PelviRadius.sm),
-          ),
-          child: Text(
-            field.placeholder.isEmpty ? ' ' : field.placeholder,
-            style: TextStyle(fontSize: 13, height: 1.5, color: c.inkMuted),
-          ),
-        ),
+        TemplateAnswerControl(field: field),
         if (field.helpText.isNotEmpty) ...[
           const SizedBox(height: 7),
           Text(
