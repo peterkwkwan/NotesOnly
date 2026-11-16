@@ -9,9 +9,7 @@ import '../../data/org_directory.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
-import '../appointments/appointment_form_screen.dart' show nextWholeHour;
-import '../appointments/web_edit_appointment_page.dart';
-import '../appointments/web_new_appointment_page.dart';
+import '../appointments/appointment_form_screen.dart';
 import '../clients/client_format.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
@@ -151,9 +149,11 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   late DateTime _anchor; // week Sunday for week view; day for day; month for month
   late DateTime _selected;
   _CalView _view = _CalView.week;
-  bool _panelOpen = false;
+  bool _panelOpen = true;
   late TimeOfDay _starts;
   late TimeOfDay _ends;
+  int? _clientId;
+  final _notesCtrl = TextEditingController();
   bool _saving = false;
   AppointmentStatus _status = AppointmentStatus.scheduled;
   bool? _hasNote;
@@ -187,6 +187,12 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     if (_rosterStarted) return;
     _rosterStarted = true;
     _loadRoster();
+  }
+
+  @override
+  void dispose() {
+    _notesCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRoster() async {
@@ -390,45 +396,45 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     });
   }
 
-  void _openNewAppointment({DateTime? day, TimeOfDay? starts}) {
+  void _openPanel({DateTime? day, TimeOfDay? starts}) {
     final d = day ?? _selected;
+    final s = starts ?? nextWholeHour();
     setState(() {
-      _selected = _dateOnly(d);
-      if (_reassign == null) {
-        _panelOpen = false;
-      }
-    });
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => WebNewAppointmentPage(
-          initialDay: d,
-          initialTime: starts,
-        ),
-      ),
-    );
-  }
-
-  void _openEditAppointment(
-    ({Appointment appointment, Client client}) row,
-  ) {
-    setState(() {
-      _selected = _dateOnly(row.appointment.startsAt);
-      if (_view == _CalView.week) {
-        _anchor = _sundayOf(_selected);
-      }
-      _panelOpen = false;
+      _panelOpen = true;
       _reassign = null;
       _reassignUid = null;
       _hasNote = null;
+      _status = AppointmentStatus.scheduled;
+      _selected = _dateOnly(d);
+      _starts = s;
+      _ends = TimeOfDay(hour: (s.hour + 1) % 24, minute: s.minute);
+      _clientId = null;
+      _notesCtrl.clear();
     });
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => WebEditAppointmentPage(
-          appointment: row.appointment,
-          clientName: clientDisplayName(row.client),
-        ),
-      ),
+  }
+
+  void _openReassign(
+    ({Appointment appointment, Client client}) row, {
+    int defaultMins = 60,
+  }) {
+    final start = row.appointment.startsAt;
+    final end = appointmentEffectiveEnd(
+      start,
+      row.appointment.endsAt,
+      defaultMins,
     );
+    setState(() {
+      _reassign = row;
+      _reassignUid = row.appointment.practitionerUid;
+      _panelOpen = true;
+      _selected = _dateOnly(start);
+      _starts = TimeOfDay(hour: start.hour, minute: start.minute);
+      _ends = TimeOfDay(hour: end.hour, minute: end.minute);
+      _status = row.appointment.status;
+      _hasNote = null;
+      if (_view == _CalView.week) _anchor = _sundayOf(_selected);
+    });
+    _loadHasNote(row.appointment.id);
   }
 
   Future<void> _loadHasNote(int appointmentId) async {
@@ -606,19 +612,19 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   ) {
     final gridCtx = _scheduleGridKey.currentContext;
     if (gridCtx == null || _gridDays.isEmpty || _gridColW <= 0) {
-      _openEditAppointment(row);
+      _openReassign(row, defaultMins: defaultMins);
       return;
     }
     final box = gridCtx.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) {
-      _openEditAppointment(row);
+      _openReassign(row, defaultMins: defaultMins);
       return;
     }
     final local = box.globalToLocal(details.offset);
     final start = row.appointment.startsAt;
     final originDay = _gridDays.indexWhere((d) => _sameDay(d, start));
     if (originDay < 0) {
-      _openEditAppointment(row);
+      _openReassign(row, defaultMins: defaultMins);
       return;
     }
     final originX = _WeekSchedule._gutter + originDay * _gridColW + 4;
@@ -626,12 +632,12 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         (start.hour * 60 + start.minute) / 60.0 * _WeekSchedule._hourH;
     // Click / tiny drag: open panel (avoid snapping mid-card to a new slot).
     if ((local.dx - originX).abs() < 12 && (local.dy - originY).abs() < 12) {
-      _openEditAppointment(row);
+      _openReassign(row, defaultMins: defaultMins);
       return;
     }
     final x = local.dx - _WeekSchedule._gutter;
     if (x < 0 || local.dy < 0 || local.dy > box.size.height) {
-      _openEditAppointment(row);
+      _openReassign(row, defaultMins: defaultMins);
       return;
     }
     final dayIndex = (x / _gridColW).floor().clamp(0, _gridDays.length - 1);
@@ -645,7 +651,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       time.minute,
     );
     if (newStartsAt.isAtSameMomentAs(start)) {
-      _openEditAppointment(row);
+      _openReassign(row, defaultMins: defaultMins);
       return;
     }
     _rescheduleByDrag(db, row, newStartsAt, defaultMins);
@@ -692,6 +698,56 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     }
   }
 
+  Future<void> _save(AppDatabase db, int defaultMins) async {
+    final clientId = _clientId;
+    if (clientId == null || _saving) return;
+    final startsAt = DateTime(
+      _selected.year,
+      _selected.month,
+      _selected.day,
+      _starts.hour,
+      _starts.minute,
+    );
+    var endsAt = DateTime(
+      _selected.year,
+      _selected.month,
+      _selected.day,
+      _ends.hour,
+      _ends.minute,
+    );
+    if (!endsAt.isAfter(startsAt)) {
+      endsAt = startsAt.add(Duration(minutes: defaultMins));
+    }
+    setState(() => _saving = true);
+    try {
+      await db.insertAppointment(
+        clientId: clientId,
+        startsAt: startsAt,
+        endsAt: endsAt,
+        status: _status,
+        notes: _notesCtrl.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _panelOpen = false;
+        _clientId = null;
+        _notesCtrl.clear();
+        _status = AppointmentStatus.scheduled;
+      });
+    } on AppointmentConflictException catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(
+        context,
+        appointmentConflictCopy(
+          clientName: clientDisplayName(e.client),
+          startsAt: e.appointment.startsAt,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.of(context);
@@ -708,46 +764,60 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
               return StreamBuilder<(String, String)>(
                 stream: db.watchClinicHours(),
                 builder: (context, hoursSnap) {
-                  return StreamBuilder(
-                    stream: db.watchAppointmentsWithClientInRange(
-                      _rangeStart,
-                      _rangeEnd,
-                    ),
-                    builder: (context, apptSnap) {
-                      final practitioner = (nameSnap.data ?? '').trim();
-                      final defaultMins = minsSnap.data ?? 60;
-                      final hours = hoursSnap.data ??
-                          (
-                            AppDatabase.defaultClinicHoursStart,
-                            AppDatabase.defaultClinicHoursEnd,
+                  return StreamBuilder<String>(
+                    stream: db.watchTimezone(),
+                    builder: (context, tzSnap) {
+                      return StreamBuilder(
+                        stream: db.watchAppointmentsWithClientInRange(
+                          _rangeStart,
+                          _rangeEnd,
+                        ),
+                        builder: (context, apptSnap) {
+                          final practitioner =
+                              (nameSnap.data ?? '').trim();
+                          final defaultMins = minsSnap.data ?? 60;
+                          final hours = hoursSnap.data ??
+                              (
+                                AppDatabase.defaultClinicHoursStart,
+                                AppDatabase.defaultClinicHoursEnd,
+                              );
+                          final tz = (tzSnap.data ?? 'Asia/Hong_Kong')
+                              .trim();
+                          final startHour = _parseHour(hours.$1);
+                          final endHour = _parseHour(hours.$2);
+                          final rows = _filteredRows(
+                            apptSnap.data ?? const [],
                           );
-                      final startHour = _parseHour(hours.$1);
-                      final endHour = _parseHour(hours.$2);
-                      final rows = _filteredRows(
-                        apptSnap.data ?? const [],
-                      );
 
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.all(32),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minHeight: constraints.maxHeight - 64,
-                              ),
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.stretch,
-                                children: [
-                                  _Header(
-                                    subtitleMonth: _view == _CalView.month
-                                        ? _anchor
-                                        : _selected,
-                                    onToday: _goToday,
-                                    onAdd: () => _openNewAppointment(
-                                      day: _selected,
-                                    ),
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                padding: const EdgeInsets.all(32),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: constraints.maxHeight - 64,
                                   ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      _Header(
+                                        subtitleMonth:
+                                            _view == _CalView.month
+                                                ? _anchor
+                                                : _selected,
+                                        onToday: _goToday,
+                                        onAdd: () =>
+                                            _openPanel(day: _selected),
+                                        showSave: _reassign == null &&
+                                            _panelOpen &&
+                                            _clientId != null,
+                                        canSave:
+                                            _clientId != null && !_saving,
+                                        saving: _saving,
+                                        onSave: () =>
+                                            _save(db, defaultMins),
+                                      ),
                                       const SizedBox(height: 26),
                                       _Controls(
                                         navLabel: switch (_view) {
@@ -804,9 +874,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                         _anchor =
                                                             _sundayOf(day);
                                                       });
-                                                      _openNewAppointment(
-                                                        day: day,
-                                                      );
+                                                      _openPanel(day: day);
                                                     },
                                                   )
                                                 : _WeekSchedule(
@@ -825,9 +893,15 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                       _gridDays = days;
                                                       _gridColW = colW;
                                                     },
-                                                    draft: null,
+                                                    draft: _panelOpen &&
+                                                            _reassign == null
+                                                        ? (
+                                                            day: _selected,
+                                                            starts: _starts,
+                                                          )
+                                                        : null,
                                                     onTapAppointment: (row) =>
-                                                        _openEditAppointment(row),
+                                                        _openReassign(row, defaultMins: defaultMins),
                                                     onDragEnd: (row, details) =>
                                                         _onAppointmentDragEnd(
                                                       db,
@@ -839,114 +913,217 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                         setState(() =>
                                                             _selected = day),
                                                     onTapSlot: (day, time) =>
-                                                        _openNewAppointment(
+                                                        _openPanel(
                                                       day: day,
                                                       starts: time,
                                                     ),
                                                   ),
                                           ),
-                                          if (_panelOpen &&
-                                              _reassign != null) ...[
+                                          if (_panelOpen) ...[
                                             const SizedBox(width: 20),
                                             SizedBox(
                                               width: 330,
-                                              child: _ReassignPanel(
-                                                  row: _reassign!,
-                                                  members: _members,
-                                                  practitionerUid:
-                                                      _reassignUid ??
-                                                          _reassign!
-                                                              .appointment
-                                                              .practitionerUid,
-                                                  day: _selected,
-                                                  starts: _starts,
-                                                  ends: _ends,
-                                                  status: _status,
-                                                  hasNote: _hasNote,
-                                                  defaultMins: defaultMins,
-                                                  canReassign: _canReassign,
-                                                  saving: _saving,
-                                                  onClose: _closePanel,
-                                                  onPick: (uid) => setState(
-                                                    () => _reassignUid = uid,
-                                                  ),
-                                                  onPickDate: () async {
-                                                    final picked =
-                                                        await showDatePicker(
-                                                      context: context,
-                                                      initialDate: _selected,
-                                                      firstDate:
-                                                          DateTime(2000),
-                                                      lastDate:
-                                                          DateTime(2100),
-                                                    );
-                                                    if (picked != null) {
-                                                      setState(() {
-                                                        _selected =
-                                                            _dateOnly(picked);
-                                                        if (_view ==
-                                                            _CalView.week) {
-                                                          _anchor =
-                                                              _sundayOf(
-                                                                  picked);
-                                                        }
-                                                      });
-                                                    }
-                                                  },
-                                                  onPickStarts: () async {
-                                                    final picked =
-                                                        await showTimePicker(
-                                                      context: context,
-                                                      initialTime: _starts,
-                                                    );
-                                                    if (picked != null) {
-                                                      setState(() {
-                                                        final span =
-                                                            (_ends.hour * 60 +
-                                                                    _ends
-                                                                        .minute) -
-                                                                (_starts.hour *
-                                                                        60 +
-                                                                    _starts
-                                                                        .minute);
-                                                        _starts = picked;
-                                                        final mins = span > 0
-                                                            ? span
-                                                            : defaultMins;
-                                                        final endTotal =
-                                                            picked.hour * 60 +
-                                                                picked.minute +
-                                                                mins;
-                                                        _ends = TimeOfDay(
-                                                          hour: (endTotal ~/
-                                                                  60) %
-                                                              24,
-                                                          minute:
-                                                              endTotal % 60,
+                                              child: _reassign == null
+                                                  ? _NewAppointmentPanel(
+                                                      selected: _selected,
+                                                      starts: _starts,
+                                                      ends: _ends,
+                                                      clientId: _clientId,
+                                                      status: _status,
+                                                      notesCtrl: _notesCtrl,
+                                                      practitioner:
+                                                          practitioner,
+                                                      defaultMins: defaultMins,
+                                                      timezone: tz,
+                                                      saving: _saving,
+                                                      dayRows: [
+                                                        for (final r in rows)
+                                                          if (_sameDay(
+                                                            r.appointment
+                                                                .startsAt,
+                                                            _selected,
+                                                          ))
+                                                            r,
+                                                      ],
+                                                      onClose: _closePanel,
+                                                      onCancel: _closePanel,
+                                                      onPickClient: (id) =>
+                                                          setState(() =>
+                                                              _clientId = id),
+                                                      onPickDate: () async {
+                                                        final picked =
+                                                            await showDatePicker(
+                                                          context: context,
+                                                          initialDate:
+                                                              _selected,
+                                                          firstDate:
+                                                              DateTime(2000),
+                                                          lastDate:
+                                                              DateTime(2100),
                                                         );
-                                                      });
-                                                    }
-                                                  },
-                                                  onPickEnds: () async {
-                                                    final picked =
-                                                        await showTimePicker(
-                                                      context: context,
-                                                      initialTime: _ends,
-                                                    );
-                                                    if (picked != null) {
-                                                      setState(() =>
-                                                          _ends = picked);
-                                                    }
-                                                  },
-                                                  onPickStatus: _pickStatus,
-                                                  onSoap: _openSoapForReassign,
-                                                  onSave: () => _saveEdit(
-                                                    db,
-                                                    defaultMins,
-                                                  ),
-                                                  onDelete: () =>
-                                                      _deleteAppointment(db),
-                                                ),
+                                                        if (picked != null) {
+                                                          setState(() {
+                                                            _selected =
+                                                                _dateOnly(
+                                                                    picked);
+                                                            if (_view ==
+                                                                _CalView
+                                                                    .week) {
+                                                              _anchor =
+                                                                  _sundayOf(
+                                                                      picked);
+                                                            }
+                                                          });
+                                                        }
+                                                      },
+                                                      onPickStarts: () async {
+                                                        final picked =
+                                                            await showTimePicker(
+                                                          context: context,
+                                                          initialTime: _starts,
+                                                        );
+                                                        if (picked != null) {
+                                                          setState(() {
+                                                            _starts = picked;
+                                                            _ends = TimeOfDay(
+                                                              hour: (picked
+                                                                          .hour +
+                                                                      1) %
+                                                                  24,
+                                                              minute: picked
+                                                                  .minute,
+                                                            );
+                                                          });
+                                                        }
+                                                      },
+                                                      onPickEnds: () async {
+                                                        final picked =
+                                                            await showTimePicker(
+                                                          context: context,
+                                                          initialTime: _ends,
+                                                        );
+                                                        if (picked != null) {
+                                                          setState(() =>
+                                                              _ends = picked);
+                                                        }
+                                                      },
+                                                      onPickStatus:
+                                                          _pickStatus,
+                                                      onSave: () => _save(
+                                                        db,
+                                                        defaultMins,
+                                                      ),
+                                                    )
+                                                  : _ReassignPanel(
+                                                      row: _reassign!,
+                                                      members: _members,
+                                                      practitionerUid:
+                                                          _reassignUid ??
+                                                              _reassign!
+                                                                  .appointment
+                                                                  .practitionerUid,
+                                                      day: _selected,
+                                                      starts: _starts,
+                                                      ends: _ends,
+                                                      status: _status,
+                                                      hasNote: _hasNote,
+                                                      defaultMins: defaultMins,
+                                                      canReassign:
+                                                          _canReassign,
+                                                      saving: _saving,
+                                                      onClose: _closePanel,
+                                                      onPick: (uid) =>
+                                                          setState(() =>
+                                                              _reassignUid =
+                                                                  uid),
+                                                      onPickDate: () async {
+                                                        final picked =
+                                                            await showDatePicker(
+                                                          context: context,
+                                                          initialDate:
+                                                              _selected,
+                                                          firstDate:
+                                                              DateTime(2000),
+                                                          lastDate:
+                                                              DateTime(2100),
+                                                        );
+                                                        if (picked != null) {
+                                                          setState(() {
+                                                            _selected =
+                                                                _dateOnly(
+                                                                    picked);
+                                                            if (_view ==
+                                                                _CalView
+                                                                    .week) {
+                                                              _anchor =
+                                                                  _sundayOf(
+                                                                      picked);
+                                                            }
+                                                          });
+                                                        }
+                                                      },
+                                                      onPickStarts: () async {
+                                                        final picked =
+                                                            await showTimePicker(
+                                                          context: context,
+                                                          initialTime: _starts,
+                                                        );
+                                                        if (picked != null) {
+                                                          setState(() {
+                                                            final span =
+                                                                (_ends.hour *
+                                                                            60 +
+                                                                        _ends
+                                                                            .minute) -
+                                                                    (_starts.hour *
+                                                                            60 +
+                                                                        _starts
+                                                                            .minute);
+                                                            _starts = picked;
+                                                            final mins =
+                                                                span > 0
+                                                                    ? span
+                                                                    : defaultMins;
+                                                            final endTotal =
+                                                                picked.hour *
+                                                                        60 +
+                                                                    picked
+                                                                        .minute +
+                                                                    mins;
+                                                            _ends = TimeOfDay(
+                                                              hour: (endTotal ~/
+                                                                      60) %
+                                                                  24,
+                                                              minute:
+                                                                  endTotal %
+                                                                      60,
+                                                            );
+                                                          });
+                                                        }
+                                                      },
+                                                      onPickEnds: () async {
+                                                        final picked =
+                                                            await showTimePicker(
+                                                          context: context,
+                                                          initialTime: _ends,
+                                                        );
+                                                        if (picked != null) {
+                                                          setState(() =>
+                                                              _ends = picked);
+                                                        }
+                                                      },
+                                                      onPickStatus:
+                                                          _pickStatus,
+                                                      onSoap:
+                                                          _openSoapForReassign,
+                                                      onSave: () => _saveEdit(
+                                                        db,
+                                                        defaultMins,
+                                                      ),
+                                                      onDelete: () =>
+                                                          _deleteAppointment(
+                                                              db),
+                                                    ),
                                             ),
                                           ],
                                         ],
@@ -964,8 +1141,10 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                 },
               );
             },
-          ),
-        );
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -974,11 +1153,19 @@ class _Header extends StatelessWidget {
     required this.subtitleMonth,
     required this.onToday,
     required this.onAdd,
+    required this.showSave,
+    required this.canSave,
+    required this.saving,
+    required this.onSave,
   });
 
   final DateTime subtitleMonth;
   final VoidCallback onToday;
   final VoidCallback onAdd;
+  final bool showSave;
+  final bool canSave;
+  final bool saving;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -1032,15 +1219,19 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         FilledButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add, size: 16),
-          label: const Text(
-            'Add appointment',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          onPressed: showSave ? (canSave ? onSave : null) : onAdd,
+          icon: Icon(showSave ? Icons.save_outlined : Icons.add, size: 16),
+          label: Text(
+            showSave
+                ? (saving ? 'Saving…' : 'Save appointment')
+                : 'Add appointment',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           style: FilledButton.styleFrom(
             backgroundColor: c.pink700,
             foregroundColor: c.inkInverse,
+            disabledBackgroundColor: c.surfaceMuted,
+            disabledForegroundColor: c.inkMuted,
             minimumSize: const Size(0, 38),
             padding: const EdgeInsets.symmetric(horizontal: 14),
             shape: RoundedRectangleBorder(
@@ -2318,6 +2509,326 @@ class _MonthPanel extends StatelessWidget {
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _NewAppointmentPanel extends StatelessWidget {
+  const _NewAppointmentPanel({
+    required this.selected,
+    required this.starts,
+    required this.ends,
+    required this.clientId,
+    required this.status,
+    required this.notesCtrl,
+    required this.practitioner,
+    required this.defaultMins,
+    required this.timezone,
+    required this.saving,
+    required this.dayRows,
+    required this.onClose,
+    required this.onCancel,
+    required this.onPickClient,
+    required this.onPickDate,
+    required this.onPickStarts,
+    required this.onPickEnds,
+    required this.onPickStatus,
+    required this.onSave,
+  });
+
+  final DateTime selected;
+  final TimeOfDay starts;
+  final TimeOfDay ends;
+  final int? clientId;
+  final AppointmentStatus status;
+  final TextEditingController notesCtrl;
+  final String practitioner;
+  final int defaultMins;
+  final String timezone;
+  final bool saving;
+  final List<({Appointment appointment, Client client})> dayRows;
+  final VoidCallback onClose;
+  final VoidCallback onCancel;
+  final ValueChanged<int> onPickClient;
+  final VoidCallback onPickDate;
+  final VoidCallback onPickStarts;
+  final VoidCallback onPickEnds;
+  final VoidCallback onPickStatus;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final db = AppDatabaseProvider.of(context);
+    final canSave = clientId != null && !saving;
+    final hint = dayRows.isEmpty
+        ? '${formatNoteDate(selected).split(',').first}, '
+            '${selected.day} ${_monthNames[selected.month - 1].substring(0, 3)} '
+            'has no appointments. Choose a client to create a booking.'
+        : '${dayRows.length} appointment${dayRows.length == 1 ? '' : 's'} '
+            'on this day. Adjust time or pick a client.';
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: c.border),
+      ),
+      child: StreamBuilder<List<Client>>(
+        stream: db.watchClients(),
+        builder: (context, snap) {
+          final clients = snap.data ?? const <Client>[];
+          Client? selectedClient;
+          for (final cl in clients) {
+            if (cl.id == clientId) {
+              selectedClient = cl;
+              break;
+            }
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'New appointment',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: c.ink,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onClose,
+                    icon: Icon(Icons.close, size: 18, color: c.inkMuted),
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.pink50,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Not yet booked',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: c.pink700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                hint,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.5,
+                  color: c.inkMuted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Divider(height: 1, color: c.border),
+              const SizedBox(height: 16),
+              const _FieldLabel('Client'),
+              const SizedBox(height: 7),
+              _FieldBox(
+                value: selectedClient == null
+                    ? 'Select a client…'
+                    : clientDisplayName(selectedClient),
+                muted: selectedClient == null,
+                onTap: clients.isEmpty
+                    ? null
+                    : () async {
+                        final id = await showPelviPickerSheet<int>(
+                          context: context,
+                          title: 'Client',
+                          selected: clientId,
+                          searchable: true,
+                          searchHint: 'Search name or phone',
+                          options: [
+                            for (final cl in clients)
+                              PelviPickerOption(
+                                value: cl.id,
+                                label: clientDisplayName(cl),
+                                subtitle: (cl.phone ?? '').trim().isEmpty
+                                    ? null
+                                    : cl.phone,
+                                searchText:
+                                    '${clientDisplayName(cl)} ${cl.phone ?? ''}',
+                              ),
+                          ],
+                        );
+                        if (id != null) onPickClient(id);
+                      },
+              ),
+              if (clients.isEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Add a client first, then book a visit.',
+                  style: TextStyle(fontSize: 11, color: c.inkMuted),
+                ),
+              ],
+              const SizedBox(height: 16),
+              const _FieldLabel('Date'),
+              const SizedBox(height: 7),
+              _FieldBox(
+                value: formatNoteDate(selected),
+                onTap: onPickDate,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _FieldLabel('Starts'),
+                        const SizedBox(height: 7),
+                        _FieldBox(
+                          value: _hhmm(starts),
+                          onTap: onPickStarts,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _FieldLabel('Ends'),
+                        const SizedBox(height: 7),
+                        _FieldBox(
+                          value: _hhmm(ends),
+                          onTap: onPickEnds,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$defaultMins min · practice default',
+                style: TextStyle(fontSize: 11, color: c.inkMuted),
+              ),
+              const SizedBox(height: 16),
+              const _FieldLabel('Status'),
+              const SizedBox(height: 7),
+              _FieldBox(
+                value: appointmentStatusLabel(status),
+                valueColor: appointmentStatusColor(status),
+                onTap: onPickStatus,
+              ),
+              const SizedBox(height: 16),
+              const _FieldLabel('Practitioner'),
+              const SizedBox(height: 7),
+              _FieldBox(
+                value: practitioner.isEmpty ? '—' : practitioner,
+                onTap: null,
+              ),
+              const SizedBox(height: 16),
+              const _FieldLabel('Appointment notes'),
+              const SizedBox(height: 7),
+              TextField(
+                controller: notesCtrl,
+                maxLines: 3,
+                style: TextStyle(fontSize: 13, color: c.ink),
+                decoration: InputDecoration(
+                  hintText: 'Enter optional booking details…',
+                  hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
+                  filled: true,
+                  fillColor: c.surface,
+                  contentPadding: const EdgeInsets.all(12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(PelviRadius.sm),
+                    borderSide: BorderSide(color: c.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(PelviRadius.sm),
+                    borderSide: BorderSide(color: c.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(PelviRadius.sm),
+                    borderSide: BorderSide(color: c.pink700),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Divider(height: 1, color: c.border),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: onCancel,
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: c.surface,
+                      side: BorderSide(color: c.border),
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.ink,
+                      ),
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed: canSave ? onSave : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: canSave ? c.pink700 : c.surfaceMuted,
+                      foregroundColor: canSave ? c.inkInverse : c.inkMuted,
+                      disabledBackgroundColor: c.surfaceMuted,
+                      disabledForegroundColor: c.inkMuted,
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                      ),
+                    ),
+                    child: Text(
+                      saving ? 'Saving…' : 'Save appointment',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                canSave
+                    ? 'Timezone: ${timezone.replaceAll('_', ' ')} · label only (device clock).'
+                    : 'Select a client before saving. Timezone: ${timezone.replaceAll('_', ' ')} · label only (device clock).',
+                style: TextStyle(fontSize: 10, color: c.inkMuted),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
