@@ -301,6 +301,7 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                       ),
                                       muteStream:
                                           db.watchRecallMuted(client.id),
+                                      onEdit: () => _beginEdit(client),
                                       onCreateSoap: () {
                                         final appt = selected;
                                         if (appt == null) return;
@@ -435,29 +436,7 @@ class _PageHeading extends StatelessWidget {
             ),
           ),
         ] else
-          OutlinedButton.icon(
-            onPressed: onEdit,
-            icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
-            label: Text(
-              'Edit details',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: c.ink,
-              ),
-            ),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: c.surface,
-              side: BorderSide(color: c.border),
-              minimumSize: const Size(0, 38),
-              maximumSize: const Size(double.infinity, 38),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(PelviRadius.sm),
-              ),
-            ),
-          ),
+          _EditDetailsButton(onPressed: onEdit),
         const SizedBox(width: 10),
         FilledButton.icon(
           onPressed: onNewAppt,
@@ -634,6 +613,40 @@ class _OverviewCard extends StatelessWidget {
   }
 }
 
+class _EditDetailsButton extends StatelessWidget {
+  const _EditDetailsButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
+      label: Text(
+        'Edit details',
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: c.ink,
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: c.surface,
+        side: BorderSide(color: c.border),
+        minimumSize: const Size(0, 38),
+        maximumSize: const Size(double.infinity, 38),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(PelviRadius.sm),
+        ),
+      ),
+    );
+  }
+}
+
 class _WorkspaceRow extends StatelessWidget {
   const _WorkspaceRow({
     required this.client,
@@ -651,6 +664,7 @@ class _WorkspaceRow extends StatelessWidget {
     required this.onSelectAppt,
     required this.onMute,
     required this.muteStream,
+    required this.onEdit,
     required this.onCreateSoap,
     required this.onEditAppt,
   });
@@ -670,6 +684,7 @@ class _WorkspaceRow extends StatelessWidget {
   final ValueChanged<int> onSelectAppt;
   final ValueChanged<bool> onMute;
   final Stream<bool> muteStream;
+  final VoidCallback onEdit;
   final VoidCallback? onCreateSoap;
   final VoidCallback? onEditAppt;
 
@@ -684,6 +699,7 @@ class _WorkspaceRow extends StatelessWidget {
           draft: draft,
           muteStream: muteStream,
           onMute: onMute,
+          onEdit: onEdit,
         );
         final history = _HistoryColumn(
           tab: tab,
@@ -737,6 +753,7 @@ class _DetailsColumn extends StatelessWidget {
     required this.draft,
     required this.muteStream,
     required this.onMute,
+    required this.onEdit,
   });
 
   final Client client;
@@ -744,6 +761,7 @@ class _DetailsColumn extends StatelessWidget {
   final _ClientDraft draft;
   final Stream<bool> muteStream;
   final ValueChanged<bool> onMute;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -896,14 +914,17 @@ class _DetailsColumn extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 10),
-              Text(
-                'As recorded in the client profile.',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
+              if (!editing && notes.isEmpty)
+                _EditDetailsButton(onPressed: onEdit)
+              else
+                Text(
+                  'As recorded in the client profile.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.5,
+                    color: c.inkMuted,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
