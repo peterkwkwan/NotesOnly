@@ -3,6 +3,7 @@ import 'package:phone_numbers_parser/metadata.dart';
 import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 
 import '../../theme/theme.dart';
+import 'phone_country_names.dart';
 
 /// What the phone field is showing, and the E.164 string to store.
 class PhoneInput {
@@ -68,6 +69,8 @@ class PhoneCountry {
   const PhoneCountry(this.iso, this.code);
   final IsoCode iso;
   final String code;
+
+  String get name => phoneCountryName(iso);
 }
 
 final List<PhoneCountry> phoneCountries = () {
@@ -82,6 +85,29 @@ final List<PhoneCountry> phoneCountries = () {
       });
   return list;
 }();
+
+/// Case-insensitive match on ISO code, dial code, or English country name.
+bool matchesPhoneCountry(PhoneCountry country, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  final iso = country.iso.name.toLowerCase();
+  final name = country.name.toLowerCase();
+  final dial = country.code;
+  if (iso.contains(q) || name.contains(q) || '+$dial'.contains(q)) {
+    return true;
+  }
+  final dialQuery = q.startsWith('+') ? q.substring(1) : q;
+  return dialQuery.isNotEmpty && dial.contains(dialQuery);
+}
+
+List<PhoneCountry> filterPhoneCountries(String query) {
+  final q = query.trim();
+  if (q.isEmpty) return phoneCountries;
+  return [
+    for (final country in phoneCountries)
+      if (matchesPhoneCountry(country, q)) country,
+  ];
+}
 
 /// One phone field: flag and calling code on the field, national number beside them.
 ///
@@ -105,6 +131,7 @@ class PhoneField extends StatefulWidget {
 
 class _PhoneFieldState extends State<PhoneField> {
   late final TextEditingController _national;
+  late final TextEditingController _countrySearch;
   late final FocusNode _focus;
   late IsoCode _iso;
   var _applying = false;
@@ -115,6 +142,7 @@ class _PhoneFieldState extends State<PhoneField> {
     final input = resolvePhoneInput(widget.controller.text);
     _iso = input.iso;
     _national = TextEditingController(text: input.national);
+    _countrySearch = TextEditingController();
     _focus = FocusNode()..addListener(_onFocus);
     if (widget.controller.text != input.e164) {
       widget.controller.text = input.e164;
@@ -126,6 +154,7 @@ class _PhoneFieldState extends State<PhoneField> {
     _focus.removeListener(_onFocus);
     _focus.dispose();
     _national.dispose();
+    _countrySearch.dispose();
     super.dispose();
   }
 
@@ -221,19 +250,69 @@ class _PhoneFieldState extends State<PhoneField> {
 
   Widget _affix(PelviPalette c) {
     final code = PhoneNumber(isoCode: _iso, nsn: '').countryCode;
+    final filtered = filterPhoneCountries(_countrySearch.text);
     return MenuAnchor(
       style: const MenuStyle(
-        maximumSize: WidgetStatePropertyAll(Size(240, 320)),
+        maximumSize: WidgetStatePropertyAll(Size(280, 360)),
       ),
+      onOpen: () {
+        _countrySearch.clear();
+        setState(() {});
+      },
       menuChildren: [
-        for (final country in phoneCountries)
-          MenuItemButton(
-            onPressed: () => _select(country.iso),
-            child: Text(
-              '${phoneFlag(country.iso)}  +${country.code}  ${country.iso.name}',
-              style: const TextStyle(fontSize: 13),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: TextField(
+            controller: _countrySearch,
+            autofocus: true,
+            style: TextStyle(fontSize: 13, color: c.ink),
+            cursorColor: c.pink700,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search country',
+              hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
+              prefixIcon: Icon(Icons.search, size: 18, color: c.inkMuted),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 32,
+                minHeight: 32,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.pink700, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
             ),
+            onChanged: (_) => setState(() {}),
           ),
+        ),
+        if (filtered.isEmpty)
+          MenuItemButton(
+            onPressed: null,
+            child: Text(
+              'No matches',
+              style: TextStyle(fontSize: 13, color: c.inkMuted),
+            ),
+          )
+        else
+          for (final country in filtered)
+            MenuItemButton(
+              onPressed: () => _select(country.iso),
+              child: Text(
+                '${phoneFlag(country.iso)}  +${country.code}  ${country.name}',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
       ],
       builder: (context, menu, _) {
         return Tooltip(

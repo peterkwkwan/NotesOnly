@@ -48,4 +48,29 @@ void main() {
     expect(displayPhone('11234951'), '11234951');
     expect(displayPhone('+85291234567'), '+852 9123 4567');
   });
+
+  test('country picker matches ISO, dial code, and name', () {
+    PhoneCountry country(IsoCode iso) =>
+        phoneCountries.firstWhere((c) => c.iso == iso);
+
+    final hk = country(IsoCode.HK);
+    expect(matchesPhoneCountry(hk, 'HK'), isTrue);
+    expect(matchesPhoneCountry(hk, 'hk'), isTrue);
+    expect(matchesPhoneCountry(hk, 'hong kong'), isTrue);
+    expect(matchesPhoneCountry(hk, '852'), isTrue);
+    expect(matchesPhoneCountry(hk, '+852'), isTrue);
+    expect(matchesPhoneCountry(hk, 'canada'), isFalse);
+
+    final ca = country(IsoCode.CA);
+    expect(matchesPhoneCountry(ca, 'CA'), isTrue);
+    expect(matchesPhoneCountry(ca, 'Cana'), isTrue);
+    expect(matchesPhoneCountry(ca, '1'), isTrue);
+
+    expect(filterPhoneCountries('hong kong').single.iso, IsoCode.HK);
+    expect(
+      filterPhoneCountries('Cana').map((c) => c.iso),
+      contains(IsoCode.CA),
+    );
+    expect(filterPhoneCountries(''), same(phoneCountries));
+  });
 }
