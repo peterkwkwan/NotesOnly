@@ -100,7 +100,6 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     return [
       TemplateField(
         id: 'f$_idSeq',
-        type: FieldType.longText,
         section: SoapSection.subjective,
         label: 'New field',
         placeholder: 'Enter value…',
@@ -110,7 +109,6 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
 
   List<TemplateField> _seedPostnatal() {
     TemplateField f({
-      required FieldType type,
       required SoapSection section,
       required String label,
       String help = '',
@@ -120,7 +118,6 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
       _idSeq += 1;
       return TemplateField(
         id: 'f$_idSeq',
-        type: type,
         section: section,
         label: label,
         helpText: help,
@@ -131,7 +128,6 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
 
     return [
       f(
-        type: FieldType.longText,
         section: SoapSection.subjective,
         label: 'Presenting concerns',
         help:
@@ -140,43 +136,36 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
         required: true,
       ),
       f(
-        type: FieldType.shortText,
         section: SoapSection.subjective,
         label: 'Client goals',
         placeholder: 'Enter goals for this visit…',
       ),
       f(
-        type: FieldType.longText,
         section: SoapSection.objective,
         label: 'Observations',
         placeholder: 'Enter observations…',
       ),
       f(
-        type: FieldType.shortText,
         section: SoapSection.objective,
         label: 'Measurements',
         placeholder: 'Enter measurements…',
       ),
       f(
-        type: FieldType.longText,
         section: SoapSection.assessment,
         label: 'Clinical interpretation',
         placeholder: 'Enter assessment…',
       ),
       f(
-        type: FieldType.longText,
         section: SoapSection.plan,
         label: 'Agreed next steps',
         placeholder: 'Enter next steps…',
       ),
       f(
-        type: FieldType.shortText,
         section: SoapSection.plan,
         label: 'Follow-up interval',
         placeholder: 'e.g. 2 weeks…',
       ),
       f(
-        type: FieldType.longText,
         section: SoapSection.plan,
         label: 'Review notes',
         placeholder: 'Enter review notes…',
@@ -234,7 +223,6 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     _idSeq += 1;
     final field = TemplateField(
       id: 'f$_idSeq',
-      type: FieldType.longText,
       section: _section,
       label: 'New question',
       placeholder: 'Enter value…',
@@ -662,17 +650,6 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
               key: ValueKey(field.id),
               field: field,
               onSelect: () => _selectField(field),
-              onChanged: () => setState(() {}),
-              onType: (type) {
-                setState(() {
-                  field.type = type;
-                  if (type.usesOptions && field.options.isEmpty) {
-                    field.options = List<String>.from(defaultChoiceOptions);
-                  }
-                  _section = field.section;
-                  _selectedId = field.id;
-                });
-              },
             ),
             if (field.id == _selectedId) ...[
               const SizedBox(height: 8),
@@ -756,14 +733,10 @@ class _QuestionRow extends StatefulWidget {
     super.key,
     required this.field,
     required this.onSelect,
-    required this.onType,
-    required this.onChanged,
   });
 
   final TemplateField field;
   final VoidCallback onSelect;
-  final ValueChanged<FieldType> onType;
-  final VoidCallback onChanged;
 
   @override
   State<_QuestionRow> createState() => _QuestionRowState();
@@ -800,68 +773,21 @@ class _QuestionRowState extends State<_QuestionRow> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 36,
-                child: TextField(
-                  controller: _labelCtrl,
-                  onTap: widget.onSelect,
-                  onChanged: (value) => field.label = value,
-                  style: TextStyle(fontSize: 13, height: 1.2, color: c.ink),
-                  decoration: templateFieldDecoration(c, hint: 'Question'),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 136,
-              height: 36,
-              child: PopupMenuButton<FieldType>(
-                tooltip: 'Field type',
-                padding: EdgeInsets.zero,
-                onSelected: widget.onType,
-                itemBuilder: (context) => [
-                  for (final type in FieldType.values)
-                    PopupMenuItem(value: type, child: Text(type.label)),
-                ],
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: c.surface,
-                    borderRadius: BorderRadius.circular(PelviRadius.sm),
-                    border: Border.all(color: c.border),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 12, right: 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            field.type.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 13, color: c.ink),
-                          ),
-                        ),
-                        Icon(Icons.expand_more, size: 16, color: c.inkMuted),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        SizedBox(
+          height: 36,
+          child: TextField(
+            controller: _labelCtrl,
+            onTap: widget.onSelect,
+            onChanged: (value) => field.label = value,
+            style: TextStyle(fontSize: 13, height: 1.2, color: c.ink),
+            decoration: templateFieldDecoration(c, hint: 'Question'),
+          ),
         ),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: widget.onSelect,
           behavior: HitTestBehavior.opaque,
-          child: TemplateAnswerControl(
-            field: field,
-            editingOptions: true,
-            onOptionsChanged: widget.onChanged,
-          ),
+          child: TemplateAnswerControl(field: field),
         ),
       ],
     );

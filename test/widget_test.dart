@@ -352,38 +352,38 @@ void main() {
     final raw = encodeTemplateFields([
       TemplateField(
         id: 'f1',
-        type: FieldType.longText,
         section: SoapSection.subjective,
         label: 'Concerns',
         required: true,
       ),
       TemplateField(
         id: 'f2',
-        type: FieldType.shortText,
         section: SoapSection.plan,
         label: 'Follow-up',
       ),
       TemplateField(
         id: 'f3',
-        type: FieldType.yesNo,
         section: SoapSection.objective,
         label: 'Pain today',
       ),
       TemplateField(
         id: 'f4',
-        type: FieldType.multipleChoice,
         section: SoapSection.assessment,
         label: 'Tone',
-        options: ['Low', 'Normal'],
       ),
     ]);
     final back = decodeTemplateFields(raw);
     expect(back, hasLength(4));
     expect(back.first.required, isTrue);
-    expect(back.first.type, FieldType.longText);
-    expect(back[2].type, FieldType.yesNo);
-    expect(back[2].type.label, 'Yes/No');
-    expect(back[3].options, ['Low', 'Normal']);
+    expect(back.first.label, 'Concerns');
+    expect(back[2].section, SoapSection.objective);
+    expect(back[3].label, 'Tone');
+    // Legacy typed JSON still loads; type/options are ignored.
+    final legacy = decodeTemplateFields(
+      '[{"id":"f9","type":"yesNo","section":"objective","label":"Pain","options":["a"],"required":false}]',
+    );
+    expect(legacy, hasLength(1));
+    expect(legacy.single.label, 'Pain');
     final fill = soapFillFromFields(back);
     expect(fill.subjective, 'Concerns');
     expect(fill.plan, 'Follow-up');
@@ -1704,7 +1704,6 @@ void main() {
       fieldsJson: encodeTemplateFields([
         TemplateField(
           id: 'f1',
-          type: FieldType.longText,
           section: SoapSection.subjective,
           label: 'Concerns',
         ),
@@ -2127,7 +2126,6 @@ void main() {
       fieldsJson: encodeTemplateFields([
         TemplateField(
           id: 'f1',
-          type: FieldType.longText,
           section: SoapSection.subjective,
           label: 'Concerns',
         ),
@@ -2141,7 +2139,6 @@ void main() {
       fieldsJson: encodeTemplateFields([
         TemplateField(
           id: 'f2',
-          type: FieldType.longText,
           section: SoapSection.plan,
           label: 'Plan',
         ),

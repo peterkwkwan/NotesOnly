@@ -10,7 +10,7 @@ String orgTemplateChoiceId(String remoteId) => '$orgTemplateIdPrefix$remoteId';
 
 SoapTemplate soapTemplateFromOrgRow(Template row) {
   final fields = decodeTemplateFields(row.fieldsJson);
-  // Org builder templates drive typed controls; do not dump labels into textareas.
+  // Org builder templates drive per-question textareas; do not dump labels into S/O/A/P blobs.
   return SoapTemplate(
     id: orgTemplateChoiceId(row.remoteId),
     label: row.name,

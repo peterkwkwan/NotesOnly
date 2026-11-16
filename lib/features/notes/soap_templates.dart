@@ -21,7 +21,7 @@ class SoapTemplate {
   final String assessment;
   final String plan;
 
-  /// Org builder questions. When non-empty, note fill uses typed controls.
+  /// Org builder questions. When non-empty, note fill uses per-question textareas.
   final List<TemplateField> fields;
 
   bool get isBlank => id == blankId;

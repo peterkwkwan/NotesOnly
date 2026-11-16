@@ -2,63 +2,23 @@ import 'dart:convert';
 
 import '../notes/soap_dictation.dart';
 
-enum FieldType {
-  longText,
-  shortText,
-  singleChoice,
-  multipleChoice,
-  numeric,
-  yesNo,
-}
-
-extension FieldTypeLabel on FieldType {
-  String get label => switch (this) {
-    FieldType.longText => 'Long text',
-    FieldType.shortText => 'Short text',
-    FieldType.singleChoice => 'Single choice',
-    FieldType.multipleChoice => 'Multiple choice',
-    FieldType.numeric => 'Numeric',
-    FieldType.yesNo => 'Yes/No',
-  };
-
-  bool get isMultiline => this == FieldType.longText;
-
-  bool get usesOptions =>
-      this == FieldType.singleChoice || this == FieldType.multipleChoice;
-}
-
-const defaultChoiceOptions = ['Option 1', 'Option 2'];
-
-/// One prompt in an org SOAP template.
+/// One prompt in an org SOAP template (plain textarea answer).
 class TemplateField {
   TemplateField({
     required this.id,
-    required this.type,
     required this.section,
     required this.label,
     this.helpText = '',
     this.placeholder = '',
     this.required = false,
-    List<String>? options,
-  }) : options = options ?? <String>[];
+  });
 
   final String id;
-  FieldType type;
   SoapSection section;
   String label;
   String helpText;
   String placeholder;
   bool required;
-
-  /// Choice labels for single/multiple choice. Ignored for other types.
-  List<String> options;
-}
-
-FieldType fieldTypeFromName(String raw) {
-  for (final type in FieldType.values) {
-    if (type.name == raw) return type;
-  }
-  return FieldType.longText;
 }
 
 SoapSection soapSectionFromName(String raw) {
@@ -68,26 +28,16 @@ SoapSection soapSectionFromName(String raw) {
   return SoapSection.subjective;
 }
 
-List<String> _decodeOptions(Object? raw) {
-  if (raw is! List) return [];
-  return [
-    for (final item in raw)
-      if (item != null && item.toString().trim().isNotEmpty) item.toString(),
-  ];
-}
-
 String encodeTemplateFields(List<TemplateField> fields) {
   return jsonEncode([
     for (final field in fields)
       {
         'id': field.id,
-        'type': field.type.name,
         'section': field.section.name,
         'label': field.label,
         'helpText': field.helpText,
         'placeholder': field.placeholder,
         'required': field.required,
-        if (field.options.isNotEmpty) 'options': field.options,
       },
   ]);
 }
@@ -101,21 +51,15 @@ List<TemplateField> decodeTemplateFields(String raw) {
       if (item is! Map) continue;
       final id = item['id']?.toString() ?? '';
       if (id.isEmpty) continue;
-      final type = fieldTypeFromName(item['type']?.toString() ?? '');
-      var options = _decodeOptions(item['options']);
-      if (type.usesOptions && options.isEmpty) {
-        options = List<String>.from(defaultChoiceOptions);
-      }
+      // Ignore legacy type/options; every field is a textarea.
       out.add(
         TemplateField(
           id: id,
-          type: type,
           section: soapSectionFromName(item['section']?.toString() ?? ''),
           label: item['label']?.toString() ?? '',
           helpText: item['helpText']?.toString() ?? '',
           placeholder: item['placeholder']?.toString() ?? '',
           required: item['required'] == true,
-          options: options,
         ),
       );
     }
@@ -144,7 +88,7 @@ soapFillFromFields(List<TemplateField> fields) {
   );
 }
 
-/// Human-readable S/O/A/P from typed answers (Label: value).
+/// Human-readable S/O/A/P from per-question answers (Label: value).
 ({String subjective, String objective, String assessment, String plan})
 soapTextFromAnswers(List<TemplateField> fields, Map<String, String> answers) {
   String join(SoapSection section) {
@@ -167,7 +111,7 @@ soapTextFromAnswers(List<TemplateField> fields, Map<String, String> answers) {
   );
 }
 
-/// Typed note payload stored in [Note.addendum] (syncs; legacy column).
+/// Note payload stored in [Note.addendum] (syncs; legacy column).
 String encodeFieldAnswersEnvelope({
   required List<TemplateField> fields,
   required Map<String, String> answers,

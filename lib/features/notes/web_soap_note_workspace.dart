@@ -219,13 +219,11 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
       for (final f in fields)
         TemplateField(
           id: f.id,
-          type: f.type,
           section: f.section,
           label: f.label,
           helpText: f.helpText,
           placeholder: f.placeholder,
           required: f.required,
-          options: List<String>.from(f.options),
         ),
     ];
     _answers = answers ?? {for (final f in _typedFields) f.id: ''};
