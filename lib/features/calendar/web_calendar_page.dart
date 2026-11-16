@@ -936,15 +936,6 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                       defaultMins: defaultMins,
                                                       timezone: tz,
                                                       saving: _saving,
-                                                      dayRows: [
-                                                        for (final r in rows)
-                                                          if (_sameDay(
-                                                            r.appointment
-                                                                .startsAt,
-                                                            _selected,
-                                                          ))
-                                                            r,
-                                                      ],
                                                       onClose: _closePanel,
                                                       onCancel: _closePanel,
                                                       onPickClient: (id) =>
@@ -2526,7 +2517,6 @@ class _NewAppointmentPanel extends StatelessWidget {
     required this.defaultMins,
     required this.timezone,
     required this.saving,
-    required this.dayRows,
     required this.onClose,
     required this.onCancel,
     required this.onPickClient,
@@ -2547,7 +2537,6 @@ class _NewAppointmentPanel extends StatelessWidget {
   final int defaultMins;
   final String timezone;
   final bool saving;
-  final List<({Appointment appointment, Client client})> dayRows;
   final VoidCallback onClose;
   final VoidCallback onCancel;
   final ValueChanged<int> onPickClient;
@@ -2562,12 +2551,6 @@ class _NewAppointmentPanel extends StatelessWidget {
     final c = PelviColors.of(context);
     final db = AppDatabaseProvider.of(context);
     final canSave = clientId != null && !saving;
-    final hint = dayRows.isEmpty
-        ? '${formatNoteDate(selected).split(',').first}, '
-            '${selected.day} ${_monthNames[selected.month - 1].substring(0, 3)} '
-            'has no appointments. Choose a client to create a booking.'
-        : '${dayRows.length} appointment${dayRows.length == 1 ? '' : 's'} '
-            'on this day. Adjust time or pick a client.';
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -2610,39 +2593,6 @@ class _NewAppointmentPanel extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: c.pink50,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'Not yet booked',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: c.pink700,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                hint,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Divider(height: 1, color: c.border),
               const SizedBox(height: 16),
               const _FieldLabel('Client'),
               const SizedBox(height: 7),
@@ -3022,13 +2972,13 @@ class _ReassignPanel extends StatelessWidget {
                     if (uid != null) onPick(uid);
                   },
           ),
-          const SizedBox(height: 8),
-          Text(
-            canReassign
-                ? 'The appointment stays on this clinic.'
-                : 'Owners and admins can move this booking.',
-            style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-          ),
+          if (!canReassign) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Owners and admins can move this booking.',
+              style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
+            ),
+          ],
           const SizedBox(height: 16),
           FilledButton(
             onPressed: canSave ? onSave : null,
