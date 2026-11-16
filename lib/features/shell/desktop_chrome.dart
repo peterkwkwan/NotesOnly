@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/auth.dart';
 import '../../data/database.dart';
@@ -6,6 +8,7 @@ import '../../data/database_provider.dart';
 import '../../data/org.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
+import '../clients/client_format.dart';
 import '../notifications/notifications_sheet.dart';
 
 /// Wide-viewport breakpoint for NotesOnly web desktop shell (Figma 1440).
@@ -13,6 +16,15 @@ const kDesktopShellMinWidth = 960.0;
 
 bool isDesktopShell(BuildContext context) =>
     MediaQuery.sizeOf(context).width >= kDesktopShellMinWidth;
+
+/// Cmd+K on Apple platforms; Ctrl+K elsewhere.
+bool desktopSearchUsesMetaModifier([TargetPlatform? platform]) {
+  final p = platform ?? defaultTargetPlatform;
+  return p == TargetPlatform.macOS || p == TargetPlatform.iOS;
+}
+
+String desktopSearchShortcutLabel([TargetPlatform? platform]) =>
+    desktopSearchUsesMetaModifier(platform) ? '⌘ K' : 'Ctrl+K';
 
 /// Lets page bodies switch shell tabs (e.g. Today → Calendar).
 class ShellNavigation extends InheritedWidget {
@@ -25,6 +37,7 @@ class ShellNavigation extends InheritedWidget {
     this.openSoapNote,
     this.clientsDueEpoch = 0,
     this.openClientsDue,
+    this.openClientProfile,
     required super.child,
   });
 
@@ -43,6 +56,9 @@ class ShellNavigation extends InheritedWidget {
 
   /// Switch to Clients and select the Due tab.
   final VoidCallback? openClientsDue;
+
+  /// Switch to Clients and open that client's profile.
+  final ValueChanged<int>? openClientProfile;
 
   static ShellNavigation of(BuildContext context) {
     final nav = context.dependOnInheritedWidgetOfExactType<ShellNavigation>();
@@ -441,13 +457,88 @@ class _DesktopBreadcrumbLinkState extends State<_DesktopBreadcrumbLink> {
   }
 }
 
-class DesktopTopBar extends StatelessWidget {
+class DesktopTopBar extends StatefulWidget {
   const DesktopTopBar({super.key});
+
+  @override
+  State<DesktopTopBar> createState() => _DesktopTopBarState();
+}
+
+class _DesktopTopBarState extends State<DesktopTopBar> {
+  final _searchFocus = FocusNode();
+  final _searchController = TextEditingController();
+  final _searchLink = LayerLink();
+  final _portal = OverlayPortalController();
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocus.addListener(_onSearchFocus);
+    HardwareKeyboard.instance.addHandler(_onGlobalKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onGlobalKey);
+    _searchFocus.removeListener(_onSearchFocus);
+    _searchFocus.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _onGlobalKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.keyK) return false;
+    final keys = HardwareKeyboard.instance.logicalKeysPressed;
+    final meta = keys.contains(LogicalKeyboardKey.metaLeft) ||
+        keys.contains(LogicalKeyboardKey.metaRight);
+    final control = keys.contains(LogicalKeyboardKey.controlLeft) ||
+        keys.contains(LogicalKeyboardKey.controlRight);
+    final wantMeta = desktopSearchUsesMetaModifier();
+    if (wantMeta ? !meta : !control) return false;
+    _searchFocus.requestFocus();
+    return true;
+  }
+
+  void _onSearchFocus() {
+    if (_searchFocus.hasFocus) {
+      _syncOverlay();
+    } else {
+      _portal.hide();
+      if (_query.isNotEmpty) {
+        _searchController.clear();
+        setState(() => _query = '');
+      }
+    }
+  }
+
+  void _syncOverlay() {
+    if (_searchFocus.hasFocus && _query.trim().isNotEmpty) {
+      if (!_portal.isShowing) _portal.show();
+    } else if (_portal.isShowing) {
+      _portal.hide();
+    }
+  }
+
+  void _onQueryChanged(String value) {
+    setState(() => _query = value);
+    _syncOverlay();
+  }
+
+  void _openClient(Client client) {
+    _searchController.clear();
+    setState(() => _query = '');
+    _portal.hide();
+    _searchFocus.unfocus();
+    ShellNavigation.maybeOf(context)?.openClientProfile?.call(client.id);
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
     final db = AppDatabaseProvider.of(context);
+    final shortcut = desktopSearchShortcutLabel();
 
     return Material(
       color: c.surface,
@@ -462,39 +553,77 @@ class DesktopTopBar extends StatelessWidget {
             child: Row(
               children: [
                 const Spacer(),
-                Container(
-                  width: 352,
-                  height: 36,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: c.canvas,
-                    borderRadius: BorderRadius.circular(PelviRadius.sm),
-                    border: Border.all(color: c.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, size: 16, color: c.inkMuted),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Search clients, notes, templates',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.5,
-                            color: c.inkMuted,
+                CompositedTransformTarget(
+                  link: _searchLink,
+                  child: OverlayPortal(
+                    controller: _portal,
+                    overlayChildBuilder: (context) {
+                      return UnconstrainedBox(
+                        alignment: Alignment.topLeft,
+                        child: CompositedTransformFollower(
+                          link: _searchLink,
+                          showWhenUnlinked: false,
+                          targetAnchor: Alignment.bottomLeft,
+                          followerAnchor: Alignment.topLeft,
+                          offset: const Offset(0, 6),
+                          // Keep field focused so the row tap is not torn down.
+                          child: TextFieldTapRegion(
+                            child: _DesktopClientSearchResults(
+                              query: _query,
+                              width: 352,
+                              onSelect: _openClient,
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
+                      );
+                    },
+                    child: Container(
+                      width: 352,
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: c.canvas,
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                        border: Border.all(color: c.border),
                       ),
-                      Text(
-                        '⌘ K',
-                        style: TextStyle(
-                          fontSize: 10,
-                          height: 1.5,
-                          color: c.inkMuted,
-                        ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search, size: 16, color: c.inkMuted),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              focusNode: _searchFocus,
+                              controller: _searchController,
+                              onChanged: _onQueryChanged,
+                              textInputAction: TextInputAction.search,
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.5,
+                                color: c.ink,
+                              ),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                border: InputBorder.none,
+                                hintText: 'Search clients',
+                                hintStyle: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.5,
+                                  color: c.inkMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            shortcut,
+                            style: TextStyle(
+                              fontSize: 10,
+                              height: 1.5,
+                              color: c.inkMuted,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 const Spacer(),
@@ -603,6 +732,115 @@ class DesktopTopBar extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopClientSearchResults extends StatelessWidget {
+  const _DesktopClientSearchResults({
+    required this.query,
+    required this.width,
+    required this.onSelect,
+  });
+
+  final String query;
+  final double width;
+  final ValueChanged<Client> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final db = AppDatabaseProvider.of(context);
+
+    return Material(
+      elevation: 2,
+      color: c.surface,
+      borderRadius: BorderRadius.circular(PelviRadius.sm),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(PelviRadius.sm),
+          border: Border.all(color: c.border),
+        ),
+        child: SizedBox(
+          width: width,
+          child: StreamBuilder<List<Client>>(
+            stream: db.watchClients(),
+            builder: (context, snap) {
+              final clients = snap.data;
+              if (clients == null) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                );
+              }
+              final matches = filterClients(clients, query).take(8).toList();
+              if (matches.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 16,
+                  ),
+                  child: Text(
+                    'No clients match',
+                    style: TextStyle(fontSize: 12, color: c.inkMuted),
+                  ),
+                );
+              }
+              return ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                itemCount: matches.length,
+                separatorBuilder: (_, __) =>
+                    Divider(height: 1, color: c.border),
+                itemBuilder: (context, i) {
+                  final client = matches[i];
+                  final phone = (client.phone ?? '').trim();
+                  return InkWell(
+                    onTap: () => onSelect(client),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            clientDisplayName(client),
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.4,
+                              fontWeight: FontWeight.w600,
+                              color: c.ink,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (phone.isNotEmpty)
+                            Text(
+                              phone,
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.4,
+                                color: c.inkMuted,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ),
       ),

@@ -7,6 +7,7 @@ import '../../data/database_provider.dart';
 import '../../data/local_notifications.dart';
 import '../../theme/theme.dart';
 import '../calendar/calendar_screen.dart';
+import '../clients/client_profile_screen.dart';
 import '../clients/clients_screen.dart';
 import '../more/more_screen.dart';
 import '../more/web_account_settings.dart';
@@ -138,6 +139,25 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  void _openClientProfile(int clientId) {
+    final nav = _tabNavKeys[DesktopDest.clients].currentState;
+    if (nav != null && nav.canPop()) {
+      nav.popUntil((route) => route.isFirst);
+    }
+    setState(() {
+      _index = DesktopDest.clients;
+      _soapNavOrigin = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _tabNavKeys[DesktopDest.clients].currentState?.push(
+        MaterialPageRoute<void>(
+          builder: (_) => ClientProfileScreen(clientId: clientId),
+        ),
+      );
+    });
+  }
+
   int get _sidebarIndex =>
       _index == DesktopDest.soapNotes ? (_soapNavOrigin ?? _index) : _index;
 
@@ -178,6 +198,7 @@ class _AppShellState extends State<AppShell> {
         openSoapNote: _openSoapNote,
         clientsDueEpoch: _clientsDueEpoch,
         openClientsDue: _openClientsDue,
+        openClientProfile: _openClientProfile,
         child: Scaffold(
           body: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
