@@ -602,6 +602,7 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                               controller: _searchController,
                               onChanged: _onQueryChanged,
                               textInputAction: TextInputAction.search,
+                              textAlignVertical: TextAlignVertical.center,
                               style: TextStyle(
                                 fontSize: 12,
                                 height: 1.5,
@@ -609,6 +610,9 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                               ),
                               decoration: InputDecoration(
                                 isDense: true,
+                                filled: false,
+                                // Theme pads 16; outer 36px chrome centers its own row.
+                                contentPadding: EdgeInsets.zero,
                                 // Outer chrome owns the border; kill theme outline.
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
