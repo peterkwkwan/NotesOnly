@@ -1902,22 +1902,7 @@ class _WeekScheduleState extends State<_WeekSchedule> {
             height: 72,
             child: Row(
               children: [
-                SizedBox(
-                  width: _WeekSchedule._gutter,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Device',
-                        style: TextStyle(fontSize: 9, color: c.inkMuted),
-                      ),
-                      Text(
-                        'clock',
-                        style: TextStyle(fontSize: 9, color: c.inkMuted),
-                      ),
-                    ],
-                  ),
-                ),
+                const SizedBox(width: _WeekSchedule._gutter),
                 for (final day in days)
                   Expanded(
                     child: _DayHeading(
@@ -2092,16 +2077,11 @@ class _WeekScheduleState extends State<_WeekSchedule> {
                         ),
                         const SizedBox(width: 14),
                       ],
-                    Text(
-                      'Week · overlay · max $_maxCalendarPractitioners',
-                      style: TextStyle(fontSize: 10, color: c.inkMuted),
-                    ),
-                    const SizedBox(width: 14),
                   ],
                   Text(
                     rows.isEmpty
                         ? 'No appointments in this view.'
-                        : '${rows.length} appointment${rows.length == 1 ? '' : 's'} shown.',
+                        : '${rows.length} appointment${rows.length == 1 ? '' : 's'} shown',
                     style: TextStyle(fontSize: 10, color: c.inkMuted),
                   ),
                 ],
