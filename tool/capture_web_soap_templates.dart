@@ -116,7 +116,7 @@ void main() {
 
     expect(find.text('NotesOnly'), findsOneWidget);
     expect(find.text('SOAP templates'), findsOneWidget);
-    expect(find.text('All templates (4)'), findsOneWidget);
+    expect(find.text('All (4)'), findsOneWidget);
     expect(find.text('Postnatal Check'), findsOneWidget);
     expect(find.text('New template'), findsWidgets);
     expect(find.text('Create draft'), findsOneWidget);

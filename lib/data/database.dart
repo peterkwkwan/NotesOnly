@@ -2029,6 +2029,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Insert, or update the row with [remoteId]. [createdBy] is set only on insert.
+  /// Updates require the caller to be the stored creator when one is set.
   Future<Template> saveOrgTemplate({
     String? remoteId,
     required String name,
@@ -2044,6 +2045,9 @@ class AppDatabase extends _$AppDatabase {
             ..where((t) => t.remoteId.equals(remoteId)))
           .getSingleOrNull();
       if (existing != null) {
+        if (existing.createdBy.isNotEmpty && existing.createdBy != createdBy) {
+          throw StateError('Only the template creator can edit it.');
+        }
         final fillName = existing.createdByName.trim().isEmpty &&
             existing.createdBy.isNotEmpty &&
             existing.createdBy == createdBy &&

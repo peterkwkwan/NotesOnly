@@ -137,7 +137,9 @@ service cloud.firestore {
         allow read: if isActiveMember(orgId);
         allow create: if isActiveMember(orgId)
           && request.resource.data.createdBy == request.auth.uid;
+        // Creator-only edit; createdBy is immutable after create.
         allow update: if isActiveMember(orgId)
+          && resource.data.createdBy == request.auth.uid
           && request.resource.data.createdBy == resource.data.createdBy;
         allow delete: if false;
       }

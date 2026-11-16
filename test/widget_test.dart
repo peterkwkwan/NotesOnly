@@ -415,14 +415,37 @@ void main() {
     expect(saved.createdBy, 'uid-a');
     expect(saved.syncStatus, RowSyncStatus.pending);
 
+    await expectLater(
+      () => db.saveOrgTemplate(
+        remoteId: saved.remoteId,
+        name: 'Evening 2',
+        description: 'd2',
+        fieldsJson:
+            '[{"id":"f1","type":"longText","section":"subjective","label":"Concerns","helpText":"","placeholder":"","required":false}]',
+        createdBy: 'uid-b',
+        createdByName: 'Bea',
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('Only the template creator'),
+        ),
+      ),
+    );
+    final keptName = (await db.listOrgTemplates()).single;
+    expect(keptName.name, 'Evening');
+    expect(keptName.createdBy, 'uid-a');
+    expect(keptName.createdByName, 'Ada');
+
     final updated = await db.saveOrgTemplate(
       remoteId: saved.remoteId,
       name: 'Evening 2',
       description: 'd2',
       fieldsJson:
           '[{"id":"f1","type":"longText","section":"subjective","label":"Concerns","helpText":"","placeholder":"","required":false}]',
-      createdBy: 'uid-b',
-      createdByName: 'Bea',
+      createdBy: 'uid-a',
+      createdByName: 'Ada',
     );
     expect(updated.id, saved.id);
     expect(updated.name, 'Evening 2');
@@ -2048,7 +2071,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('template list shows created by and filters to mine',
+  testWidgets('template tabs separate own library from team copies',
       (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -2070,7 +2093,14 @@ void main() {
     await db.saveOrgTemplate(
       name: 'Their review',
       description: 'Theirs',
-      fieldsJson: '[]',
+      fieldsJson: encodeTemplateFields([
+        TemplateField(
+          id: 'f2',
+          type: FieldType.longText,
+          section: SoapSection.plan,
+          label: 'Plan',
+        ),
+      ]),
       createdBy: 'uid-other',
       createdByName: 'Bea',
     );
@@ -2089,20 +2119,37 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('All templates (6)'), findsOneWidget);
-    expect(find.text('My review'), findsOneWidget);
-    expect(find.text('Their review'), findsOneWidget);
-    expect(find.textContaining('Created by Ada'), findsOneWidget);
-    expect(find.textContaining('Created by Bea'), findsOneWidget);
-
-    await tester.tap(find.text('Created by'));
-    await tester.pump();
-
-    expect(find.text('Mine'), findsOneWidget);
-    expect(find.text('All templates (1)'), findsOneWidget);
+    expect(find.text('All (5)'), findsOneWidget);
+    expect(find.text("Your team's templates (1)"), findsOneWidget);
     expect(find.text('My review'), findsOneWidget);
     expect(find.text('Their review'), findsNothing);
-    expect(find.text('Postnatal Check'), findsNothing);
+    expect(find.textContaining('Created by Ada'), findsOneWidget);
+    expect(find.text('Edit'), findsWidgets);
+
+    await tester.tap(find.text("Your team's templates (1)"));
+    await tester.pump();
+
+    expect(find.text('Their review'), findsOneWidget);
+    expect(find.text('My review'), findsNothing);
+    expect(find.textContaining('Created by Bea'), findsOneWidget);
+    expect(find.text('Add'), findsOneWidget);
+    expect(find.text('Edit'), findsNothing);
+
+    await tester.tap(find.text('Add'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Added to your templates.'), findsOneWidget);
+    final rows = await db.listOrgTemplates();
+    expect(rows, hasLength(3));
+    expect(
+      rows.where((r) => r.createdBy == 'uid-me').map((r) => r.name),
+      containsAll(['My review', 'Their review']),
+    );
+
+    await tester.tap(find.text('All (6)'));
+    await tester.pump();
+    expect(find.text('Their review'), findsWidgets);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));

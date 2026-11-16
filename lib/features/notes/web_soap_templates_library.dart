@@ -32,14 +32,13 @@ class WebSoapTemplatesLibrary extends StatefulWidget {
       _WebSoapTemplatesLibraryState();
 }
 
-enum _LibraryTab { all, published, drafts }
+enum _LibraryTab { all, published, drafts, team }
 
 class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   _LibraryTab _tab = _LibraryTab.all;
   String _query = '';
   String? _selectedId = 'postnatal_check';
   bool _showNewPanel = true;
-  bool _mineOnly = false;
   Stream<List<Template>>? _orgStream;
   Stream<String?>? _uidStream;
   final _nameCtrl = TextEditingController();
@@ -61,22 +60,40 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     return null;
   }
 
+  /// Built-ins live in the owner's All/Published/Drafts tabs; org rows use creator.
+  bool _inOwnLibrary(_LibraryEntry e, String? viewerUid) {
+    if (e.createdBy == null) return true;
+    return templateMatchesMine(createdBy: e.createdBy, viewerUid: viewerUid);
+  }
+
+  bool _inTeamLibrary(_LibraryEntry e, String? viewerUid) {
+    if (e.createdBy == null) return false;
+    return !templateMatchesMine(createdBy: e.createdBy, viewerUid: viewerUid);
+  }
+
+  bool _canEdit(_LibraryEntry e, String? viewerUid) {
+    if (e.createdBy == null) return true;
+    return templateMatchesMine(createdBy: e.createdBy, viewerUid: viewerUid);
+  }
+
   List<_LibraryEntry> _entriesFor(List<Template> org, String? viewerUid) => [
     ..._builtinEntries,
     for (final row in org) _orgEntry(row, viewerUid),
   ];
 
-  List<_LibraryEntry> _scopedFor(List<Template> org, String? viewerUid) {
-    final entries = _entriesFor(org, viewerUid);
-    if (!_mineOnly) return entries;
-    return [
-      for (final entry in entries)
-        if (templateMatchesMine(
-          createdBy: entry.createdBy,
-          viewerUid: viewerUid,
-        ))
-          entry,
-    ];
+  List<_LibraryEntry> _ownFor(List<Template> org, String? viewerUid) => [
+    for (final entry in _entriesFor(org, viewerUid))
+      if (_inOwnLibrary(entry, viewerUid)) entry,
+  ];
+
+  List<_LibraryEntry> _teamFor(List<Template> org, String? viewerUid) => [
+    for (final entry in _entriesFor(org, viewerUid))
+      if (_inTeamLibrary(entry, viewerUid)) entry,
+  ];
+
+  List<_LibraryEntry> _tabBase(List<Template> org, String? viewerUid) {
+    if (_tab == _LibraryTab.team) return _teamFor(org, viewerUid);
+    return _ownFor(org, viewerUid);
   }
 
   _LibraryEntry _orgEntry(Template row, String? viewerUid) {
@@ -109,11 +126,12 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
 
   List<_LibraryEntry> _visibleFor(List<Template> org, String? viewerUid) {
     final q = _query.trim().toLowerCase();
-    return _scopedFor(org, viewerUid).where((e) {
+    return _tabBase(org, viewerUid).where((e) {
       final tabOk = switch (_tab) {
         _LibraryTab.all => true,
         _LibraryTab.published => e.isPublished,
         _LibraryTab.drafts => e.inDraftsTab,
+        _LibraryTab.team => true,
       };
       if (!tabOk) return false;
       if (q.isEmpty) return true;
@@ -170,7 +188,8 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
 
   Widget _page(List<Template> org, String? boundUid) {
     final viewerUid = _viewerUid(boundUid);
-    final scoped = _scopedFor(org, viewerUid);
+    final own = _ownFor(org, viewerUid);
+    final team = _teamFor(org, viewerUid);
     final visible = _visibleFor(org, viewerUid);
     final c = PelviColors.of(context);
     return ColoredBox(
@@ -187,17 +206,14 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                   onNewTemplate: () => setState(() => _showNewPanel = true),
                 ),
                 const SizedBox(height: 26),
-                _SearchRow(
-                  mine: _mineOnly,
-                  onQuery: (v) => setState(() => _query = v),
-                  onToggleMine: () => setState(() => _mineOnly = !_mineOnly),
-                ),
+                _SearchRow(onQuery: (v) => setState(() => _query = v)),
                 const SizedBox(height: 26),
                 _ViewTabs(
                   tab: _tab,
-                  allCount: scoped.length,
-                  publishedCount: scoped.where((e) => e.isPublished).length,
-                  draftCount: scoped.where((e) => e.inDraftsTab).length,
+                  allCount: own.length,
+                  publishedCount: own.where((e) => e.isPublished).length,
+                  draftCount: own.where((e) => e.inDraftsTab).length,
+                  teamCount: team.length,
                   onSelect: (t) => setState(() => _tab = t),
                 ),
                 const SizedBox(height: 26),
@@ -205,7 +221,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: _buildList(c, visible)),
+                      Expanded(child: _buildList(c, visible, viewerUid)),
                       const SizedBox(width: 24),
                       SizedBox(
                         width: 378,
@@ -223,7 +239,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                     ],
                   )
                 else ...[
-                  _buildList(c, visible),
+                  _buildList(c, visible, viewerUid),
                   if (_showNewPanel) ...[
                     const SizedBox(height: 24),
                     _NewTemplatePanel(
@@ -245,7 +261,11 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     );
   }
 
-  Widget _buildList(PelviPalette c, List<_LibraryEntry> items) {
+  Widget _buildList(
+    PelviPalette c,
+    List<_LibraryEntry> items,
+    String? viewerUid,
+  ) {
     if (items.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(32),
@@ -267,10 +287,13 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
           _TemplateCard(
             entry: items[i],
             selected: items[i].template.id == _selectedId,
+            canEdit: _canEdit(items[i], viewerUid),
             onSelect: () => setState(() => _selectedId = items[i].template.id),
             onDuplicate: () => _stubAction('Duplicate'),
+            onAdd: () => _addCopy(items[i], viewerUid),
             onEdit: () {
               final e = items[i];
+              if (!_canEdit(e, viewerUid)) return;
               _openBuilder(
                 name: e.template.label,
                 description: e.description,
@@ -284,6 +307,42 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
         ],
       ],
     );
+  }
+
+  Future<void> _addCopy(_LibraryEntry entry, String? viewerUid) async {
+    final db = AppDatabaseProvider.maybeOf(context);
+    if (db == null) return;
+    final uid = viewerUid?.trim() ?? '';
+    if (uid.isEmpty) {
+      _stubAction('Add template');
+      return;
+    }
+    final liveName = NotesAuth.currentUser?.displayName?.trim() ?? '';
+    try {
+      await db.saveOrgTemplate(
+        name: entry.template.label,
+        description: entry.description,
+        fieldsJson: entry.fieldsJson ?? '[]',
+        createdBy: uid,
+        createdByName: liveName,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content: Text('Added to your templates.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text('Could not add template: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _createDraft() {
@@ -349,80 +408,46 @@ class _Heading extends StatelessWidget {
 }
 
 class _SearchRow extends StatelessWidget {
-  const _SearchRow({
-    required this.onQuery,
-    required this.mine,
-    required this.onToggleMine,
-  });
+  const _SearchRow({required this.onQuery});
 
   final ValueChanged<String> onQuery;
-  final bool mine;
-  final VoidCallback onToggleMine;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: SizedBox(
-            height: 44,
-            child: TextField(
-              onChanged: onQuery,
-              style: TextStyle(fontSize: 13, color: c.ink),
-              decoration: InputDecoration(
-                hintText: 'Search templates by name or description',
-                hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
-                prefixIcon: Icon(Icons.search, size: 18, color: c.inkMuted),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 40,
-                  minHeight: 44,
-                ),
-                filled: true,
-                fillColor: c.surface,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(PelviRadius.sm),
-                  borderSide: BorderSide(color: c.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(PelviRadius.sm),
-                  borderSide: BorderSide(color: c.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(PelviRadius.sm),
-                  borderSide: BorderSide(color: c.pink700),
-                ),
-              ),
-            ),
+    return SizedBox(
+      height: 44,
+      child: TextField(
+        onChanged: onQuery,
+        style: TextStyle(fontSize: 13, color: c.ink),
+        decoration: InputDecoration(
+          hintText: 'Search templates by name or description',
+          hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
+          prefixIcon: Icon(Icons.search, size: 18, color: c.inkMuted),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 40,
+            minHeight: 44,
+          ),
+          filled: true,
+          fillColor: c.surface,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            borderSide: BorderSide(color: c.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            borderSide: BorderSide(color: c.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            borderSide: BorderSide(color: c.pink700),
           ),
         ),
-        const SizedBox(width: 18),
-        OutlinedButton(
-          onPressed: onToggleMine,
-          style: OutlinedButton.styleFrom(
-            backgroundColor: mine ? c.pink50 : c.surface,
-            foregroundColor: mine ? c.pink700 : c.ink,
-            side: BorderSide(color: mine ? c.pink700 : c.border),
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: Text(
-            mine ? 'Mine' : 'Created by',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: mine ? c.pink700 : c.ink,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -433,6 +458,7 @@ class _ViewTabs extends StatelessWidget {
     required this.allCount,
     required this.publishedCount,
     required this.draftCount,
+    required this.teamCount,
     required this.onSelect,
   });
 
@@ -440,6 +466,7 @@ class _ViewTabs extends StatelessWidget {
   final int allCount;
   final int publishedCount;
   final int draftCount;
+  final int teamCount;
   final ValueChanged<_LibraryTab> onSelect;
 
   @override
@@ -478,11 +505,16 @@ class _ViewTabs extends StatelessWidget {
       ),
       child: Row(
         children: [
-          tabItem(_LibraryTab.all, 'All templates ($allCount)'),
+          tabItem(_LibraryTab.all, 'All ($allCount)'),
           const SizedBox(width: 26),
           tabItem(_LibraryTab.published, 'Published ($publishedCount)'),
           const SizedBox(width: 26),
           tabItem(_LibraryTab.drafts, 'Drafts ($draftCount)'),
+          const SizedBox(width: 26),
+          tabItem(
+            _LibraryTab.team,
+            "Your team's templates ($teamCount)",
+          ),
         ],
       ),
     );
@@ -493,15 +525,19 @@ class _TemplateCard extends StatelessWidget {
   const _TemplateCard({
     required this.entry,
     required this.selected,
+    required this.canEdit,
     required this.onSelect,
     required this.onDuplicate,
+    required this.onAdd,
     required this.onEdit,
   });
 
   final _LibraryEntry entry;
   final bool selected;
+  final bool canEdit;
   final VoidCallback onSelect;
   final VoidCallback onDuplicate;
+  final VoidCallback onAdd;
   final VoidCallback onEdit;
 
   @override
@@ -592,64 +628,86 @@ class _TemplateCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  TextButton(
-                    onPressed: onDuplicate,
-                    style: TextButton.styleFrom(
-                      foregroundColor: c.pink700,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Duplicate',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
+                  if (canEdit) ...[
+                    TextButton(
+                      onPressed: onDuplicate,
+                      style: TextButton.styleFrom(
+                        foregroundColor: c.pink700,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Duplicate',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  if (entry.editDraftLabel)
+                    const SizedBox(width: 4),
+                    if (entry.editDraftLabel)
+                      FilledButton.icon(
+                        onPressed: onEdit,
+                        icon: Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: c.pink700,
+                        ),
+                        label: Text(
+                          'Edit draft',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: c.pink700,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: c.pink50,
+                          foregroundColor: c.pink700,
+                          minimumSize: const Size(0, 38),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(PelviRadius.sm),
+                          ),
+                        ),
+                      )
+                    else
+                      OutlinedButton.icon(
+                        onPressed: onEdit,
+                        icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
+                        label: Text(
+                          'Edit',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: c.ink,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: c.surface,
+                          side: BorderSide(color: c.border),
+                          minimumSize: const Size(0, 38),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(PelviRadius.sm),
+                          ),
+                        ),
+                      ),
+                  ] else
                     FilledButton.icon(
-                      onPressed: onEdit,
-                      icon: Icon(
-                        Icons.edit_outlined,
-                        size: 16,
-                        color: c.pink700,
-                      ),
-                      label: Text(
-                        'Edit draft',
+                      onPressed: onAdd,
+                      icon: Icon(Icons.add, size: 16, color: c.inkInverse),
+                      label: const Text(
+                        'Add',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: c.pink700,
                         ),
                       ),
                       style: FilledButton.styleFrom(
-                        backgroundColor: c.pink50,
-                        foregroundColor: c.pink700,
-                        minimumSize: const Size(0, 38),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(PelviRadius.sm),
-                        ),
-                      ),
-                    )
-                  else
-                    OutlinedButton.icon(
-                      onPressed: onEdit,
-                      icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
-                      label: Text(
-                        'Edit',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: c.ink,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: c.surface,
-                        side: BorderSide(color: c.border),
+                        backgroundColor: c.pink700,
+                        foregroundColor: c.inkInverse,
                         minimumSize: const Size(0, 38),
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         shape: RoundedRectangleBorder(
