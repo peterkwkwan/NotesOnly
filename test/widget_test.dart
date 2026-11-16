@@ -2029,21 +2029,29 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1100, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
+    var backTaps = 0;
     await tester.pumpWidget(
       AppDatabaseProvider(
         database: db,
         syncEngine: const StubSyncEngine(),
-        child: const MaterialApp(
+        child: MaterialApp(
           home: WebTemplateBuilder(
             initialName: 'Evening review',
             initialDescription: 'Short',
             seedPostnatal: false,
+            onBackToLibrary: () => backTaps += 1,
           ),
         ),
       ),
     );
     await tester.pump();
 
+    expect(find.text('Templates'), findsOneWidget);
+    expect(find.text('Evening review'), findsWidgets);
+    expect(find.text('Template builder'), findsOneWidget);
+    await tester.tap(find.text('Templates'));
+    await tester.pump();
+    expect(backTaps, 1);
     expect(find.text('Sections'), findsOneWidget);
     expect(find.text('Add question'), findsOneWidget);
     expect(find.text('Preview'), findsOneWidget);

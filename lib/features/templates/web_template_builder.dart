@@ -6,6 +6,7 @@ import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../notes/soap_dictation.dart';
+import '../shell/desktop_chrome.dart';
 import 'template_body.dart';
 
 extension on SoapSection {
@@ -80,6 +81,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     _section = sel?.section ?? SoapSection.subjective;
     _nameCtrl = TextEditingController(text: widget.initialName);
     _descCtrl = TextEditingController(text: widget.initialDescription);
+    _nameCtrl.addListener(() => setState(() {}));
   }
 
   int _maxFieldSeq(List<TemplateField> fields) {
@@ -301,6 +303,11 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
     super.dispose();
   }
 
+  String get _crumbName {
+    final name = _nameCtrl.text.trim();
+    return name.isEmpty ? 'Untitled template' : name;
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
@@ -311,27 +318,59 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
           final wide = constraints.maxWidth >= 640;
           return Padding(
             padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
-            child: wide
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _outline(context),
-                      const SizedBox(width: 20),
-                      Expanded(child: _editor(context, scroll: true)),
-                    ],
-                  )
-                : SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _outline(context, pinFooter: false),
-                        const SizedBox(height: 20),
-                        _editor(context, scroll: false),
-                      ],
-                    ),
-                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _pageHeader(context),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: wide
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _outline(context),
+                            const SizedBox(width: 20),
+                            Expanded(child: _editor(context, scroll: true)),
+                          ],
+                        )
+                      : SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              _outline(context, pinFooter: false),
+                              const SizedBox(height: 20),
+                              _editor(context, scroll: false),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            ),
           );
         },
       ),
+    );
+  }
+
+  Widget _pageHeader(BuildContext context) {
+    final c = PelviColors.of(context);
+    final back = widget.onBackToLibrary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DesktopBreadcrumb(
+          text: 'Templates / $_crumbName',
+          onAncestorTap: back == null ? null : (_) => back(),
+        ),
+        Text(
+          'Template builder',
+          style: TextStyle(
+            fontSize: 29,
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+            color: c.ink,
+          ),
+        ),
+      ],
     );
   }
 
