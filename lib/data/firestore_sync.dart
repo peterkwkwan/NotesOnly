@@ -560,6 +560,7 @@ class FirestoreSyncEngine implements SyncEngine {
           'fieldsJson': row.fieldsJson,
           'createdBy': row.createdBy,
           'createdByName': row.createdByName,
+          'published': row.published,
           'createdAt': _ts(row.createdAt)!,
           'updatedAt': _ts(row.updatedAt)!,
           'deletedAt': _ts(row.deletedAt),
@@ -1005,6 +1006,8 @@ class FirestoreSyncEngine implements SyncEngine {
       fieldsJson: (data['fieldsJson'] as String?) ?? '[]',
       createdBy: (data['createdBy'] as String?) ?? '',
       createdByName: (data['createdByName'] as String?) ?? '',
+      // Missing key = pre-publish-flag docs; treat as published (old clinic-visible).
+      published: data['published'] as bool? ?? true,
       createdAt: _readTs(data['createdAt']) ?? remoteUpdated,
       updatedAt: remoteUpdated,
       deletedAt: _readTs(data['deletedAt']),

@@ -69,22 +69,47 @@ List<TemplateField> decodeTemplateFields(String raw) {
   }
 }
 
-/// Legacy prompt dump (built-in free-text templates). Prefer [soapTextFromAnswers].
+/// Collapse multi-question rows into one body per SOAP section.
+/// Uses label, else placeholder; joins with a blank line.
+Map<SoapSection, String> sectionBodiesFromFields(List<TemplateField> fields) {
+  final out = <SoapSection, String>{
+    for (final section in SoapSection.values) section: '',
+  };
+  for (final section in SoapSection.values) {
+    final parts = <String>[];
+    for (final field in fields) {
+      if (field.section != section) continue;
+      final label = field.label.trim();
+      final text = label.isNotEmpty ? label : field.placeholder.trim();
+      if (text.isNotEmpty) parts.add(text);
+    }
+    out[section] = parts.join('\n\n');
+  }
+  return out;
+}
+
+/// Persist one long-text field per non-empty SOAP section.
+List<TemplateField> fieldsFromSectionBodies(Map<SoapSection, String> bodies) {
+  final out = <TemplateField>[];
+  var i = 0;
+  for (final section in SoapSection.values) {
+    final text = (bodies[section] ?? '').trim();
+    if (text.isEmpty) continue;
+    i += 1;
+    out.add(TemplateField(id: 'f$i', section: section, label: text));
+  }
+  return out;
+}
+
+/// Free-text S/O/A/P dump from builder fields (legacy multi-question → joined).
 ({String subjective, String objective, String assessment, String plan})
 soapFillFromFields(List<TemplateField> fields) {
-  String join(SoapSection section) {
-    return [
-      for (final field in fields)
-        if (field.section == section && field.label.trim().isNotEmpty)
-          field.label.trim(),
-    ].join('\n');
-  }
-
+  final bodies = sectionBodiesFromFields(fields);
   return (
-    subjective: join(SoapSection.subjective),
-    objective: join(SoapSection.objective),
-    assessment: join(SoapSection.assessment),
-    plan: join(SoapSection.plan),
+    subjective: bodies[SoapSection.subjective] ?? '',
+    objective: bodies[SoapSection.objective] ?? '',
+    assessment: bodies[SoapSection.assessment] ?? '',
+    plan: bodies[SoapSection.plan] ?? '',
   );
 }
 

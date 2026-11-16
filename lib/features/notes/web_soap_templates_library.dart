@@ -17,6 +17,7 @@ typedef OpenTemplateBuilder =
       bool seedPostnatal,
       String? remoteId,
       String? fieldsJson,
+      bool published,
     });
 
 /// Desktop SOAP template library (Figma `NotesOnly · SOAP template library`).
@@ -68,6 +69,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
 
   bool _inTeamLibrary(_LibraryEntry e, String? viewerUid) {
     if (e.createdBy == null) return false;
+    if (!e.isPublished) return false;
     return !templateMatchesMine(createdBy: e.createdBy, viewerUid: viewerUid);
   }
 
@@ -103,21 +105,26 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       viewerUid: viewerUid,
       viewerName: NotesAuth.currentUser?.displayName,
     );
-    final count = decodeTemplateFields(row.fieldsJson).length;
-    final questions = count == 1 ? '1 question' : '$count questions';
+    final filled = sectionBodiesFromFields(
+      decodeTemplateFields(row.fieldsJson),
+    ).values.where((t) => t.trim().isNotEmpty).length;
+    final sections = filled == 1 ? '1 section' : '$filled sections';
     return _LibraryEntry(
       template: SoapTemplate(
         id: orgTemplateChoiceId(row.remoteId),
         label: row.name,
       ),
       description: row.description,
-      versionLine: 'Shared with the clinic',
+      versionLine: row.published
+          ? 'Shared with the clinic'
+          : 'Draft · only you',
       metaLine: creator == null
-          ? questions
-          : '$questions · Created by $creator',
-      isPublished: true,
-      inDraftsTab: false,
-      editDraftLabel: false,
+          ? sections
+          : '$sections · Created by $creator',
+      isPublished: row.published,
+      inDraftsTab: !row.published,
+      editDraftLabel: !row.published,
+      draftOnly: !row.published,
       createdBy: row.createdBy,
       remoteId: row.remoteId,
       fieldsJson: row.fieldsJson,
@@ -151,6 +158,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     bool seedPostnatal = true,
     String? remoteId,
     String? fieldsJson,
+    bool published = false,
   }) {
     final open = widget.onOpenBuilder;
     if (open == null) {
@@ -163,6 +171,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       seedPostnatal: seedPostnatal,
       remoteId: remoteId,
       fieldsJson: fieldsJson,
+      published: published,
     );
   }
 
@@ -301,6 +310,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                     e.remoteId == null && e.template.id == 'postnatal_check',
                 remoteId: e.remoteId,
                 fieldsJson: e.fieldsJson,
+                published: e.isPublished && !e.draftOnly,
               );
             },
           ),
@@ -325,6 +335,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
         fieldsJson: entry.fieldsJson ?? '[]',
         createdBy: uid,
         createdByName: liveName,
+        published: false,
       );
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -1001,7 +1012,7 @@ class _NewTemplatePanel extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            'Give your template a name to create a draft. Add field types and preview your layout in the builder.',
+            'Give your template a name to create a draft. Shape each SOAP section in the builder, then publish when teammates should see it.',
             style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
           ),
           const SizedBox(height: 18),

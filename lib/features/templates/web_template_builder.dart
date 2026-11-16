@@ -36,6 +36,7 @@ class WebTemplateBuilder extends StatefulWidget {
     this.seedPostnatal = true,
     this.remoteId,
     this.fieldsJson,
+    this.initialPublished = false,
     this.onBackToLibrary,
   });
 
@@ -48,6 +49,9 @@ class WebTemplateBuilder extends StatefulWidget {
 
   /// Saved builder fields. Null uses the postnatal or blank starter.
   final String? fieldsJson;
+
+  /// Draft/published chip + Publish path. New templates start as drafts.
+  final bool initialPublished;
   final VoidCallback? onBackToLibrary;
 
   @override
@@ -57,204 +61,70 @@ class WebTemplateBuilder extends StatefulWidget {
 class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _descCtrl;
+  late final Map<SoapSection, TextEditingController> _sectionCtrls;
 
-  late List<TemplateField> _fields;
   late SoapSection _section;
-  String? _selectedId;
   String? _remoteId;
-  int _idSeq = 0;
-  bool _preview = false;
+  bool _published = false;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    final saved = widget.fieldsJson;
     _remoteId = widget.remoteId;
-    if (saved != null) {
-      _fields = decodeTemplateFields(saved);
-      _idSeq = _maxFieldSeq(_fields);
-    } else {
-      _fields = widget.seedPostnatal ? _seedPostnatal() : _seedBlank();
-    }
-    final sel = _fields.isEmpty ? null : _fields.first;
-    _selectedId = sel?.id;
-    _section = sel?.section ?? SoapSection.subjective;
+    _published = widget.initialPublished;
+    final seedFields = widget.fieldsJson != null
+        ? decodeTemplateFields(widget.fieldsJson!)
+        : widget.seedPostnatal
+        ? _seedPostnatalFields()
+        : <TemplateField>[];
+    final bodies = sectionBodiesFromFields(seedFields);
+    _sectionCtrls = {
+      for (final section in SoapSection.values)
+        section: TextEditingController(text: bodies[section] ?? ''),
+    };
+    _section = SoapSection.subjective;
     _nameCtrl = TextEditingController(text: widget.initialName);
     _descCtrl = TextEditingController(text: widget.initialDescription);
     _nameCtrl.addListener(() => setState(() {}));
   }
 
-  int _maxFieldSeq(List<TemplateField> fields) {
-    var max = 0;
-    for (final field in fields) {
-      final match = RegExp(r'^f(\d+)$').firstMatch(field.id);
-      final n = int.tryParse(match?.group(1) ?? '') ?? 0;
-      if (n > max) max = n;
-    }
-    return max;
-  }
-
-  List<TemplateField> _seedBlank() {
-    _idSeq += 1;
+  List<TemplateField> _seedPostnatalFields() {
     return [
       TemplateField(
-        id: 'f$_idSeq',
+        id: 'f1',
         section: SoapSection.subjective,
-        label: 'New field',
-        placeholder: 'Enter value…',
+        label: 'Presenting concerns\n\nClient goals',
       ),
-    ];
-  }
-
-  List<TemplateField> _seedPostnatal() {
-    TemplateField f({
-      required SoapSection section,
-      required String label,
-      String help = '',
-      String placeholder = '',
-      bool required = false,
-    }) {
-      _idSeq += 1;
-      return TemplateField(
-        id: 'f$_idSeq',
-        section: section,
-        label: label,
-        helpText: help,
-        placeholder: placeholder,
-        required: required,
-      );
-    }
-
-    return [
-      f(
-        section: SoapSection.subjective,
-        label: 'Presenting concerns',
-        help:
-            'Describe the client’s concerns and priorities in their own words.',
-        placeholder: 'Enter the client’s reported concerns…',
-        required: true,
-      ),
-      f(
-        section: SoapSection.subjective,
-        label: 'Client goals',
-        placeholder: 'Enter goals for this visit…',
-      ),
-      f(
+      TemplateField(
+        id: 'f2',
         section: SoapSection.objective,
-        label: 'Observations',
-        placeholder: 'Enter observations…',
+        label: 'Observations\n\nMeasurements',
       ),
-      f(
-        section: SoapSection.objective,
-        label: 'Measurements',
-        placeholder: 'Enter measurements…',
-      ),
-      f(
+      TemplateField(
+        id: 'f3',
         section: SoapSection.assessment,
         label: 'Clinical interpretation',
-        placeholder: 'Enter assessment…',
       ),
-      f(
+      TemplateField(
+        id: 'f4',
         section: SoapSection.plan,
-        label: 'Agreed next steps',
-        placeholder: 'Enter next steps…',
-      ),
-      f(
-        section: SoapSection.plan,
-        label: 'Follow-up interval',
-        placeholder: 'e.g. 2 weeks…',
-      ),
-      f(
-        section: SoapSection.plan,
-        label: 'Review notes',
-        placeholder: 'Enter review notes…',
+        label: 'Agreed next steps\n\nFollow-up interval\n\nReview notes',
       ),
     ];
   }
-
-  TemplateField? get _selected {
-    final id = _selectedId;
-    if (id == null) return null;
-    for (final f in _fields) {
-      if (f.id == id) return f;
-    }
-    return null;
-  }
-
-  List<TemplateField> _in(SoapSection section) =>
-      _fields.where((f) => f.section == section).toList();
 
   void _selectSection(SoapSection section) {
     if (section == _section) return;
-    final inSection = _in(section);
-    setState(() {
-      _section = section;
-      if (inSection.every((f) => f.id != _selectedId)) {
-        _selectedId = inSection.isEmpty ? null : inSection.first.id;
-      }
-    });
+    setState(() => _section = section);
   }
 
-  void _selectField(TemplateField field) {
-    if (field.id == _selectedId && !_preview) return;
-    setState(() {
-      _section = field.section;
-      _preview = false;
-      _selectedId = field.id;
-    });
-  }
+  List<TemplateField> _fieldsForSave() => fieldsFromSectionBodies({
+    for (final section in SoapSection.values)
+      section: _sectionCtrls[section]!.text,
+  });
 
-  int _insertIndex(SoapSection section) {
-    var last = -1;
-    for (var i = 0; i < _fields.length; i++) {
-      if (_fields[i].section == section) last = i;
-    }
-    if (last >= 0) return last + 1;
-    final order = SoapSection.values;
-    for (var i = order.indexOf(section) + 1; i < order.length; i++) {
-      final idx = _fields.indexWhere((f) => f.section == order[i]);
-      if (idx >= 0) return idx;
-    }
-    return _fields.length;
-  }
-
-  void _addQuestion() {
-    _idSeq += 1;
-    final field = TemplateField(
-      id: 'f$_idSeq',
-      section: _section,
-      label: 'New question',
-      placeholder: 'Enter value…',
-    );
-    setState(() {
-      _fields = [..._fields]..insert(_insertIndex(_section), field);
-      _preview = false;
-      _selectedId = field.id;
-    });
-  }
-
-  void _deleteSelected() {
-    final sel = _selected;
-    if (sel == null) return;
-    final idx = _fields.indexWhere((f) => f.id == sel.id);
-    if (idx < 0) return;
-    final section = sel.section;
-    final local = _in(section).indexWhere((f) => f.id == sel.id);
-    setState(() {
-      _fields = [..._fields]..removeAt(idx);
-      final rest = _in(section);
-      _selectedId = rest.isEmpty
-          ? null
-          : rest[local.clamp(0, rest.length - 1)].id;
-    });
-  }
-
-  void _togglePreview() {
-    setState(() => _preview = !_preview);
-  }
-
-  Future<void> _save() async {
+  Future<void> _persist({required bool published}) async {
     if (_saving) return;
     final db = AppDatabaseProvider.maybeOf(context);
     if (db == null) return;
@@ -270,13 +140,20 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
         remoteId: _remoteId,
         name: _nameCtrl.text,
         description: _descCtrl.text.trim(),
-        fieldsJson: encodeTemplateFields(_fields),
+        fieldsJson: encodeTemplateFields(_fieldsForSave()),
         createdBy: uid,
         createdByName: liveName,
+        published: published,
       );
       if (!mounted) return;
-      setState(() => _remoteId = saved.remoteId);
-      showPelviSnackBar(context, 'Saved for the clinic.');
+      setState(() {
+        _remoteId = saved.remoteId;
+        _published = saved.published;
+      });
+      showPelviSnackBar(
+        context,
+        published ? 'Published for the clinic.' : 'Draft saved.',
+      );
     } catch (e) {
       if (!mounted) return;
       showPelviSnackBar(context, 'Could not save template: $e');
@@ -289,6 +166,9 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   void dispose() {
     _nameCtrl.dispose();
     _descCtrl.dispose();
+    for (final ctrl in _sectionCtrls.values) {
+      ctrl.dispose();
+    }
     super.dispose();
   }
 
@@ -369,27 +249,46 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
-            color: c.purple50,
+            color: _published ? c.pink50 : c.purple50,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
-            'Draft',
+            _published ? 'Published' : 'Draft',
             style: TextStyle(
               fontSize: 11,
               height: 1.5,
               fontWeight: FontWeight.w500,
-              color: c.purple700,
+              color: _published ? c.pink700 : c.purple700,
             ),
           ),
         ),
         const SizedBox(width: 10),
+        OutlinedButton(
+          onPressed: _saving ? null : () => _persist(published: false),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: c.ink,
+            minimumSize: const Size(0, 38),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            side: BorderSide(color: c.border),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(PelviRadius.sm),
+            ),
+          ),
+          child: Text(
+            _saving ? 'Saving…' : 'Save draft',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
         FilledButton(
-          onPressed: _saving ? null : _save,
+          onPressed: _saving ? null : () => _persist(published: true),
           style: FilledButton.styleFrom(
             backgroundColor: c.pink700,
             foregroundColor: c.inkInverse,
-            disabledBackgroundColor: c.surfaceMuted,
-            disabledForegroundColor: c.inkMuted,
+            disabledBackgroundColor: c.pink50,
             elevation: 0,
             minimumSize: const Size(0, 38),
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -397,9 +296,9 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
               borderRadius: BorderRadius.circular(PelviRadius.sm),
             ),
           ),
-          child: Text(
-            _saving ? 'Saving…' : 'Save',
-            style: const TextStyle(
+          child: const Text(
+            'Publish',
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -441,7 +340,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
                 _sectionTile(context, section),
               if (pinFooter) const Spacer() else const SizedBox(height: 24),
               Text(
-                'Questions are added to the selected section.',
+                'One prompt per SOAP section.',
                 style: TextStyle(
                   fontSize: 11,
                   height: 15 / 11,
@@ -523,14 +422,6 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
                     ),
                   ),
                 ),
-                Text(
-                  '${_in(section).length}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 16 / 12,
-                    color: c.inkMuted,
-                  ),
-                ),
               ],
             ),
           ),
@@ -553,7 +444,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
                 children: [
                   header,
                   const SizedBox(height: 14),
-                  Expanded(child: SingleChildScrollView(child: body)),
+                  Expanded(child: body),
                 ],
               )
             : Column(
@@ -566,285 +457,46 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
 
   Widget _sectionHeader(BuildContext context) {
     final c = PelviColors.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _section.label,
-                style: TextStyle(
-                  fontSize: 18,
-                  height: 24 / 18,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _section.blurb,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 16 / 12,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
+        Text(
+          _section.label,
+          style: TextStyle(
+            fontSize: 18,
+            height: 24 / 18,
+            fontWeight: FontWeight.w600,
+            color: c.ink,
           ),
         ),
-        GestureDetector(
-          onTap: _togglePreview,
-          child: Text(
-            'Preview',
-            style: TextStyle(fontSize: 13, height: 18 / 13, color: c.inkMuted),
+        const SizedBox(height: 2),
+        Text(
+          _section.blurb,
+          style: TextStyle(
+            fontSize: 12,
+            height: 16 / 12,
+            color: c.inkMuted,
           ),
         ),
-        const SizedBox(width: 8),
-        _MiniSwitch(value: _preview, onChanged: (_) => _togglePreview()),
       ],
     );
   }
 
   Widget _sectionBody(BuildContext context) {
     final c = PelviColors.of(context);
-    final prompts = _in(_section);
-    if (_preview) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (prompts.isEmpty)
-            Text(
-              'No questions yet',
-              style: TextStyle(fontSize: 13, color: c.inkMuted),
-            )
-          else
-            for (final field in prompts) ...[
-              _PreviewField(field: field),
-              const SizedBox(height: 16),
-            ],
-          const SizedBox(height: 8),
-          Text(
-            'Preview responses are not saved as clinical notes.',
-            style: TextStyle(fontSize: 11, color: c.inkMuted),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (prompts.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Text(
-              'No questions yet',
-              style: TextStyle(fontSize: 13, color: c.inkMuted),
-            ),
-          )
-        else
-          for (final field in prompts) ...[
-            _QuestionRow(
-              key: ValueKey(field.id),
-              field: field,
-              onSelect: () => _selectField(field),
-            ),
-            if (field.id == _selectedId) ...[
-              const SizedBox(height: 8),
-              _requiredBar(context, field),
-            ],
-            const SizedBox(height: 14),
-          ],
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: _addQuestion,
-            icon: Icon(Icons.add, size: 16, color: c.pink700),
-            label: const Text('Add question'),
-            style: TextButton.styleFrom(
-              foregroundColor: c.pink700,
-              padding: const EdgeInsets.only(top: 2),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              textStyle: const TextStyle(
-                fontSize: 13,
-                height: 18 / 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // shortcut: help text and placeholder stay on the field and still save, surface editors if a clinic needs to change them.
-  Widget _requiredBar(BuildContext context, TemplateField field) {
-    final c = PelviColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: c.surfaceMuted,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
+    final ctrl = _sectionCtrls[_section]!;
+    // maxLines 20: ~20-line viewport; longer content scrolls inside the field.
+    return TextField(
+      controller: ctrl,
+      minLines: 12,
+      maxLines: 20,
+      keyboardType: TextInputType.multiline,
+      style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
+      decoration: templateFieldDecoration(
+        c,
+        hint: 'Write the ${_section.label.toLowerCase()} prompt…',
+        dense: false,
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Required · needed before the note is completed',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 16 / 12,
-                  color: c.inkMuted,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: _deleteSelected,
-              style: TextButton.styleFrom(
-                foregroundColor: c.danger,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                'Delete question',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-              ),
-            ),
-            _MiniSwitch(
-              value: field.required,
-              onChanged: (value) {
-                setState(() => field.required = value);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _QuestionRow extends StatefulWidget {
-  const _QuestionRow({
-    super.key,
-    required this.field,
-    required this.onSelect,
-  });
-
-  final TemplateField field;
-  final VoidCallback onSelect;
-
-  @override
-  State<_QuestionRow> createState() => _QuestionRowState();
-}
-
-class _QuestionRowState extends State<_QuestionRow> {
-  late final TextEditingController _labelCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _labelCtrl = TextEditingController(text: widget.field.label);
-  }
-
-  @override
-  void didUpdateWidget(_QuestionRow old) {
-    super.didUpdateWidget(old);
-    if (old.field.id != widget.field.id &&
-        _labelCtrl.text != widget.field.label) {
-      _labelCtrl.text = widget.field.label;
-    }
-  }
-
-  @override
-  void dispose() {
-    _labelCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final field = widget.field;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: 36,
-          child: TextField(
-            controller: _labelCtrl,
-            onTap: widget.onSelect,
-            onChanged: (value) => field.label = value,
-            style: TextStyle(fontSize: 13, height: 1.2, color: c.ink),
-            decoration: templateFieldDecoration(c, hint: 'Question'),
-          ),
-        ),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: widget.onSelect,
-          behavior: HitTestBehavior.opaque,
-          child: TemplateAnswerControl(field: field),
-        ),
-      ],
-    );
-  }
-}
-
-class _MiniSwitch extends StatelessWidget {
-  const _MiniSwitch({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 34,
-      height: 20,
-      child: FittedBox(
-        child: Switch(
-          value: value,
-          onChanged: onChanged,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      ),
-    );
-  }
-}
-
-class _PreviewField extends StatelessWidget {
-  const _PreviewField({required this.field});
-
-  final TemplateField field;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          '${field.label}${field.required ? ' *' : ''}',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: c.ink,
-          ),
-        ),
-        const SizedBox(height: 7),
-        TemplateAnswerControl(field: field),
-        if (field.helpText.isNotEmpty) ...[
-          const SizedBox(height: 7),
-          Text(
-            field.helpText,
-            style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-          ),
-        ],
-      ],
     );
   }
 }

@@ -3909,6 +3909,18 @@ class $TemplatesTable extends Templates
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _publishedMeta = const VerificationMeta(
+    'published',
+  );
+  @override
+  late final GeneratedColumn<bool> published = GeneratedColumn<bool>(
+    'published',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -3963,6 +3975,7 @@ class $TemplatesTable extends Templates
     fieldsJson,
     createdBy,
     createdByName,
+    published,
     createdAt,
     updatedAt,
     syncStatus,
@@ -4027,6 +4040,12 @@ class $TemplatesTable extends Templates
         ),
       );
     }
+    if (data.containsKey('published')) {
+      context.handle(
+        _publishedMeta,
+        published.isAcceptableOrUnknown(data['published']!, _publishedMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -4082,6 +4101,10 @@ class $TemplatesTable extends Templates
         DriftSqlType.string,
         data['${effectivePrefix}created_by_name'],
       )!,
+      published: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}published'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -4124,6 +4147,9 @@ class Template extends DataClass implements Insertable<Template> {
 
   /// shortcut: display name frozen at save, upgrade when memberships store names
   final String createdByName;
+
+  /// Teammates only see published templates; creator keeps drafts in own tabs.
+  final bool published;
   final DateTime createdAt;
   final DateTime updatedAt;
   final RowSyncStatus syncStatus;
@@ -4136,6 +4162,7 @@ class Template extends DataClass implements Insertable<Template> {
     required this.fieldsJson,
     required this.createdBy,
     required this.createdByName,
+    required this.published,
     required this.createdAt,
     required this.updatedAt,
     required this.syncStatus,
@@ -4151,6 +4178,7 @@ class Template extends DataClass implements Insertable<Template> {
     map['fields_json'] = Variable<String>(fieldsJson);
     map['created_by'] = Variable<String>(createdBy);
     map['created_by_name'] = Variable<String>(createdByName);
+    map['published'] = Variable<bool>(published);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     {
@@ -4173,6 +4201,7 @@ class Template extends DataClass implements Insertable<Template> {
       fieldsJson: Value(fieldsJson),
       createdBy: Value(createdBy),
       createdByName: Value(createdByName),
+      published: Value(published),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       syncStatus: Value(syncStatus),
@@ -4195,6 +4224,7 @@ class Template extends DataClass implements Insertable<Template> {
       fieldsJson: serializer.fromJson<String>(json['fieldsJson']),
       createdBy: serializer.fromJson<String>(json['createdBy']),
       createdByName: serializer.fromJson<String>(json['createdByName']),
+      published: serializer.fromJson<bool>(json['published']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       syncStatus: $TemplatesTable.$convertersyncStatus.fromJson(
@@ -4214,6 +4244,7 @@ class Template extends DataClass implements Insertable<Template> {
       'fieldsJson': serializer.toJson<String>(fieldsJson),
       'createdBy': serializer.toJson<String>(createdBy),
       'createdByName': serializer.toJson<String>(createdByName),
+      'published': serializer.toJson<bool>(published),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'syncStatus': serializer.toJson<int>(
@@ -4231,6 +4262,7 @@ class Template extends DataClass implements Insertable<Template> {
     String? fieldsJson,
     String? createdBy,
     String? createdByName,
+    bool? published,
     DateTime? createdAt,
     DateTime? updatedAt,
     RowSyncStatus? syncStatus,
@@ -4243,6 +4275,7 @@ class Template extends DataClass implements Insertable<Template> {
     fieldsJson: fieldsJson ?? this.fieldsJson,
     createdBy: createdBy ?? this.createdBy,
     createdByName: createdByName ?? this.createdByName,
+    published: published ?? this.published,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     syncStatus: syncStatus ?? this.syncStatus,
@@ -4263,6 +4296,7 @@ class Template extends DataClass implements Insertable<Template> {
       createdByName: data.createdByName.present
           ? data.createdByName.value
           : this.createdByName,
+      published: data.published.present ? data.published.value : this.published,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       syncStatus: data.syncStatus.present
@@ -4282,6 +4316,7 @@ class Template extends DataClass implements Insertable<Template> {
           ..write('fieldsJson: $fieldsJson, ')
           ..write('createdBy: $createdBy, ')
           ..write('createdByName: $createdByName, ')
+          ..write('published: $published, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus, ')
@@ -4299,6 +4334,7 @@ class Template extends DataClass implements Insertable<Template> {
     fieldsJson,
     createdBy,
     createdByName,
+    published,
     createdAt,
     updatedAt,
     syncStatus,
@@ -4315,6 +4351,7 @@ class Template extends DataClass implements Insertable<Template> {
           other.fieldsJson == this.fieldsJson &&
           other.createdBy == this.createdBy &&
           other.createdByName == this.createdByName &&
+          other.published == this.published &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.syncStatus == this.syncStatus &&
@@ -4329,6 +4366,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
   final Value<String> fieldsJson;
   final Value<String> createdBy;
   final Value<String> createdByName;
+  final Value<bool> published;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<RowSyncStatus> syncStatus;
@@ -4341,6 +4379,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     this.fieldsJson = const Value.absent(),
     this.createdBy = const Value.absent(),
     this.createdByName = const Value.absent(),
+    this.published = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
@@ -4354,6 +4393,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     this.fieldsJson = const Value.absent(),
     this.createdBy = const Value.absent(),
     this.createdByName = const Value.absent(),
+    this.published = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
@@ -4367,6 +4407,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     Expression<String>? fieldsJson,
     Expression<String>? createdBy,
     Expression<String>? createdByName,
+    Expression<bool>? published,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? syncStatus,
@@ -4380,6 +4421,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
       if (fieldsJson != null) 'fields_json': fieldsJson,
       if (createdBy != null) 'created_by': createdBy,
       if (createdByName != null) 'created_by_name': createdByName,
+      if (published != null) 'published': published,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (syncStatus != null) 'sync_status': syncStatus,
@@ -4395,6 +4437,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     Value<String>? fieldsJson,
     Value<String>? createdBy,
     Value<String>? createdByName,
+    Value<bool>? published,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<RowSyncStatus>? syncStatus,
@@ -4408,6 +4451,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
       fieldsJson: fieldsJson ?? this.fieldsJson,
       createdBy: createdBy ?? this.createdBy,
       createdByName: createdByName ?? this.createdByName,
+      published: published ?? this.published,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       syncStatus: syncStatus ?? this.syncStatus,
@@ -4439,6 +4483,9 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     if (createdByName.present) {
       map['created_by_name'] = Variable<String>(createdByName.value);
     }
+    if (published.present) {
+      map['published'] = Variable<bool>(published.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -4466,6 +4513,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
           ..write('fieldsJson: $fieldsJson, ')
           ..write('createdBy: $createdBy, ')
           ..write('createdByName: $createdByName, ')
+          ..write('published: $published, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus, ')
@@ -7114,6 +7162,7 @@ typedef $$TemplatesTableCreateCompanionBuilder =
       Value<String> fieldsJson,
       Value<String> createdBy,
       Value<String> createdByName,
+      Value<bool> published,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<RowSyncStatus> syncStatus,
@@ -7128,6 +7177,7 @@ typedef $$TemplatesTableUpdateCompanionBuilder =
       Value<String> fieldsJson,
       Value<String> createdBy,
       Value<String> createdByName,
+      Value<bool> published,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<RowSyncStatus> syncStatus,
@@ -7175,6 +7225,11 @@ class $$TemplatesTableFilterComposer
 
   ColumnFilters<String> get createdByName => $composableBuilder(
     column: $table.createdByName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get published => $composableBuilder(
+    column: $table.published,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7244,6 +7299,11 @@ class $$TemplatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get published => $composableBuilder(
+    column: $table.published,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -7301,6 +7361,9 @@ class $$TemplatesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get published =>
+      $composableBuilder(column: $table.published, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -7352,6 +7415,7 @@ class $$TemplatesTableTableManager
                 Value<String> fieldsJson = const Value.absent(),
                 Value<String> createdBy = const Value.absent(),
                 Value<String> createdByName = const Value.absent(),
+                Value<bool> published = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<RowSyncStatus> syncStatus = const Value.absent(),
@@ -7364,6 +7428,7 @@ class $$TemplatesTableTableManager
                 fieldsJson: fieldsJson,
                 createdBy: createdBy,
                 createdByName: createdByName,
+                published: published,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 syncStatus: syncStatus,
@@ -7378,6 +7443,7 @@ class $$TemplatesTableTableManager
                 Value<String> fieldsJson = const Value.absent(),
                 Value<String> createdBy = const Value.absent(),
                 Value<String> createdByName = const Value.absent(),
+                Value<bool> published = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<RowSyncStatus> syncStatus = const Value.absent(),
@@ -7390,6 +7456,7 @@ class $$TemplatesTableTableManager
                 fieldsJson: fieldsJson,
                 createdBy: createdBy,
                 createdByName: createdByName,
+                published: published,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 syncStatus: syncStatus,

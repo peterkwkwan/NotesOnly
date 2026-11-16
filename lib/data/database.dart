@@ -175,6 +175,10 @@ class Templates extends Table {
 
   /// shortcut: display name frozen at save, upgrade when memberships store names
   TextColumn get createdByName => text().withDefault(const Constant(''))();
+
+  /// Teammates only see published templates; creator keeps drafts in own tabs.
+  BoolColumn get published =>
+      boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   IntColumn get syncStatus => intEnum<RowSyncStatus>()
@@ -202,7 +206,7 @@ class AppDatabase extends _$AppDatabase {
       onAppointmentChanged?.call(id, deleteGoogleEventId: deleteGoogleEventId);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   /// True if [table] exists (half-applied migrate / never-created templates).
   Future<bool> hasSqliteTable(String table) async {
@@ -359,6 +363,13 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 10) {
             await createTableIfMissing(m, noteRevisions);
+          }
+          if (from < 11) {
+            await _addColumnIfMissing(m, templates, templates.published);
+            // Existing org templates were clinic-visible; keep them published.
+            await customStatement(
+              'UPDATE templates SET published = 1 WHERE deleted_at IS NULL',
+            );
           }
         },
       );
@@ -2044,6 +2055,7 @@ class AppDatabase extends _$AppDatabase {
     required String fieldsJson,
     required String createdBy,
     String createdByName = '',
+    bool published = false,
   }) async {
     final now = DateTime.now();
     final trimmed = name.trim().isEmpty ? 'Untitled template' : name.trim();
@@ -2064,6 +2076,7 @@ class AppDatabase extends _$AppDatabase {
             name: Value(trimmed),
             description: Value(description),
             fieldsJson: Value(fieldsJson),
+            published: Value(published),
             createdByName: fillName
                 ? Value(createdByName.trim())
                 : const Value.absent(),
@@ -2087,6 +2100,7 @@ class AppDatabase extends _$AppDatabase {
         fieldsJson: Value(fieldsJson),
         createdBy: Value(createdBy),
         createdByName: Value(createdByName.trim()),
+        published: Value(published),
         createdAt: Value(now),
         updatedAt: Value(now),
         syncStatus: const Value(RowSyncStatus.pending),
@@ -2124,6 +2138,7 @@ class AppDatabase extends _$AppDatabase {
     required DateTime updatedAt,
     DateTime? deletedAt,
     required bool pending,
+    bool published = true,
   }) async {
     final existing = await (select(templates)
           ..where((t) => t.remoteId.equals(remoteId)))
@@ -2145,6 +2160,7 @@ class AppDatabase extends _$AppDatabase {
       fieldsJson: Value(fieldsJson),
       createdBy: Value(by),
       createdByName: Value(byName),
+      published: Value(published),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: Value(deletedAt),

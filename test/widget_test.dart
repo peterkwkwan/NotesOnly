@@ -389,6 +389,23 @@ void main() {
     expect(fill.plan, 'Follow-up');
     expect(fill.objective, 'Pain today');
     expect(fill.assessment, 'Tone');
+    final collapsed = sectionBodiesFromFields([
+      TemplateField(
+        id: 'a',
+        section: SoapSection.subjective,
+        label: 'Presenting concerns',
+      ),
+      TemplateField(
+        id: 'b',
+        section: SoapSection.subjective,
+        label: 'Client goals',
+      ),
+    ]);
+    expect(collapsed[SoapSection.subjective], 'Presenting concerns\n\nClient goals');
+    expect(
+      fieldsFromSectionBodies(collapsed).single.label,
+      'Presenting concerns\n\nClient goals',
+    );
     final answers = soapTextFromAnswers(back, {
       'f1': 'Pelvic pain',
       'f3': 'Yes',
@@ -2083,22 +2100,26 @@ void main() {
     expect(find.text('Evening review'), findsWidgets);
     expect(find.text('Template builder'), findsOneWidget);
     expect(find.text('Draft'), findsOneWidget);
-    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Save draft'), findsOneWidget);
+    expect(find.text('Publish'), findsOneWidget);
     expect(find.byIcon(Icons.chevron_left), findsNothing);
     await tester.tap(find.text('Templates'));
     await tester.pump();
     expect(backTaps, 1);
     expect(find.text('Sections'), findsOneWidget);
-    expect(find.text('Add question'), findsOneWidget);
-    expect(find.text('Preview'), findsOneWidget);
-    expect(find.text('New field'), findsOneWidget);
+    expect(find.text('Add question'), findsNothing);
+    expect(find.text('Preview'), findsNothing);
+    expect(find.text('One prompt per SOAP section.'), findsOneWidget);
     expect(find.text('OUTLINE'), findsNothing);
-    expect(find.text('Publish'), findsNothing);
 
-    await tester.tap(find.text('Save'));
+    await tester.enterText(
+      find.byType(TextField).at(1),
+      'Evening concerns',
+    );
+    await tester.tap(find.text('Save draft'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save draft'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -2107,9 +2128,18 @@ void main() {
     expect(rows.single.name, 'Evening review');
     expect(rows.single.description, 'Short');
     expect(rows.single.createdBy, 'uid-me');
+    expect(rows.single.published, isFalse);
     expect(rows.single.syncStatus, RowSyncStatus.pending);
     expect(decodeTemplateFields(rows.single.fieldsJson), isNotEmpty);
-    expect(find.text('Saved for the clinic.'), findsOneWidget);
+    expect(find.text('Draft saved.'), findsOneWidget);
+
+    await tester.tap(find.text('Publish'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect((await db.listOrgTemplates()).single.published, isTrue);
+    // Chip flips to Published (desktop snack text is overlay-timing flaky here).
+    expect(find.text('Published'), findsOneWidget);
+    expect(find.text('Draft'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -2132,6 +2162,7 @@ void main() {
       ]),
       createdBy: 'uid-me',
       createdByName: 'Ada',
+      published: true,
     );
     await db.saveOrgTemplate(
       name: 'Their review',
@@ -2145,6 +2176,21 @@ void main() {
       ]),
       createdBy: 'uid-other',
       createdByName: 'Bea',
+      published: true,
+    );
+    await db.saveOrgTemplate(
+      name: 'Their draft',
+      description: 'Hidden from team',
+      fieldsJson: encodeTemplateFields([
+        TemplateField(
+          id: 'f3',
+          section: SoapSection.assessment,
+          label: 'Secret',
+        ),
+      ]),
+      createdBy: 'uid-other',
+      createdByName: 'Bea',
+      published: false,
     );
     await tester.binding.setSurfaceSize(const Size(1200, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -2165,6 +2211,7 @@ void main() {
     expect(find.text("Your team's templates (1)"), findsOneWidget);
     expect(find.text('My review'), findsOneWidget);
     expect(find.text('Their review'), findsNothing);
+    expect(find.text('Their draft'), findsNothing);
     expect(find.textContaining('Created by Ada'), findsOneWidget);
     expect(find.text('Edit'), findsWidgets);
 
@@ -2172,6 +2219,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Their review'), findsOneWidget);
+    expect(find.text('Their draft'), findsNothing);
     expect(find.text('My review'), findsNothing);
     expect(find.textContaining('Created by Bea'), findsOneWidget);
     expect(find.text('Add'), findsOneWidget);
@@ -2183,10 +2231,14 @@ void main() {
 
     expect(find.text('Added to your templates.'), findsOneWidget);
     final rows = await db.listOrgTemplates();
-    expect(rows, hasLength(3));
+    expect(rows, hasLength(4));
     expect(
       rows.where((r) => r.createdBy == 'uid-me').map((r) => r.name),
       containsAll(['My review', 'Their review']),
+    );
+    expect(
+      rows.where((r) => r.name == 'Their review' && r.createdBy == 'uid-me').single.published,
+      isFalse,
     );
 
     await tester.tap(find.text('All (6)'));

@@ -9,19 +9,34 @@ const orgTemplateIdPrefix = 'org:';
 String orgTemplateChoiceId(String remoteId) => '$orgTemplateIdPrefix$remoteId';
 
 SoapTemplate soapTemplateFromOrgRow(Template row) {
-  final fields = decodeTemplateFields(row.fieldsJson);
-  // Org builder templates drive per-question textareas; do not dump labels into S/O/A/P blobs.
+  final fill = soapFillFromFields(decodeTemplateFields(row.fieldsJson));
+  // One textarea per SOAP section: dump joined prompts into free-text fill.
   return SoapTemplate(
     id: orgTemplateChoiceId(row.remoteId),
     label: row.name,
-    fields: fields,
+    subjective: fill.subjective,
+    objective: fill.objective,
+    assessment: fill.assessment,
+    plan: fill.plan,
   );
 }
 
-/// Built-in starters, then org records (newest first).
-Future<List<SoapTemplate>> soapTemplateChoices(AppDatabase db) async {
+/// Built-in starters, then org records the viewer may use (own + published team).
+Future<List<SoapTemplate>> soapTemplateChoices(
+  AppDatabase db, {
+  String? viewerUid,
+}) async {
   final org = await db.listOrgTemplates();
-  return [...soapTemplates, for (final row in org) soapTemplateFromOrgRow(row)];
+  final uid = (viewerUid ?? await db.getSetting(AppDatabase.syncBoundUidKey) ?? '')
+      .trim();
+  return [
+    ...soapTemplates,
+    for (final row in org)
+      if (row.published ||
+          row.createdBy.isEmpty ||
+          (uid.isNotEmpty && row.createdBy == uid))
+        soapTemplateFromOrgRow(row),
+  ];
 }
 
 /// Creator name when we have one stored, or the viewer's live name for their own row.

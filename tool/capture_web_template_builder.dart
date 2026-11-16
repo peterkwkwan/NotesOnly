@@ -62,22 +62,16 @@ void main() {
     await tester.pump();
 
     expect(find.text('NotesOnly'), findsNothing);
-    expect(find.byTooltip('Templates'), findsOneWidget);
-    expect(find.text('Save'), findsOneWidget);
+    expect(find.byTooltip('Templates'), findsNothing);
+    expect(find.text('Save draft'), findsOneWidget);
+    expect(find.text('Publish'), findsOneWidget);
     expect(find.text('Draft'), findsOneWidget);
     expect(find.text('Sections'), findsOneWidget);
-    expect(find.text('Add question'), findsOneWidget);
-    expect(find.text('Preview'), findsOneWidget);
+    expect(find.text('Add question'), findsNothing);
+    expect(find.text('Preview'), findsNothing);
     expect(find.text('What the client reports'), findsOneWidget);
-    expect(find.text('Presenting concerns'), findsWidgets);
-    expect(find.text('Client goals'), findsOneWidget);
-    expect(
-      find.text('Required · needed before the note is completed'),
-      findsOneWidget,
-    );
-    expect(find.text('Live preview'), findsNothing);
-    expect(find.text('Clinical interpretation'), findsNothing);
-    expect(find.text('Publish'), findsNothing);
+    expect(find.text('One prompt per SOAP section.'), findsOneWidget);
+    expect(find.text('Presenting concerns'), findsNothing);
 
     final boundary =
         key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
@@ -91,43 +85,11 @@ void main() {
 
     await tester.tap(find.text('Objective'));
     await tester.pump();
-    expect(find.text('Observations'), findsWidgets);
-    expect(find.text('Presenting concerns'), findsNothing);
+    expect(find.text('What you observe'), findsOneWidget);
 
     await tester.tap(find.text('Subjective'));
     await tester.pump();
-    expect(find.text('Presenting concerns'), findsWidgets);
-    expect(find.text('Delete question'), findsOneWidget);
-
-    await tester.tap(find.text('Preview'));
-    await tester.pump();
-    expect(find.text('Clinical interpretation'), findsNothing);
-    expect(
-      find.text(
-        'Describe the client’s concerns and priorities in their own words.',
-      ),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Preview'));
-    await tester.pump();
-    expect(
-      find.text(
-        'Describe the client’s concerns and priorities in their own words.',
-      ),
-      findsNothing,
-    );
-
-    await tester.tap(find.text('Add question'));
-    await tester.pump();
-    expect(find.text('New question'), findsWidgets);
-
-    await tester.tap(find.text('Long text').last);
-    await tester.pumpAndSettle();
-    expect(find.text('Short text'), findsWidgets);
-    expect(find.text('Single choice'), findsOneWidget);
-    expect(find.text('Multiple choice'), findsOneWidget);
-    expect(find.text('Numeric'), findsOneWidget);
-    expect(find.text('Yes/No'), findsOneWidget);
+    expect(find.text('What the client reports'), findsOneWidget);
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
 

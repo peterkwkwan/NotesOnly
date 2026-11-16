@@ -18,6 +18,7 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
   bool _seedPostnatal = true;
   String? _remoteId;
   String? _fieldsJson;
+  bool _published = false;
   int _openGen = 0;
 
   void _openBuilder({
@@ -26,6 +27,7 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
     bool seedPostnatal = true,
     String? remoteId,
     String? fieldsJson,
+    bool published = false,
   }) {
     setState(() {
       _openGen += 1;
@@ -35,6 +37,7 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
       _seedPostnatal = seedPostnatal;
       _remoteId = remoteId;
       _fieldsJson = fieldsJson;
+      _published = published;
     });
   }
 
@@ -52,6 +55,7 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
         seedPostnatal: _seedPostnatal,
         remoteId: _remoteId,
         fieldsJson: _fieldsJson,
+        initialPublished: _published,
         onBackToLibrary: _closeBuilder,
       );
     }
@@ -63,6 +67,7 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
             bool seedPostnatal = true,
             String? remoteId,
             String? fieldsJson,
+            bool published = false,
           }) {
             _openBuilder(
               name: name,
@@ -70,6 +75,7 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
               seedPostnatal: seedPostnatal,
               remoteId: remoteId,
               fieldsJson: fieldsJson,
+              published: published,
             );
           },
     );
