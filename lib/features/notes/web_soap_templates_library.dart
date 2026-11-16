@@ -122,7 +122,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
           ? sections
           : '$sections · Created by $creator',
       isPublished: row.published,
-      inDraftsTab: !row.published,
       editDraftLabel: !row.published,
       draftOnly: !row.published,
       createdBy: row.createdBy,
@@ -137,7 +136,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       final tabOk = switch (_tab) {
         _LibraryTab.all => true,
         _LibraryTab.published => e.isPublished,
-        _LibraryTab.drafts => e.inDraftsTab,
+        _LibraryTab.drafts => !e.isPublished,
         _LibraryTab.team => true,
       };
       if (!tabOk) return false;
@@ -221,7 +220,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                   tab: _tab,
                   allCount: own.length,
                   publishedCount: own.where((e) => e.isPublished).length,
-                  draftCount: own.where((e) => e.inDraftsTab).length,
+                  draftCount: own.where((e) => !e.isPublished).length,
                   teamCount: team.length,
                   onSelect: (t) => setState(() => _tab = t),
                 ),
@@ -1055,7 +1054,6 @@ class _LibraryEntry {
     required this.versionLine,
     required this.metaLine,
     required this.isPublished,
-    required this.inDraftsTab,
     required this.editDraftLabel,
     this.draftOnly = false,
     this.createdBy,
@@ -1068,7 +1066,6 @@ class _LibraryEntry {
   final String versionLine;
   final String metaLine;
   final bool isPublished;
-  final bool inDraftsTab;
   final bool editDraftLabel;
   final bool draftOnly;
   final String? createdBy;
@@ -1086,7 +1083,6 @@ final _builtinEntries = <_LibraryEntry>[
     versionLine: 'Version 1',
     metaLine: '4 SOAP sections · 4 fields',
     isPublished: true,
-    inDraftsTab: false,
     editDraftLabel: false,
   ),
   _LibraryEntry(
@@ -1095,7 +1091,6 @@ final _builtinEntries = <_LibraryEntry>[
     versionLine: 'Version 1 · Version 2 draft',
     metaLine: '4 SOAP sections · 8 fields',
     isPublished: true,
-    inDraftsTab: true,
     editDraftLabel: true,
   ),
   _LibraryEntry(
@@ -1104,7 +1099,6 @@ final _builtinEntries = <_LibraryEntry>[
     versionLine: 'Version 1',
     metaLine: '4 SOAP sections · 8 fields',
     isPublished: true,
-    inDraftsTab: false,
     editDraftLabel: false,
   ),
   _LibraryEntry(
@@ -1113,7 +1107,6 @@ final _builtinEntries = <_LibraryEntry>[
     versionLine: 'Version 1 draft',
     metaLine: '4 SOAP sections · 6 fields',
     isPublished: false,
-    inDraftsTab: true,
     editDraftLabel: false,
     draftOnly: true,
   ),

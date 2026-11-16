@@ -2208,12 +2208,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('All (5)'), findsOneWidget);
+    expect(find.text('Published (4)'), findsOneWidget);
+    expect(find.text('Drafts (1)'), findsOneWidget);
     expect(find.text("Your team's templates (1)"), findsOneWidget);
     expect(find.text('My review'), findsOneWidget);
     expect(find.text('Their review'), findsNothing);
     expect(find.text('Their draft'), findsNothing);
     expect(find.textContaining('Created by Ada'), findsOneWidget);
     expect(find.text('Edit'), findsWidgets);
+
+    await tester.tap(find.text('Drafts (1)'));
+    await tester.pump();
+    expect(find.text('DRAM'), findsOneWidget);
+    expect(find.text('Postnatal Check'), findsNothing);
+    expect(find.text('Published'), findsNothing);
+    expect(find.text('Draft'), findsOneWidget);
 
     await tester.tap(find.text("Your team's templates (1)"));
     await tester.pump();
