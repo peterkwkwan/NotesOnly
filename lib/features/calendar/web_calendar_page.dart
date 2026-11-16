@@ -2563,13 +2563,6 @@ class _NewAppointmentPanel extends StatelessWidget {
         stream: db.watchClients(),
         builder: (context, snap) {
           final clients = snap.data ?? const <Client>[];
-          Client? selectedClient;
-          for (final cl in clients) {
-            if (cl.id == clientId) {
-              selectedClient = cl;
-              break;
-            }
-          }
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -2596,36 +2589,17 @@ class _NewAppointmentPanel extends StatelessWidget {
               const SizedBox(height: 16),
               const _FieldLabel('Client'),
               const SizedBox(height: 7),
-              _FieldBox(
-                value: selectedClient == null
-                    ? 'Select a client…'
-                    : clientDisplayName(selectedClient),
-                muted: selectedClient == null,
-                onTap: clients.isEmpty
-                    ? null
-                    : () async {
-                        final id = await showPelviPickerSheet<int>(
-                          context: context,
-                          title: 'Client',
-                          selected: clientId,
-                          searchable: true,
-                          searchHint: 'Search name or phone',
-                          options: [
-                            for (final cl in clients)
-                              PelviPickerOption(
-                                value: cl.id,
-                                label: clientDisplayName(cl),
-                                subtitle: (cl.phone ?? '').trim().isEmpty
-                                    ? null
-                                    : cl.phone,
-                                searchText:
-                                    '${clientDisplayName(cl)} ${cl.phone ?? ''}',
-                              ),
-                          ],
-                        );
-                        if (id != null) onPickClient(id);
-                      },
-              ),
+              if (clients.isEmpty)
+                const _FieldBox(
+                  value: 'Select a client…',
+                  muted: true,
+                )
+              else
+                _ClientDropdownField(
+                  clients: clients,
+                  selectedId: clientId,
+                  onSelected: onPickClient,
+                ),
               if (clients.isEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
@@ -3049,6 +3023,176 @@ class _FieldLabel extends StatelessWidget {
         fontWeight: FontWeight.w500,
         color: PelviColors.of(context).ink,
       ),
+    );
+  }
+}
+
+/// Panel-anchored client menu (search + dense rows). Mobile still uses
+/// [showPelviPickerSheet] elsewhere.
+class _ClientDropdownField extends StatefulWidget {
+  const _ClientDropdownField({
+    required this.clients,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final List<Client> clients;
+  final int? selectedId;
+  final ValueChanged<int> onSelected;
+
+  @override
+  State<_ClientDropdownField> createState() => _ClientDropdownFieldState();
+}
+
+class _ClientDropdownFieldState extends State<_ClientDropdownField> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<Client> get _filtered {
+    final q = _search.text.trim().toLowerCase();
+    if (q.isEmpty) return widget.clients;
+    return [
+      for (final c in widget.clients)
+        if ('${clientDisplayName(c)} ${c.phone ?? ''}'
+            .toLowerCase()
+            .contains(q))
+          c,
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    Client? selected;
+    for (final cl in widget.clients) {
+      if (cl.id == widget.selectedId) {
+        selected = cl;
+        break;
+      }
+    }
+    final filtered = _filtered;
+
+    return MenuAnchor(
+      crossAxisUnconstrained: false,
+      style: const MenuStyle(
+        alignment: AlignmentDirectional.bottomStart,
+        padding: WidgetStatePropertyAll(EdgeInsets.fromLTRB(0, 4, 0, 4)),
+        maximumSize: WidgetStatePropertyAll(Size(400, 320)),
+      ),
+      onOpen: () {
+        _search.clear();
+        setState(() {});
+      },
+      builder: (context, menu, _) {
+        return _FieldBox(
+          value: selected == null
+              ? 'Select a client…'
+              : clientDisplayName(selected),
+          muted: selected == null,
+          onTap: () => menu.isOpen ? menu.close() : menu.open(),
+        );
+      },
+      menuChildren: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+          child: TextField(
+            controller: _search,
+            autofocus: true,
+            style: TextStyle(fontSize: 13, color: c.ink),
+            cursorColor: c.pink700,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search name or phone',
+              hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
+              prefixIcon: Icon(Icons.search, size: 18, color: c.inkMuted),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 32,
+                minHeight: 32,
+              ),
+              filled: true,
+              fillColor: c.surfaceMuted,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.pink700, width: 1.5),
+              ),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        if (filtered.isEmpty)
+          MenuItemButton(
+            onPressed: null,
+            style: const ButtonStyle(
+              minimumSize: WidgetStatePropertyAll(Size(0, 36)),
+              padding: WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+            ),
+            child: Text(
+              'No matches',
+              style: TextStyle(fontSize: 13, color: c.inkMuted),
+            ),
+          )
+        else
+          for (final cl in filtered)
+            MenuItemButton(
+              onPressed: () => widget.onSelected(cl.id),
+              style: ButtonStyle(
+                minimumSize: const WidgetStatePropertyAll(Size(0, 36)),
+                padding: const WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+                backgroundColor: WidgetStatePropertyAll(
+                  cl.id == widget.selectedId ? c.pink50 : null,
+                ),
+              ),
+              trailingIcon: cl.id == widget.selectedId
+                  ? Icon(Icons.check, size: 16, color: c.pink700)
+                  : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    clientDisplayName(cl),
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.25,
+                      fontWeight: FontWeight.w500,
+                      color: cl.id == widget.selectedId ? c.pink700 : c.ink,
+                    ),
+                  ),
+                  if ((cl.phone ?? '').trim().isNotEmpty)
+                    Text(
+                      cl.phone!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.3,
+                        color: c.inkMuted,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+      ],
     );
   }
 }
