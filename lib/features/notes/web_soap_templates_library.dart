@@ -9,7 +9,7 @@ import '../shell/desktop_chrome.dart';
 import '../templates/template_body.dart';
 import 'soap_templates.dart';
 
-/// Opens the template builder from the library (Edit draft / Create draft).
+/// Opens the template builder from the library (Edit / Create draft).
 typedef OpenTemplateBuilder =
     void Function({
       required String name,
@@ -44,7 +44,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   Stream<String?>? _uidStream;
   final _nameCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  String _startFromId = blankId;
 
   @override
   void dispose() {
@@ -78,18 +77,18 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     return templateMatchesMine(createdBy: e.createdBy, viewerUid: viewerUid);
   }
 
-  List<_LibraryEntry> _entriesFor(List<Template> org, String? viewerUid) => [
+  List<_LibraryEntry> _entriesFor(List<Template> org) => [
     ..._builtinEntries,
-    for (final row in org) _orgEntry(row, viewerUid),
+    for (final row in org) _orgEntry(row),
   ];
 
   List<_LibraryEntry> _ownFor(List<Template> org, String? viewerUid) => [
-    for (final entry in _entriesFor(org, viewerUid))
+    for (final entry in _entriesFor(org))
       if (_inOwnLibrary(entry, viewerUid)) entry,
   ];
 
   List<_LibraryEntry> _teamFor(List<Template> org, String? viewerUid) => [
-    for (final entry in _entriesFor(org, viewerUid))
+    for (final entry in _entriesFor(org))
       if (_inTeamLibrary(entry, viewerUid)) entry,
   ];
 
@@ -98,17 +97,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     return _ownFor(org, viewerUid);
   }
 
-  _LibraryEntry _orgEntry(Template row, String? viewerUid) {
-    final creator = templateCreatorLabel(
-      createdByName: row.createdByName,
-      createdBy: row.createdBy,
-      viewerUid: viewerUid,
-      viewerName: NotesAuth.currentUser?.displayName,
-    );
-    final filled = sectionBodiesFromFields(
-      decodeTemplateFields(row.fieldsJson),
-    ).values.where((t) => t.trim().isNotEmpty).length;
-    final sections = filled == 1 ? '1 section' : '$filled sections';
+  _LibraryEntry _orgEntry(Template row) {
     return _LibraryEntry(
       template: SoapTemplate(
         id: orgTemplateChoiceId(row.remoteId),
@@ -118,11 +107,9 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       versionLine: row.published
           ? 'Shared with the clinic'
           : 'Draft · only you',
-      metaLine: creator == null
-          ? sections
-          : '$sections · Created by $creator',
       isPublished: row.published,
-      editDraftLabel: !row.published,
+      // Pure drafts use Edit; Edit draft is only for published-with-pending-draft.
+      editDraftLabel: false,
       draftOnly: !row.published,
       createdBy: row.createdBy,
       remoteId: row.remoteId,
@@ -142,8 +129,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       if (!tabOk) return false;
       if (q.isEmpty) return true;
       return e.template.label.toLowerCase().contains(q) ||
-          e.description.toLowerCase().contains(q) ||
-          e.metaLine.toLowerCase().contains(q);
+          e.description.toLowerCase().contains(q);
     }).toList();
   }
 
@@ -236,9 +222,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                         child: _NewTemplatePanel(
                           nameCtrl: _nameCtrl,
                           descCtrl: _descCtrl,
-                          startFromId: _startFromId,
-                          onStartFrom: (id) =>
-                              setState(() => _startFromId = id),
                           onClose: () => setState(() => _showNewPanel = false),
                           onCreateDraft: _createDraft,
                           onNameChanged: () => setState(() {}),
@@ -253,8 +236,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
                     _NewTemplatePanel(
                       nameCtrl: _nameCtrl,
                       descCtrl: _descCtrl,
-                      startFromId: _startFromId,
-                      onStartFrom: (id) => setState(() => _startFromId = id),
                       onClose: () => setState(() => _showNewPanel = false),
                       onCreateDraft: _createDraft,
                       onNameChanged: () => setState(() {}),
@@ -361,7 +342,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     _openBuilder(
       name: name,
       description: _descCtrl.text.trim(),
-      seedPostnatal: _startFromId == 'postnatal_check',
+      seedPostnatal: false,
     );
   }
 }
@@ -627,17 +608,8 @@ class _TemplateCard extends StatelessWidget {
               ),
               const SizedBox(height: 15),
               Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Expanded(
-                    child: Text(
-                      entry.metaLine,
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.5,
-                        color: c.inkMuted,
-                      ),
-                    ),
-                  ),
                   if (canEdit) ...[
                     TextButton(
                       onPressed: onDuplicate,
@@ -767,8 +739,6 @@ class _NewTemplatePanel extends StatelessWidget {
   const _NewTemplatePanel({
     required this.nameCtrl,
     required this.descCtrl,
-    required this.startFromId,
-    required this.onStartFrom,
     required this.onClose,
     required this.onCreateDraft,
     required this.onNameChanged,
@@ -776,8 +746,6 @@ class _NewTemplatePanel extends StatelessWidget {
 
   final TextEditingController nameCtrl;
   final TextEditingController descCtrl;
-  final String startFromId;
-  final ValueChanged<String> onStartFrom;
   final VoidCallback onClose;
   final VoidCallback onCreateDraft;
   final VoidCallback onNameChanged;
@@ -786,7 +754,6 @@ class _NewTemplatePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
     final canCreate = nameCtrl.text.trim().isNotEmpty;
-    final startLabel = soapTemplateById(startFromId).label;
 
     return Container(
       width: double.infinity,
@@ -921,44 +888,6 @@ class _NewTemplatePanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          Text(
-            'Start from',
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.5,
-              fontWeight: FontWeight.w500,
-              color: c.ink,
-            ),
-          ),
-          const SizedBox(height: 7),
-          PopupMenuButton<String>(
-            onSelected: onStartFrom,
-            itemBuilder: (context) => [
-              for (final t in soapTemplates)
-                PopupMenuItem(value: t.id, child: Text(t.label)),
-            ],
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: c.surface,
-                borderRadius: BorderRadius.circular(PelviRadius.sm),
-                border: Border.all(color: c.border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      startLabel,
-                      style: TextStyle(fontSize: 13, color: c.ink),
-                    ),
-                  ),
-                  Icon(Icons.keyboard_arrow_down, size: 18, color: c.inkMuted),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -1052,7 +981,6 @@ class _LibraryEntry {
     required this.template,
     required this.description,
     required this.versionLine,
-    required this.metaLine,
     required this.isPublished,
     required this.editDraftLabel,
     this.draftOnly = false,
@@ -1064,8 +992,8 @@ class _LibraryEntry {
   final SoapTemplate template;
   final String description;
   final String versionLine;
-  final String metaLine;
   final bool isPublished;
+  /// True only for published templates that still have a pending draft.
   final bool editDraftLabel;
   final bool draftOnly;
   final String? createdBy;
@@ -1075,13 +1003,12 @@ class _LibraryEntry {
   String get statusLabel => draftOnly ? 'Draft' : 'Published';
 }
 
-/// shortcut: version/publish/field counts are Figma stubs, upgrade when template model persists them
+/// shortcut: version/publish stubs; upgrade when template model persists them
 final _builtinEntries = <_LibraryEntry>[
   _LibraryEntry(
     template: soapTemplateBlank,
     description: 'Four open SOAP sections for free-form documentation.',
     versionLine: 'Version 1',
-    metaLine: '4 SOAP sections · 4 fields',
     isPublished: true,
     editDraftLabel: false,
   ),
@@ -1089,7 +1016,6 @@ final _builtinEntries = <_LibraryEntry>[
     template: soapTemplatePostnatal,
     description: 'Guided prompts for a postnatal review.',
     versionLine: 'Version 1 · Version 2 draft',
-    metaLine: '4 SOAP sections · 8 fields',
     isPublished: true,
     editDraftLabel: true,
   ),
@@ -1097,7 +1023,6 @@ final _builtinEntries = <_LibraryEntry>[
     template: soapTemplatePelvicFloor,
     description: 'Structured prompts for a pelvic floor review.',
     versionLine: 'Version 1',
-    metaLine: '4 SOAP sections · 8 fields',
     isPublished: true,
     editDraftLabel: false,
   ),
@@ -1105,7 +1030,6 @@ final _builtinEntries = <_LibraryEntry>[
     template: soapTemplateDram,
     description: 'A draft structure for a focused review.',
     versionLine: 'Version 1 draft',
-    metaLine: '4 SOAP sections · 6 fields',
     isPublished: false,
     editDraftLabel: false,
     draftOnly: true,

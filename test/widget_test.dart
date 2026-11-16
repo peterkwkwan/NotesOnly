@@ -2214,8 +2214,10 @@ void main() {
     expect(find.text('My review'), findsOneWidget);
     expect(find.text('Their review'), findsNothing);
     expect(find.text('Their draft'), findsNothing);
-    expect(find.textContaining('Created by Ada'), findsOneWidget);
+    expect(find.textContaining('Created by'), findsNothing);
     expect(find.text('Edit'), findsWidgets);
+    // Published builtin with pending draft stub keeps "Edit draft".
+    expect(find.text('Edit draft'), findsOneWidget);
 
     await tester.tap(find.text('Drafts (1)'));
     await tester.pump();
@@ -2223,6 +2225,8 @@ void main() {
     expect(find.text('Postnatal Check'), findsNothing);
     expect(find.text('Published'), findsNothing);
     expect(find.text('Draft'), findsOneWidget);
+    expect(find.text('Edit draft'), findsNothing);
+    expect(find.text('Edit'), findsOneWidget);
 
     await tester.tap(find.text("Your team's templates (1)"));
     await tester.pump();
@@ -2230,7 +2234,7 @@ void main() {
     expect(find.text('Their review'), findsOneWidget);
     expect(find.text('Their draft'), findsNothing);
     expect(find.text('My review'), findsNothing);
-    expect(find.textContaining('Created by Bea'), findsOneWidget);
+    expect(find.textContaining('Created by'), findsNothing);
     expect(find.text('Add'), findsOneWidget);
     expect(find.text('Edit'), findsNothing);
 
