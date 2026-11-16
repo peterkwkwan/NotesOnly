@@ -465,6 +465,7 @@ class MoreScreen extends StatelessWidget {
     if (!enabled) return base;
     final line = switch (status) {
       'connected' => 'Connected',
+      'connecting' => 'Connecting… finish Google consent in the browser',
       'needs_permission' => 'Needs permission',
       'error' => 'Temporary error',
       _ => 'Connecting…',
@@ -482,12 +483,16 @@ class MoreScreen extends StatelessWidget {
       await gcal.disable();
       return;
     }
+    showPelviSnackBar(
+      context,
+      'Finish Google consent in the browser…',
+    );
     final ok = await gcal.enable();
     if (!context.mounted) return;
     if (!ok) {
       showPelviSnackBar(
         context,
-        'Calendar permission was denied — sync stays off',
+        'Calendar permission was denied or timed out — sync stays off',
       );
       return;
     }

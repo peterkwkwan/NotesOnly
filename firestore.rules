@@ -42,9 +42,19 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/memberships/$(orgId + '_' + uid)).data.roles.hasAny(['practitioner']);
     }
 
+    // Short-lived OAuth state for Calendar connect — Admin SDK only.
+    match /gcalOAuthStates/{stateId} {
+      allow read, write: if false;
+    }
+
     // Legacy solo book. Read so the one-time migration can copy it. No new writes.
+    // private/** stays Admin-only: overlapping allows OR together, so exclude it here.
+    match /users/{userId}/private/{document=**} {
+      allow read, write: if false;
+    }
     match /users/{userId}/{document=**} {
-      allow read: if isSelf(userId);
+      // document[0] is the first path segment under users/{uid}.
+      allow read: if isSelf(userId) && document[0] != 'private';
       allow write: if false;
     }
 

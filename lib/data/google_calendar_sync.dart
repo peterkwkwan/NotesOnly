@@ -2,20 +2,27 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../features/clients/client_format.dart';
 import 'appointment_overlap.dart';
 import 'auth.dart';
 import 'database.dart';
+import 'gcal_oauth.dart';
 import 'online.dart';
 
-/// One-way NotesOnly → Google primary calendar (client-side, soft-fail).
+/// One-way NotesOnly → Google primary calendar (client outbox + Function tokens).
 class GoogleCalendarSync {
-  GoogleCalendarSync(this.db, {http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+  GoogleCalendarSync(
+    this.db, {
+    http.Client? httpClient,
+    GcalOAuth? gcalOAuth,
+  })  : _http = httpClient ?? http.Client(),
+        _oauth = gcalOAuth ?? GcalOAuth();
 
   final AppDatabase db;
   final http.Client _http;
+  final GcalOAuth _oauth;
 
   /// Soft UI message (snackbar). Never blocks Drift.
   void Function(String message)? onSoftError;
@@ -24,9 +31,14 @@ class GoogleCalendarSync {
   Timer? _debounce;
   bool _started = false;
 
+  String? _accessToken;
+  DateTime? _accessExpiresAt;
+
   static const _eventsUrl =
       'https://www.googleapis.com/calendar/v3/calendars/primary/events';
   static const _maxAttempts = 8;
+  static const _connectTimeout = Duration(minutes: 2);
+  static const _pollInterval = Duration(seconds: 2);
 
   void start() {
     if (_started) return;
@@ -47,15 +59,48 @@ class GoogleCalendarSync {
     unawaited(drain());
   }
 
-  /// Opt-in: OAuth Calendar scope + backfill. Returns false if denied.
+  void _clearAccessCache() {
+    _accessToken = null;
+    _accessExpiresAt = null;
+  }
+
+  /// Opt-in: offline OAuth via Functions + backfill. Returns false if denied/timeout.
   Future<bool> enable() async {
-    final token = await NotesAuth.requestCalendarAccess(interactive: true);
-    if (token == null) {
+    try {
+      final authUrl = await _oauth.beginConnect();
+      final launched = await launchUrl(
+        Uri.parse(authUrl),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        await db.setGoogleCalendarSyncEnabled(false);
+        await db.setGoogleCalendarSyncStatus('needs_permission');
+        return false;
+      }
+
+      // Show Connecting… on the toggle while the browser consent finishes.
+      await db.setGoogleCalendarSyncEnabled(true);
+      await db.setGoogleCalendarSyncStatus('connecting');
+      final deadline = DateTime.now().add(_connectTimeout);
+      var connected = false;
+      while (DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(_pollInterval);
+        if (await _oauth.isConnected()) {
+          connected = true;
+          break;
+        }
+      }
+      if (!connected) {
+        await db.setGoogleCalendarSyncEnabled(false);
+        await db.setGoogleCalendarSyncStatus('needs_permission');
+        return false;
+      }
+    } catch (_) {
       await db.setGoogleCalendarSyncEnabled(false);
       await db.setGoogleCalendarSyncStatus('needs_permission');
       return false;
     }
-    await db.setGoogleCalendarSyncEnabled(true);
+
     await db.setGoogleCalendarSyncStatus('connected');
     await db.setSetting(AppDatabase.googleCalendarLastErrorKey, '');
     await _enqueueBackfill();
@@ -65,12 +110,17 @@ class GoogleCalendarSync {
     return true;
   }
 
-  /// Stop future pushes. Leaves existing Google events in place (v1).
+  /// Stop future pushes + revoke server refresh token. Leaves Google events (v1).
   Future<void> disable() async {
     await db.setGoogleCalendarSyncEnabled(false);
     await db.setGoogleCalendarSyncStatus('');
     await db.setSetting(AppDatabase.googleCalendarOutboxKey, '[]');
-    await NotesAuth.clearCalendarAccessToken();
+    _clearAccessCache();
+    try {
+      await _oauth.disconnect();
+    } catch (_) {
+      // Local opt-out still wins; next connect will overwrite server token.
+    }
   }
 
   Future<void> _onAppointmentChanged(
@@ -136,6 +186,8 @@ class GoogleCalendarSync {
   Future<void> drain() async {
     if (_draining) return;
     if (!await db.getGoogleCalendarSyncEnabled()) return;
+    // Wait out browser consent before minting / pushing.
+    if (await db.getGoogleCalendarSyncStatus() == 'connecting') return;
     final queued = await _readOutbox();
     if (queued.isEmpty) return;
     if (!await deviceLooksOnline()) {
@@ -257,7 +309,7 @@ class GoogleCalendarSync {
           final id = await _insertEvent(token, body);
           await db.setAppointmentGoogleEventId(appt.id, id);
         } else if (e.statusCode == 401) {
-          await NotesAuth.clearCalendarAccessToken();
+          _clearAccessCache();
           await db.setGoogleCalendarSyncStatus('needs_permission');
           rethrow;
         } else {
@@ -269,9 +321,22 @@ class GoogleCalendarSync {
   }
 
   Future<String?> _token() async {
-    final cached = NotesAuth.calendarAccessToken;
-    if (cached != null && cached.isNotEmpty) return cached;
-    return NotesAuth.requestCalendarAccess(interactive: false);
+    final now = DateTime.now();
+    final expires = _accessExpiresAt;
+    if (_accessToken != null &&
+        _accessToken!.isNotEmpty &&
+        expires != null &&
+        expires.isAfter(now.add(const Duration(minutes: 1)))) {
+      return _accessToken;
+    }
+    final minted = await _oauth.mintAccessToken();
+    if (minted == null) {
+      _clearAccessCache();
+      return null;
+    }
+    _accessToken = minted.accessToken;
+    _accessExpiresAt = now.add(Duration(seconds: minted.expiresIn));
+    return _accessToken;
   }
 
   Future<void> _markOk() async {
@@ -357,7 +422,7 @@ class GoogleCalendarSync {
     );
     if (res.statusCode == 404 || res.statusCode == 410) return;
     if (res.statusCode == 401) {
-      await NotesAuth.clearCalendarAccessToken();
+      _clearAccessCache();
       await db.setGoogleCalendarSyncStatus('needs_permission');
       throw _CalendarHttpException(401, res.body);
     }

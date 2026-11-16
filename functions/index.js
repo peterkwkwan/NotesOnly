@@ -1,6 +1,6 @@
 'use strict';
 
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
@@ -19,12 +19,30 @@ const {
   assertRateLimit,
   hasOpenReplacementInvite,
 } = require('./invite_authz');
+const gcal = require('./gcal_oauth');
 
 initializeApp();
 const db = getFirestore();
 
 const gmailUser = defineSecret('GMAIL_USER');
 const gmailAppPassword = defineSecret('GMAIL_APP_PASSWORD');
+const gcalOAuthClientId = defineSecret('GCAL_OAUTH_CLIENT_ID');
+const gcalOAuthClientSecret = defineSecret('GCAL_OAUTH_CLIENT_SECRET');
+const gcalTokenKey = defineSecret('GCAL_TOKEN_KEY');
+
+const gcalSecrets = [gcalOAuthClientId, gcalOAuthClientSecret, gcalTokenKey];
+
+function injectGcalSecrets() {
+  if (gcalOAuthClientId.value()) {
+    process.env.GCAL_OAUTH_CLIENT_ID = gcalOAuthClientId.value();
+  }
+  if (gcalOAuthClientSecret.value()) {
+    process.env.GCAL_OAUTH_CLIENT_SECRET = gcalOAuthClientSecret.value();
+  }
+  if (gcalTokenKey.value()) {
+    process.env.GCAL_TOKEN_KEY = gcalTokenKey.value();
+  }
+}
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -249,6 +267,79 @@ exports.copyClinicInviteLink = onCall(
         throw new HttpsError('invalid-argument', 'inviteId required');
       }
       return await rotateOpenInvite({ auth, inviteId, sendEmail: false });
+    } catch (err) {
+      throw httpsError(err);
+    }
+  },
+);
+
+exports.beginGoogleCalendarOAuth = onCall(
+  { secrets: gcalSecrets, region: 'us-central1' },
+  async (request) => {
+    try {
+      injectGcalSecrets();
+      const auth = requireAuth(request);
+      return await gcal.beginGoogleCalendarOAuth(db, auth);
+    } catch (err) {
+      throw httpsError(err);
+    }
+  },
+);
+
+exports.googleCalendarOAuthCallback = onRequest(
+  {
+    secrets: gcalSecrets,
+    region: 'us-central1',
+    invoker: 'public',
+  },
+  async (req, res) => {
+    try {
+      injectGcalSecrets();
+      if (req.method !== 'GET') {
+        res.status(405).send('Method not allowed');
+        return;
+      }
+      await gcal.handleOAuthCallback(db, req, res);
+    } catch (err) {
+      console.error('googleCalendarOAuthCallback', err);
+      res.status(500).send('Internal error');
+    }
+  },
+);
+
+exports.getCalendarAccessToken = onCall(
+  { secrets: gcalSecrets, region: 'us-central1' },
+  async (request) => {
+    try {
+      injectGcalSecrets();
+      const auth = requireAuth(request);
+      return await gcal.getCalendarAccessToken(db, auth);
+    } catch (err) {
+      throw httpsError(err);
+    }
+  },
+);
+
+exports.getGoogleCalendarStatus = onCall(
+  { secrets: gcalSecrets, region: 'us-central1' },
+  async (request) => {
+    try {
+      injectGcalSecrets();
+      const auth = requireAuth(request);
+      return await gcal.getGoogleCalendarStatus(db, auth);
+    } catch (err) {
+      throw httpsError(err);
+    }
+  },
+);
+
+exports.disconnectGoogleCalendar = onCall(
+  { secrets: gcalSecrets, region: 'us-central1' },
+  async (request) => {
+    try {
+      injectGcalSecrets();
+      const auth = requireAuth(request);
+      return await gcal.disconnectGoogleCalendar(db, auth);
     } catch (err) {
       throw httpsError(err);
     }

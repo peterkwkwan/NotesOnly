@@ -1,6 +1,6 @@
 {
   "name": "notesonly-functions",
-  "description": "NotesOnly Cloud Functions — magic-link clinic invites",
+  "description": "NotesOnly Cloud Functions — invites + Google Calendar OAuth",
   "engines": {
     "node": "22"
   },
