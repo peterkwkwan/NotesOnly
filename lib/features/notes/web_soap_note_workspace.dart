@@ -170,7 +170,10 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
     final name = await db.watchPractitionerName().first;
     if (!mounted) return;
     final crumbClient = client == null ? 'Note' : clientDisplayName(client);
-    widget.onBreadcrumb(crumbClient);
+    final when = appt?.startsAt ?? note.noteDate;
+    widget.onBreadcrumb(
+      'Clients / $crumbClient / ${formatNoteDate(when)}',
+    );
     setState(() {
       _note = note;
       _client = client;
@@ -591,11 +594,27 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
   void _goToClientProfile() {
     final client = _client;
     if (client == null) return;
+    final shell = ShellNavigation.maybeOf(context);
+    if (shell != null && isDesktopShell(context)) {
+      // Never push profile onto the SOAP tab navigator — that stacks a
+      // profile over the note so the next Open SOAP looks like a no-op.
+      if (shell.restoreClientsFromSoap?.call() == true) return;
+      shell.openClientProfile?.call(client.id);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ClientProfileScreen(clientId: client.id),
       ),
     );
+  }
+
+  void _onSoapCrumbAncestor(int index) {
+    if (index == 0) {
+      ShellNavigation.maybeOf(context)?.goTo(DesktopDest.clients);
+      return;
+    }
+    if (index == 1) _goToClientProfile();
   }
 
   void _selectSection(SoapSection section) {
@@ -624,7 +643,6 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
 
     final client = _client;
     final when = _appointment?.startsAt ?? note.noteDate;
-    final name = client == null ? 'SOAP note' : clientDisplayName(client);
     final filled = _filledSectionCount;
 
     return ColoredBox(
@@ -742,15 +760,13 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _PageHeader(
-                  subtitle: '$name · ${formatNoteDate(when)}',
                   saving: _saving,
                   status: note.status,
                   saveDraftDisabled: _saveDraftDisabled,
                   publishDisabled: _publishDisabled,
                   onSaveDraft: _saveDraft,
                   onPublish: _publish,
-                  onClientCrumbTap:
-                      client == null ? null : _goToClientProfile,
+                  onCrumbAncestor: client == null ? null : _onSoapCrumbAncestor,
                 ),
                 const SizedBox(height: 26),
                 body,
@@ -765,24 +781,22 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
 
 class _PageHeader extends StatelessWidget {
   const _PageHeader({
-    required this.subtitle,
     required this.saving,
     required this.status,
     required this.saveDraftDisabled,
     required this.publishDisabled,
     required this.onSaveDraft,
     required this.onPublish,
-    this.onClientCrumbTap,
+    this.onCrumbAncestor,
   });
 
-  final String subtitle;
   final bool saving;
   final NoteStatus status;
   final bool saveDraftDisabled;
   final bool publishDisabled;
   final VoidCallback onSaveDraft;
   final VoidCallback onPublish;
-  final VoidCallback? onClientCrumbTap;
+  final ValueChanged<int>? onCrumbAncestor;
 
   @override
   Widget build(BuildContext context) {
@@ -795,7 +809,7 @@ class _PageHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DesktopBreadcrumb(onLeafTap: onClientCrumbTap),
+              DesktopBreadcrumb(onAncestorTap: onCrumbAncestor),
               Text(
                 'SOAP note',
                 style: TextStyle(
@@ -803,15 +817,6 @@ class _PageHeader extends StatelessWidget {
                   height: 1.5,
                   fontWeight: FontWeight.w600,
                   color: c.ink,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.inkMuted,
                 ),
               ),
             ],

@@ -116,6 +116,13 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _openSoapNote(int noteId) {
+    // Drop any routes pushed onto the SOAP tab (e.g. a profile leaf link
+    // that incorrectly nested under this navigator) so reopen always shows
+    // the workspace for [noteId], not a stuck profile on top.
+    final soapNav = _tabNavKeys[DesktopDest.soapNotes].currentState;
+    if (soapNav != null && soapNav.canPop()) {
+      soapNav.popUntil((route) => route.isFirst);
+    }
     setState(() {
       if (_index == DesktopDest.today ||
           _index == DesktopDest.calendar ||
@@ -125,6 +132,27 @@ class _AppShellState extends State<AppShell> {
       _index = DesktopDest.soapNotes;
       _soapNoteId = noteId;
     });
+  }
+
+  /// Leave SOAP for the Clients tab without resetting its navigator stack.
+  /// Returns true when SOAP was opened from Clients and that tab still has
+  /// a pushed profile (so appointment selection survives breadcrumb back).
+  bool _restoreClientsFromSoap() {
+    if (_index != DesktopDest.soapNotes ||
+        _soapNavOrigin != DesktopDest.clients) {
+      return false;
+    }
+    final clientsNav = _tabNavKeys[DesktopDest.clients].currentState;
+    if (clientsNav == null || !clientsNav.canPop()) return false;
+    final soapNav = _tabNavKeys[DesktopDest.soapNotes].currentState;
+    if (soapNav != null && soapNav.canPop()) {
+      soapNav.popUntil((route) => route.isFirst);
+    }
+    setState(() {
+      _index = DesktopDest.clients;
+      _soapNavOrigin = null;
+    });
+    return true;
   }
 
   void _openClientsDue() {
@@ -196,6 +224,7 @@ class _AppShellState extends State<AppShell> {
         breadcrumb: breadcrumb,
         soapNoteId: _soapNoteId,
         openSoapNote: _openSoapNote,
+        restoreClientsFromSoap: _restoreClientsFromSoap,
         clientsDueEpoch: _clientsDueEpoch,
         openClientsDue: _openClientsDue,
         openClientProfile: _openClientProfile,

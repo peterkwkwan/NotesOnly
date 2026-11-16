@@ -35,6 +35,7 @@ class ShellNavigation extends InheritedWidget {
     required this.breadcrumb,
     this.soapNoteId,
     this.openSoapNote,
+    this.restoreClientsFromSoap,
     this.clientsDueEpoch = 0,
     this.openClientsDue,
     this.openClientProfile,
@@ -50,6 +51,10 @@ class ShellNavigation extends InheritedWidget {
 
   /// Switch to SOAP notes and show [noteId] in the desktop workspace.
   final ValueChanged<int>? openSoapNote;
+
+  /// Leave SOAP back to the Clients profile stack when SOAP was opened from
+  /// Clients. Returns true if that restore happened.
+  final bool Function()? restoreClientsFromSoap;
 
   /// Bumps when Today asks Clients to land on the Due tab.
   final int clientsDueEpoch;
