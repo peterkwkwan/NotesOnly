@@ -355,20 +355,66 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   Widget _pageHeader(BuildContext context) {
     final c = PelviColors.of(context);
     final back = widget.onBackToLibrary;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        DesktopBreadcrumb(
-          text: 'Templates / $_crumbName',
-          onAncestorTap: back == null ? null : (_) => back(),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DesktopBreadcrumb(
+                text: 'Templates / $_crumbName',
+                onAncestorTap: back == null ? null : (_) => back(),
+              ),
+              Text(
+                'Template builder',
+                style: TextStyle(
+                  fontSize: 29,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                  color: c.ink,
+                ),
+              ),
+            ],
+          ),
         ),
-        Text(
-          'Template builder',
-          style: TextStyle(
-            fontSize: 29,
-            height: 1.5,
-            fontWeight: FontWeight.w600,
-            color: c.ink,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: c.purple50,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            'Draft',
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+              color: c.purple700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(
+            backgroundColor: c.pink700,
+            foregroundColor: c.inkInverse,
+            disabledBackgroundColor: c.surfaceMuted,
+            disabledForegroundColor: c.inkMuted,
+            elevation: 0,
+            minimumSize: const Size(0, 38),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(PelviRadius.sm),
+            ),
+          ),
+          child: Text(
+            _saving ? 'Saving…' : 'Save',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
@@ -423,64 +469,31 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
 
   Widget _nameRow(BuildContext context) {
     final c = PelviColors.of(context);
-    return Row(
-      children: [
-        if (widget.onBackToLibrary != null) ...[
-          IconButton(
-            tooltip: 'Templates',
-            onPressed: widget.onBackToLibrary,
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 28, height: 28),
-            icon: Icon(Icons.chevron_left, size: 18, color: c.ink),
-          ),
-        ],
-        Expanded(
-          child: TextField(
-            controller: _nameCtrl,
-            maxLines: 1,
-            style: TextStyle(
-              fontSize: 15,
-              height: 20 / 15,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-            decoration: InputDecoration(
-              isCollapsed: true,
-              filled: false,
-              contentPadding: EdgeInsets.zero,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              disabledBorder: InputBorder.none,
-              hintText: 'Untitled template',
-              hintStyle: TextStyle(
-                fontSize: 15,
-                height: 20 / 15,
-                fontWeight: FontWeight.w600,
-                color: c.inkMuted,
-              ),
-            ),
-          ),
+    return TextField(
+      controller: _nameCtrl,
+      maxLines: 1,
+      style: TextStyle(
+        fontSize: 15,
+        height: 20 / 15,
+        fontWeight: FontWeight.w600,
+        color: c.ink,
+      ),
+      decoration: InputDecoration(
+        isCollapsed: true,
+        filled: false,
+        contentPadding: EdgeInsets.zero,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        hintText: 'Untitled template',
+        hintStyle: TextStyle(
+          fontSize: 15,
+          height: 20 / 15,
+          fontWeight: FontWeight.w600,
+          color: c.inkMuted,
         ),
-        Text(
-          'Draft',
-          style: TextStyle(fontSize: 12, height: 16 / 12, color: c.inkMuted),
-        ),
-        TextButton(
-          onPressed: _saving ? null : _save,
-          style: TextButton.styleFrom(
-            foregroundColor: c.pink700,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: const Text(
-            'Save',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
+      ),
     );
   }
 

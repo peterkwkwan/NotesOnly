@@ -2083,6 +2083,9 @@ void main() {
     expect(find.text('Templates'), findsOneWidget);
     expect(find.text('Evening review'), findsWidgets);
     expect(find.text('Template builder'), findsOneWidget);
+    expect(find.text('Draft'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_left), findsNothing);
     await tester.tap(find.text('Templates'));
     await tester.pump();
     expect(backTaps, 1);
