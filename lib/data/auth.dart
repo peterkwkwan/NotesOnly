@@ -18,8 +18,8 @@ class NotesAuth {
       'https://www.googleapis.com/auth/calendar.events';
 
   /// In-memory Calendar access token (never Firestore).
-  /// Web also mirrors to sessionStorage so a hard refresh does not force a
-  /// Google account-chooser popup on the next appointment write.
+  /// Web also mirrors to localStorage so tab close/reopen (until sign-out)
+  /// does not force a Google account-chooser popup on the next write.
   static String? _calendarAccessToken;
 
   static Stream<User?> authStateChanges() => _auth.authStateChanges();
@@ -103,14 +103,14 @@ class NotesAuth {
   /// Returns the access token, or null if the user cancelled / denied.
   /// Does not change the Firebase session identity on Android; on web,
   /// interactive uses a popup with the extra scope (plan option A). Silent
-  /// web calls never open a popup — they restore sessionStorage or return null.
+  /// web calls never open a popup — they restore localStorage or return null.
   static Future<String?> requestCalendarAccess({
     bool interactive = true,
   }) async {
     if (kIsWeb) {
-      // Hard refresh clears Dart memory but not sessionStorage. Never call
-      // signInWithPopup here when interactive is false — that always shows
-      // Google's account chooser and was firing on every appointment edit.
+      // Dart memory dies on refresh/tab close; localStorage holds the token
+      // until sign-out. Never call signInWithPopup when interactive is false —
+      // that always shows Google's account chooser on appointment edits.
       if (!interactive) {
         final existing = calendarAccessToken;
         if (existing != null && existing.isNotEmpty) return existing;
