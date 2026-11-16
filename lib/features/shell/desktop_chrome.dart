@@ -571,6 +571,7 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                             child: _DesktopClientSearchResults(
                               query: _query,
                               width: 352,
+                              searchFocus: _searchFocus,
                               onSelect: _openClient,
                             ),
                           ),
@@ -603,7 +604,13 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                               ),
                               decoration: InputDecoration(
                                 isDense: true,
+                                // Outer chrome owns the border; kill theme outline.
                                 border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                errorBorder: InputBorder.none,
+                                focusedErrorBorder: InputBorder.none,
                                 hintText: 'Search clients',
                                 hintStyle: TextStyle(
                                   fontSize: 12,
@@ -739,16 +746,87 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
   }
 }
 
-class _DesktopClientSearchResults extends StatelessWidget {
+class _DesktopClientSearchResults extends StatefulWidget {
   const _DesktopClientSearchResults({
     required this.query,
     required this.width,
+    required this.searchFocus,
     required this.onSelect,
   });
 
   final String query;
   final double width;
+  final FocusNode searchFocus;
   final ValueChanged<Client> onSelect;
+
+  @override
+  State<_DesktopClientSearchResults> createState() =>
+      _DesktopClientSearchResultsState();
+}
+
+class _DesktopClientSearchResultsState
+    extends State<_DesktopClientSearchResults> {
+  int _highlightIndex = 0;
+  List<Client> _matches = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.searchFocus.onKeyEvent = _onSearchKey;
+  }
+
+  @override
+  void didUpdateWidget(covariant _DesktopClientSearchResults oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchFocus != widget.searchFocus) {
+      if (oldWidget.searchFocus.onKeyEvent == _onSearchKey) {
+        oldWidget.searchFocus.onKeyEvent = null;
+      }
+      widget.searchFocus.onKeyEvent = _onSearchKey;
+    }
+    if (oldWidget.query != widget.query) {
+      _highlightIndex = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.searchFocus.onKeyEvent == _onSearchKey) {
+      widget.searchFocus.onKeyEvent = null;
+    }
+    super.dispose();
+  }
+
+  KeyEventResult _onSearchKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown) {
+      if (_matches.isEmpty) return KeyEventResult.handled;
+      setState(() {
+        _highlightIndex =
+            (_highlightIndex + 1).clamp(0, _matches.length - 1);
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      if (_matches.isEmpty) return KeyEventResult.handled;
+      setState(() {
+        _highlightIndex =
+            (_highlightIndex - 1).clamp(0, _matches.length - 1);
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (_matches.isEmpty) return KeyEventResult.ignored;
+      final i = _highlightIndex.clamp(0, _matches.length - 1);
+      widget.onSelect(_matches[i]);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -765,7 +843,7 @@ class _DesktopClientSearchResults extends StatelessWidget {
           border: Border.all(color: c.border),
         ),
         child: SizedBox(
-          width: width,
+          width: widget.width,
           child: StreamBuilder<List<Client>>(
             stream: db.watchClients(),
             builder: (context, snap) {
@@ -782,7 +860,9 @@ class _DesktopClientSearchResults extends StatelessWidget {
                   ),
                 );
               }
-              final matches = filterClients(clients, query).take(8).toList();
+              final matches =
+                  filterClients(clients, widget.query).take(8).toList();
+              _matches = matches;
               if (matches.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(
@@ -795,6 +875,8 @@ class _DesktopClientSearchResults extends StatelessWidget {
                   ),
                 );
               }
+              final highlight =
+                  _highlightIndex.clamp(0, matches.length - 1);
               return ListView.separated(
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(vertical: 6),
@@ -804,37 +886,41 @@ class _DesktopClientSearchResults extends StatelessWidget {
                 itemBuilder: (context, i) {
                   final client = matches[i];
                   final phone = (client.phone ?? '').trim();
+                  final selected = i == highlight;
                   return InkWell(
-                    onTap: () => onSelect(client),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            clientDisplayName(client),
-                            style: TextStyle(
-                              fontSize: 13,
-                              height: 1.4,
-                              fontWeight: FontWeight.w600,
-                              color: c.ink,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (phone.isNotEmpty)
+                    onTap: () => widget.onSelect(client),
+                    child: ColoredBox(
+                      color: selected ? c.surfaceMuted : Colors.transparent,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              phone,
+                              clientDisplayName(client),
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 13,
                                 height: 1.4,
-                                color: c.inkMuted,
+                                fontWeight: FontWeight.w600,
+                                color: c.ink,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
-                        ],
+                            if (phone.isNotEmpty)
+                              Text(
+                                phone,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  height: 1.4,
+                                  color: c.inkMuted,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   );
