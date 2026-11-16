@@ -181,7 +181,15 @@ class _PhoneFieldState extends State<PhoneField> {
       decoration: widget.compact
           ? InputDecoration(
               isCollapsed: true,
+              filled: false,
+              // Outer DecoratedBox owns the border; kill theme OutlineInputBorders.
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
               hintText: 'Phone',
               hintStyle: TextStyle(
                 fontSize: 13,

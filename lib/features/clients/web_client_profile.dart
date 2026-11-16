@@ -1585,7 +1585,15 @@ class _CompactFieldState extends State<_CompactField> {
             cursorColor: c.pink700,
             decoration: InputDecoration(
               isCollapsed: true,
+              filled: false,
+              // Outer DecoratedBox owns the border; kill theme OutlineInputBorders.
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
               hintText: widget.hint,
               hintStyle: TextStyle(
                 fontSize: 13,
