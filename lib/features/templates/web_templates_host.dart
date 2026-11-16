@@ -3,25 +3,13 @@ import 'package:flutter/material.dart';
 import '../notes/web_soap_templates_library.dart';
 import 'web_template_builder.dart';
 
-/// Desktop Templates destination: library list, or builder when editing a draft.
-class WebTemplatesHost extends StatefulWidget {
+/// Desktop Templates destination: library root; builder is pushed so chrome
+/// Templates nav can pop back to the list (same as Clients → profile).
+class WebTemplatesHost extends StatelessWidget {
   const WebTemplatesHost({super.key});
 
-  @override
-  State<WebTemplatesHost> createState() => _WebTemplatesHostState();
-}
-
-class _WebTemplatesHostState extends State<WebTemplatesHost> {
-  bool _inBuilder = false;
-  String _builderName = 'Postnatal Check';
-  String _builderDescription = 'Guided prompts for a postnatal review.';
-  bool _seedPostnatal = true;
-  String? _remoteId;
-  String? _fieldsJson;
-  bool _published = false;
-  int _openGen = 0;
-
-  void _openBuilder({
+  void _openBuilder(
+    BuildContext context, {
     required String name,
     String description = '',
     bool seedPostnatal = true,
@@ -29,36 +17,23 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
     String? fieldsJson,
     bool published = false,
   }) {
-    setState(() {
-      _openGen += 1;
-      _inBuilder = true;
-      _builderName = name;
-      _builderDescription = description;
-      _seedPostnatal = seedPostnatal;
-      _remoteId = remoteId;
-      _fieldsJson = fieldsJson;
-      _published = published;
-    });
-  }
-
-  void _closeBuilder() {
-    setState(() => _inBuilder = false);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => WebTemplateBuilder(
+          initialName: name,
+          initialDescription: description,
+          seedPostnatal: seedPostnatal,
+          remoteId: remoteId,
+          fieldsJson: fieldsJson,
+          initialPublished: published,
+          onBackToLibrary: () => Navigator.of(routeContext).pop(),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_inBuilder) {
-      return WebTemplateBuilder(
-        key: ValueKey(_openGen),
-        initialName: _builderName,
-        initialDescription: _builderDescription,
-        seedPostnatal: _seedPostnatal,
-        remoteId: _remoteId,
-        fieldsJson: _fieldsJson,
-        initialPublished: _published,
-        onBackToLibrary: _closeBuilder,
-      );
-    }
     return WebSoapTemplatesLibrary(
       onOpenBuilder:
           ({
@@ -70,6 +45,7 @@ class _WebTemplatesHostState extends State<WebTemplatesHost> {
             bool published = false,
           }) {
             _openBuilder(
+              context,
               name: name,
               description: description,
               seedPostnatal: seedPostnatal,
