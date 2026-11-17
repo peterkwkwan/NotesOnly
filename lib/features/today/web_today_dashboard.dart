@@ -225,44 +225,13 @@ class _HeroRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const DesktopBreadcrumb(),
-              Text(
-                'A little more room for care.',
-                style: TextStyle(
-                  fontSize: 29,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 20),
-        FilledButton.icon(
+    return DesktopPageHeader(
+      title: 'A little more room for care.',
+      actions: [
+        DesktopFilledAction(
+          icon: Icons.add,
+          label: 'Add appointment',
           onPressed: onAddAppointment,
-          icon: const Icon(Icons.add, size: 16),
-          label: const Text(
-            'Add appointment',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
         ),
       ],
     );

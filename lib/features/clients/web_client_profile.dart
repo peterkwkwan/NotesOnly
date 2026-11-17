@@ -367,97 +367,38 @@ class _PageHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Row(
+    return KeyedSubtree(
       key: const Key('client-profile-heading'),
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DesktopBreadcrumb(
-                text: 'Clients / $clientName',
-                onAncestorTap: (_) {
-                  final nav = Navigator.of(context);
-                  if (nav.canPop()) nav.pop();
-                },
-              ),
-              Text(
-                'Client profile',
-                style: TextStyle(
-                  fontSize: 29,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 20),
-        if (editing) ...[
-          OutlinedButton(
-            onPressed: saving ? null : onCancel,
-            style: OutlinedButton.styleFrom(
-              backgroundColor: c.surface,
-              foregroundColor: c.ink,
-              side: BorderSide(color: c.border),
-              minimumSize: const Size(0, 38),
-              maximumSize: const Size(double.infinity, 38),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(PelviRadius.sm),
-              ),
+      child: DesktopPageHeader(
+        title: 'Client profile',
+        breadcrumb: 'Clients / $clientName',
+        onBreadcrumbAncestor: (_) {
+          final nav = Navigator.of(context);
+          if (nav.canPop()) nav.pop();
+        },
+        actions: [
+          if (editing) ...[
+            DesktopOutlineAction(
+              label: 'Cancel',
+              onPressed: saving ? null : onCancel,
             ),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            DesktopFilledAction(
+              label: 'Save',
+              onPressed: saving ? null : onSave,
             ),
-          ),
-          const SizedBox(width: 10),
-          FilledButton(
-            onPressed: saving ? null : onSave,
-            style: FilledButton.styleFrom(
-              backgroundColor: c.pink700,
-              foregroundColor: c.inkInverse,
-              minimumSize: const Size(0, 38),
-              maximumSize: const Size(double.infinity, 38),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(PelviRadius.sm),
-              ),
+          ] else
+            DesktopOutlineAction(
+              icon: Icons.edit_outlined,
+              label: 'Edit details',
+              onPressed: onEdit,
             ),
-            child: const Text(
-              'Save',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
+          DesktopFilledAction(
+            icon: Icons.add,
+            label: 'New appointment',
+            onPressed: onNewAppt,
           ),
-        ] else
-          _EditDetailsButton(onPressed: onEdit),
-        const SizedBox(width: 10),
-        FilledButton.icon(
-          onPressed: onNewAppt,
-          icon: const Icon(Icons.add, size: 16),
-          label: const Text(
-            'New appointment',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
-            minimumSize: const Size(0, 38),
-            maximumSize: const Size(double.infinity, 38),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -608,40 +549,6 @@ class _OverviewCard extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _EditDetailsButton extends StatelessWidget {
-  const _EditDetailsButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
-      label: Text(
-        'Edit details',
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: c.ink,
-        ),
-      ),
-      style: OutlinedButton.styleFrom(
-        backgroundColor: c.surface,
-        side: BorderSide(color: c.border),
-        minimumSize: const Size(0, 38),
-        maximumSize: const Size(double.infinity, 38),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(PelviRadius.sm),
-        ),
       ),
     );
   }
@@ -915,7 +822,11 @@ class _DetailsColumn extends StatelessWidget {
                 ),
               const SizedBox(height: 10),
               if (!editing && notes.isEmpty)
-                _EditDetailsButton(onPressed: onEdit)
+                DesktopOutlineAction(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit details',
+                  onPressed: onEdit,
+                )
               else
                 Text(
                   'As recorded in the client profile.',

@@ -1076,6 +1076,229 @@ Future<void> _signOutFromDesktop(BuildContext context) async {
   }
 }
 
+/// Desktop page header actions — matches Account “Save changes”
+/// (38 tall, 14h pad, radius 8, 13/w600; not pill, no M3 tap-target bloat).
+abstract final class DesktopChromeButtons {
+  static const height = 38.0;
+  static const horizontalPadding = 14.0;
+  static const gap = 10.0;
+  static const radius = PelviRadius.sm;
+
+  static const labelStyle = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    height: 1.5,
+  );
+
+  static const titleStyle = TextStyle(
+    fontSize: 29,
+    height: 1.5,
+    fontWeight: FontWeight.w600,
+  );
+
+  static ButtonStyle filled(PelviPalette c) => FilledButton.styleFrom(
+        backgroundColor: c.pink700,
+        foregroundColor: c.inkInverse,
+        disabledBackgroundColor: c.pink200,
+        disabledForegroundColor: c.inkInverse,
+        elevation: 0,
+        minimumSize: const Size(0, height),
+        maximumSize: const Size(double.infinity, height),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
+        textStyle: labelStyle,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
+
+  static ButtonStyle outlined(PelviPalette c) => OutlinedButton.styleFrom(
+        backgroundColor: c.surface,
+        foregroundColor: c.ink,
+        disabledForegroundColor: c.inkMuted,
+        side: BorderSide(color: c.border),
+        minimumSize: const Size(0, height),
+        maximumSize: const Size(double.infinity, height),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
+        textStyle: labelStyle,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
+}
+
+/// Title row + right actions on one baseline; optional subtitle below.
+class DesktopPageHeader extends StatelessWidget {
+  const DesktopPageHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.breadcrumb,
+    this.onBreadcrumbAncestor,
+    this.onBreadcrumbLeaf,
+    this.actions = const [],
+  });
+
+  final String title;
+  final String? subtitle;
+
+  /// Override [DesktopBreadcrumb]; null uses [ShellNavigation].
+  final String? breadcrumb;
+  final ValueChanged<int>? onBreadcrumbAncestor;
+  final VoidCallback? onBreadcrumbLeaf;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DesktopBreadcrumb(
+          text: breadcrumb,
+          onAncestorTap: onBreadcrumbAncestor,
+          onLeafTap: onBreadcrumbLeaf,
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: DesktopChromeButtons.titleStyle.copyWith(color: c.ink),
+              ),
+            ),
+            if (actions.isNotEmpty) ...[
+              const SizedBox(width: 20),
+              for (var i = 0; i < actions.length; i++) ...[
+                if (i > 0) const SizedBox(width: DesktopChromeButtons.gap),
+                actions[i],
+              ],
+            ],
+          ],
+        ),
+        if (subtitle != null && subtitle!.isNotEmpty)
+          Text(
+            subtitle!,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: c.inkMuted,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Primary desktop chrome action (Account “Save changes”).
+class DesktopFilledAction extends StatelessWidget {
+  const DesktopFilledAction({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final enabled = onPressed != null;
+    return Material(
+      color: enabled ? c.pink700 : c.pink200,
+      borderRadius: BorderRadius.circular(DesktopChromeButtons.radius),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(DesktopChromeButtons.radius),
+        child: Container(
+          height: DesktopChromeButtons.height,
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesktopChromeButtons.horizontalPadding,
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 16, color: c.inkInverse),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: DesktopChromeButtons.labelStyle.copyWith(
+                  color: c.inkInverse,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Secondary desktop chrome action (Account “Discard changes”).
+class DesktopOutlineAction extends StatelessWidget {
+  const DesktopOutlineAction({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final enabled = onPressed != null;
+    return Material(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(DesktopChromeButtons.radius),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(DesktopChromeButtons.radius),
+        child: Opacity(
+          opacity: enabled ? 1 : 0.45,
+          child: Container(
+            height: DesktopChromeButtons.height,
+            padding: const EdgeInsets.symmetric(
+              horizontal: DesktopChromeButtons.horizontalPadding,
+            ),
+            decoration: BoxDecoration(
+              borderRadius:
+                  BorderRadius.circular(DesktopChromeButtons.radius),
+              border: Border.all(color: c.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 16, color: c.ink),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  label,
+                  style: DesktopChromeButtons.labelStyle.copyWith(color: c.ink),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Stub body for desktop destinations owned by follow-on agents.
 class DesktopPlaceholderPage extends StatelessWidget {
   const DesktopPlaceholderPage({super.key, required this.title});

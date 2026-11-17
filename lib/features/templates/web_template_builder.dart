@@ -232,29 +232,11 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   Widget _pageHeader(BuildContext context) {
     final c = PelviColors.of(context);
     final back = widget.onBackToLibrary;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DesktopBreadcrumb(
-                text: 'Templates / $_crumbName',
-                onAncestorTap: back == null ? null : (_) => back(),
-              ),
-              Text(
-                'Template builder',
-                style: TextStyle(
-                  fontSize: 29,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return DesktopPageHeader(
+      title: 'Template builder',
+      breadcrumb: 'Templates / $_crumbName',
+      onBreadcrumbAncestor: back == null ? null : (_) => back(),
+      actions: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
@@ -271,47 +253,13 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
             ),
           ),
         ),
-        const SizedBox(width: 10),
-        OutlinedButton(
+        DesktopOutlineAction(
+          label: _saving ? 'Saving…' : 'Save draft',
           onPressed: _saving ? null : () => _persist(published: false),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: c.ink,
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            side: BorderSide(color: c.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: Text(
-            _saving ? 'Saving…' : 'Save draft',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
-        const SizedBox(width: 8),
-        FilledButton(
+        DesktopFilledAction(
+          label: 'Publish',
           onPressed: _saving ? null : () => _persist(published: true),
-          style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
-            disabledBackgroundColor: c.pink50,
-            elevation: 0,
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: const Text(
-            'Publish',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
     );

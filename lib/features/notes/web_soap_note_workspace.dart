@@ -800,26 +800,10 @@ class _PageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
     final published = status == NoteStatus.published;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DesktopBreadcrumb(onAncestorTap: onCrumbAncestor),
-              Text(
-                'SOAP note',
-                style: TextStyle(
-                  fontSize: 29,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return DesktopPageHeader(
+      title: 'SOAP note',
+      onBreadcrumbAncestor: onCrumbAncestor,
+      actions: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
@@ -836,47 +820,13 @@ class _PageHeader extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 10),
-        OutlinedButton(
+        DesktopOutlineAction(
+          label: saving ? 'Saving…' : 'Save draft',
           onPressed: saveDraftDisabled ? null : onSaveDraft,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: c.ink,
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            side: BorderSide(color: c.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: Text(
-            saving ? 'Saving…' : 'Save draft',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
-        const SizedBox(width: 8),
-        FilledButton(
+        DesktopFilledAction(
+          label: 'Publish',
           onPressed: saving || publishDisabled ? null : onPublish,
-          style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
-            disabledBackgroundColor: c.pink50,
-            elevation: 0,
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: const Text(
-            'Publish',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
     );

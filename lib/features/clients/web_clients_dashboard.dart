@@ -340,64 +340,18 @@ class _HeadingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Clients',
-                style: TextStyle(
-                  fontSize: 29,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 20),
-        OutlinedButton.icon(
+    return DesktopPageHeader(
+      title: 'Clients',
+      actions: [
+        DesktopOutlineAction(
+          icon: Icons.download_outlined,
+          label: 'Export selection',
           onPressed: onExport,
-          icon: Icon(Icons.download_outlined, size: 16, color: c.ink),
-          label: Text(
-            'Export selection',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            backgroundColor: c.surface,
-            side: BorderSide(color: c.border),
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
         ),
-        const SizedBox(width: 10),
-        FilledButton.icon(
+        DesktopFilledAction(
+          icon: Icons.add,
+          label: 'Add client',
           onPressed: onAdd,
-          icon: const Icon(Icons.add, size: 16),
-          label: const Text(
-            'Add client',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
         ),
       ],
     );

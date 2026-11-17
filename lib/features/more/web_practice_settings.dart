@@ -318,7 +318,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                     ),
                   ),
                   const SizedBox(height: 9),
-                  _OutlineAction(
+                  DesktopOutlineAction(
                     icon: Icons.download_outlined,
                     label: 'Export JSON',
                     onPressed: () => unawaited(_exportJson()),
@@ -345,7 +345,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                     ),
                   ),
                   const SizedBox(height: 9),
-                  _OutlineAction(
+                  DesktopOutlineAction(
                     icon: Icons.download_outlined,
                     label: 'Export CSV',
                     onPressed: () => unawaited(_exportCsv()),
@@ -469,33 +469,15 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const DesktopBreadcrumb(),
-                      Text(
-                        'Practice settings',
-                        style: TextStyle(
-                          fontSize: 29,
-                          height: 1.5,
-                          fontWeight: FontWeight.w600,
-                          color: c.ink,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            DesktopPageHeader(
+              title: 'Practice settings',
+              actions: [
                 if (showSave) ...[
-                  _OutlineAction(
+                  DesktopOutlineAction(
                     label: 'Discard changes',
                     onPressed: _dirty ? _discard : null,
                   ),
-                  const SizedBox(width: 10),
-                  _FilledAction(
+                  DesktopFilledAction(
                     label: 'Save changes',
                     onPressed: _dirty ? () => unawaited(_save()) : null,
                   ),
@@ -688,99 +670,6 @@ class _Field extends StatelessWidget {
   }
 }
 
-class _OutlineAction extends StatelessWidget {
-  const _OutlineAction({
-    required this.label,
-    this.onPressed,
-    this.icon,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final enabled = onPressed != null;
-    return Material(
-      color: c.surface,
-      borderRadius: BorderRadius.circular(PelviRadius.sm),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-        child: Opacity(
-          opacity: enabled ? 1 : 0.45,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(PelviRadius.sm),
-                border: Border.all(color: c.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 16, color: c.ink),
-                    const SizedBox(width: 8),
-                  ],
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: c.ink,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FilledAction extends StatelessWidget {
-  const _FilledAction({required this.label, this.onPressed});
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final enabled = onPressed != null;
-    return Material(
-      color: enabled ? c.pink700 : c.pink200,
-      borderRadius: BorderRadius.circular(PelviRadius.sm),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-        child: Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.inkInverse,
-              height: 1.5,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PinkSoftAction extends StatelessWidget {
   const _PinkSoftAction({
     required this.icon,
@@ -931,7 +820,7 @@ class _WebSyncStripState extends State<_WebSyncStrip> {
               },
             ),
             const SizedBox(height: 9),
-            _OutlineAction(
+            DesktopOutlineAction(
               icon: Icons.cloud_sync_outlined,
               label: _busy
                   ? 'Updating…'

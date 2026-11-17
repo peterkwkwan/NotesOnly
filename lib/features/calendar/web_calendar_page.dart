@@ -1160,75 +1160,21 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const DesktopBreadcrumb(),
-              Text(
-                'Calendar',
-                style: TextStyle(
-                  fontSize: 29,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-              Text(
-                '${_monthNames[subtitleMonth.month - 1]} ${subtitleMonth.year}',
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        OutlinedButton(
+    return DesktopPageHeader(
+      title: 'Calendar',
+      subtitle:
+          '${_monthNames[subtitleMonth.month - 1]} ${subtitleMonth.year}',
+      actions: [
+        DesktopOutlineAction(
+          label: 'Today',
           onPressed: onToday,
-          style: OutlinedButton.styleFrom(
-            backgroundColor: c.surface,
-            side: BorderSide(color: c.border),
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: Text(
-            'Today',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          ),
         ),
-        const SizedBox(width: 10),
-        FilledButton.icon(
+        DesktopFilledAction(
+          icon: showSave ? Icons.save_outlined : Icons.add,
+          label: showSave
+              ? (saving ? 'Saving…' : 'Save appointment')
+              : 'Add appointment',
           onPressed: showSave ? (canSave ? onSave : null) : onAdd,
-          icon: Icon(showSave ? Icons.save_outlined : Icons.add, size: 16),
-          label: Text(
-            showSave
-                ? (saving ? 'Saving…' : 'Save appointment')
-                : 'Add appointment',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: c.pink700,
-            foregroundColor: c.inkInverse,
-            disabledBackgroundColor: c.surfaceMuted,
-            disabledForegroundColor: c.inkMuted,
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
         ),
       ],
     );
