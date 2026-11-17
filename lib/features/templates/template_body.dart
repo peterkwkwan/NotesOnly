@@ -41,6 +41,19 @@ Future<List<SoapTemplate>> soapTemplateChoices(
   ];
 }
 
+/// Same set as Templates → Published, plus published Team templates.
+/// Excludes draft builtins (e.g. DRAM) and unpublished org rows.
+Future<List<SoapTemplate>> publishedSoapTemplateChoices(AppDatabase db) async {
+  final org = await db.listOrgTemplates();
+  final hidden = await db.getHiddenBuiltinTemplateIds();
+  return [
+    for (final t in soapTemplates)
+      if (!hidden.contains(t.id) && !draftBuiltinTemplateIds.contains(t.id)) t,
+    for (final row in org)
+      if (row.published) soapTemplateFromOrgRow(row),
+  ];
+}
+
 /// Creator name when we have one stored, or the viewer's live name for their own row.
 String? templateCreatorLabel({
   required String createdByName,

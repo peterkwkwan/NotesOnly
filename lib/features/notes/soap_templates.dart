@@ -411,6 +411,10 @@ const soapTemplates = <SoapTemplate>[
   soapTemplateDram,
 ];
 
+/// Built-ins listed under Templates → Drafts (not Published). Keep in sync with
+/// library `_builtinEntries` draft flags.
+const draftBuiltinTemplateIds = {'dram'};
+
 SoapTemplate soapTemplateById(String id) {
   for (final t in soapTemplates) {
     if (t.id == id) return t;

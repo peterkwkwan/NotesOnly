@@ -1251,7 +1251,7 @@ final _builtinEntries = <_LibraryEntry>[
   _LibraryEntry(
     template: soapTemplateDram,
     description: 'A draft structure for a focused review.',
-    isPublished: false,
-    draftOnly: true,
+    isPublished: !draftBuiltinTemplateIds.contains(soapTemplateDram.id),
+    draftOnly: draftBuiltinTemplateIds.contains(soapTemplateDram.id),
   ),
 ];

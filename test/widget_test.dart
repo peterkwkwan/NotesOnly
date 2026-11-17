@@ -677,6 +677,62 @@ void main() {
     expect(choices.map((t) => t.id), contains('blank'));
   });
 
+  test('publishedSoapTemplateChoices is Published library + team, no drafts',
+      () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-me');
+
+    final mine = await db.saveOrgTemplate(
+      name: 'My published',
+      description: '',
+      fieldsJson: '[]',
+      createdBy: 'uid-me',
+      createdByName: 'Ada',
+      published: true,
+    );
+    await db.saveOrgTemplate(
+      name: 'My draft',
+      description: '',
+      fieldsJson: '[]',
+      createdBy: 'uid-me',
+      createdByName: 'Ada',
+      published: false,
+    );
+    final theirs = await db.saveOrgTemplate(
+      name: 'Team published',
+      description: '',
+      fieldsJson: '[]',
+      createdBy: 'uid-other',
+      createdByName: 'Bea',
+      published: true,
+    );
+    await db.saveOrgTemplate(
+      name: 'Team draft',
+      description: '',
+      fieldsJson: '[]',
+      createdBy: 'uid-other',
+      createdByName: 'Bea',
+      published: false,
+    );
+
+    final published = await publishedSoapTemplateChoices(db);
+    final ids = published.map((t) => t.id).toList();
+    expect(ids, containsAll([blankId, 'postnatal_check', 'pelvic_floor']));
+    expect(ids, isNot(contains('dram')));
+    expect(ids, contains(orgTemplateChoiceId(mine.remoteId)));
+    expect(ids, contains(orgTemplateChoiceId(theirs.remoteId)));
+    expect(
+      published.map((t) => t.label),
+      isNot(contains('My draft')),
+    );
+    expect(
+      published.map((t) => t.label),
+      isNot(contains('Team draft')),
+    );
+  });
+
   test('nextWholeHour rounds past the hour, keeps exact hour', () {
     expect(
       nextWholeHour(DateTime(2026, 10, 28, 12, 48)),

@@ -8,6 +8,7 @@ import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../notes/soap_templates.dart';
 import '../shell/desktop_chrome.dart';
+import '../templates/template_body.dart';
 
 /// Personal defaults for every signed-in role (desktop).
 class WebAccountSettings extends StatefulWidget {
@@ -37,6 +38,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
   bool _applying = false;
   bool _dirty = false;
   String _templateId = blankId;
+  List<SoapTemplate> _publishedTemplates = const [];
   _AccountSection _section = _AccountSection.profile;
 
   String _snapName = '';
@@ -89,6 +91,10 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     final hours = await db.watchClinicHours().first;
     final tz = await db.getTimezone();
     final tmpl = await db.getSetting('default_soap_template') ?? blankId;
+    final published = await publishedSoapTemplateChoices(db);
+    final resolved = published.any((t) => t.id == tmpl)
+        ? tmpl
+        : (published.isNotEmpty ? published.first.id : blankId);
     if (!mounted) return;
     setState(() {
       _snapName = name;
@@ -96,7 +102,8 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
       _snapOpens = hours.$1;
       _snapCloses = hours.$2;
       _snapTimezone = tz.replaceAll('_', ' ');
-      _snapTemplateId = soapTemplateById(tmpl).id;
+      _publishedTemplates = published;
+      _snapTemplateId = resolved;
       _applySnapshot();
       _dirty = false;
     });
@@ -212,7 +219,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     showPelviSnackBar(context, 'Google Calendar connected');
   }
 
-  int get _publishedCount => soapTemplates.where((t) => !t.isBlank).length;
+  int get _publishedCount => _publishedTemplates.length;
 
   Widget _sectionBody(PelviPalette c, String displayName) {
     final signedInEmail = NotesAuth.currentUser?.email?.trim() ?? '';
@@ -436,6 +443,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
               const SizedBox(height: 7),
               _TemplateDropdown(
                 value: _templateId,
+                templates: _publishedTemplates,
                 onChanged: (id) {
                   setState(() {
                     _templateId = id;
@@ -728,14 +736,27 @@ class _Field extends StatelessWidget {
 }
 
 class _TemplateDropdown extends StatelessWidget {
-  const _TemplateDropdown({required this.value, required this.onChanged});
+  const _TemplateDropdown({
+    required this.value,
+    required this.templates,
+    required this.onChanged,
+  });
 
   final String value;
+  final List<SoapTemplate> templates;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
+    final items = templates.isEmpty
+        ? soapTemplates
+            .where((t) => !draftBuiltinTemplateIds.contains(t.id))
+            .toList()
+        : templates;
+    final selected = items.any((t) => t.id == value)
+        ? value
+        : (items.isNotEmpty ? items.first.id : blankId);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -745,12 +766,12 @@ class _TemplateDropdown extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: value,
+          value: selected,
           isExpanded: true,
           icon: Icon(Icons.expand_more, color: c.inkMuted, size: 20),
           style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
           items: [
-            for (final t in soapTemplates)
+            for (final t in items)
               DropdownMenuItem(value: t.id, child: Text(t.label)),
           ],
           onChanged: (v) {
