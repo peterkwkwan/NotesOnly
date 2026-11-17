@@ -68,7 +68,8 @@ List<RecallDueEntry> computeRecallDue({
       due.add(RecallDueEntry(client: c, lastSeen: last));
     }
   }
-  due.sort((a, b) => a.lastSeen.compareTo(b.lastSeen));
+  // Newest last-seen first → smallest "Last seen X days ago" at top (inbox).
+  due.sort((a, b) => b.lastSeen.compareTo(a.lastSeen));
   return due;
 }
 
