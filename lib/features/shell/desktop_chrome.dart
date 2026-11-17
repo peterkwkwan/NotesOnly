@@ -586,6 +586,8 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                     child: Container(
                       width: 352,
                       height: 36,
+                      // Intrinsic row + align: true mid of icon/hint/shortcut.
+                      alignment: Alignment.centerLeft,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: c.canvas,
@@ -602,16 +604,15 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                               controller: _searchController,
                               onChanged: _onQueryChanged,
                               textInputAction: TextInputAction.search,
-                              textAlignVertical: TextAlignVertical.center,
                               style: TextStyle(
                                 fontSize: 12,
-                                height: 1.5,
+                                height: 1.2,
                                 color: c.ink,
                               ),
                               decoration: InputDecoration(
-                                isDense: true,
+                                // Collapsed = intrinsic height; Row centers in 36.
+                                isCollapsed: true,
                                 filled: false,
-                                // Theme pads 16; outer 36px chrome centers its own row.
                                 contentPadding: EdgeInsets.zero,
                                 // Outer chrome owns the border; kill theme outline.
                                 border: InputBorder.none,
@@ -623,7 +624,7 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                                 hintText: 'Search clients',
                                 hintStyle: TextStyle(
                                   fontSize: 12,
-                                  height: 1.5,
+                                  height: 1.2,
                                   color: c.inkMuted,
                                 ),
                               ),
@@ -633,7 +634,7 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                             shortcut,
                             style: TextStyle(
                               fontSize: 10,
-                              height: 1.5,
+                              height: 1.2,
                               color: c.inkMuted,
                             ),
                           ),
