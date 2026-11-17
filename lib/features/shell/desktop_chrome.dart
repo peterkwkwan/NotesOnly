@@ -743,13 +743,22 @@ class _DesktopAccountMenuChipState extends State<_DesktopAccountMenuChip> {
       textStyle: const WidgetStatePropertyAll(
         TextStyle(fontSize: 13, fontWeight: FontWeight.w500, height: 1.3),
       ),
-      iconSize: const WidgetStatePropertyAll(18),
-      iconColor: WidgetStatePropertyAll(c.inkMuted),
       visualDensity: VisualDensity.standard,
     );
   }
 
-  Widget _itemIcon(IconData icon) => Icon(icon, size: 18);
+  /// Paint icons in [child] with an explicit color — MenuItemButton
+  /// [leadingIcon] + ButtonStyle.iconColor IconTheme was not visible on web.
+  Widget _itemLabel(PelviPalette c, IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: c.inkMuted),
+        const SizedBox(width: 12),
+        Text(label),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -777,24 +786,21 @@ class _DesktopAccountMenuChipState extends State<_DesktopAccountMenuChip> {
       menuChildren: [
         MenuItemButton(
           style: itemStyle,
-          leadingIcon: _itemIcon(Icons.settings_outlined),
           onPressed: () => ShellNavigation.maybeOf(context)
               ?.goTo(DesktopDest.accountSettings),
-          child: const Text('Account settings'),
+          child: _itemLabel(c, Icons.settings_outlined, 'Account settings'),
         ),
         if (canManagePracticeSettings(widget.roles))
           MenuItemButton(
             style: itemStyle,
-            leadingIcon: _itemIcon(Icons.apartment_outlined),
             onPressed: () => ShellNavigation.maybeOf(context)
                 ?.goTo(DesktopDest.practiceSettings),
-            child: const Text('Practice settings'),
+            child: _itemLabel(c, Icons.apartment_outlined, 'Practice settings'),
           ),
         MenuItemButton(
           style: itemStyle,
-          leadingIcon: _itemIcon(Icons.logout),
           onPressed: () => _signOutFromDesktop(context),
-          child: const Text('Sign out'),
+          child: _itemLabel(c, Icons.logout, 'Sign out'),
         ),
       ],
       builder: (context, controller, child) {
