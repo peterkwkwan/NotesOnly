@@ -591,7 +591,7 @@ void main() {
     expect(await db.hasSqliteColumn('templates', 'fields_json'), isTrue);
   });
 
-  test('published template keeps one card for draft overlay, duplicate, delete',
+  test('published template keeps one card for draft overlay and delete',
       () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -2328,7 +2328,7 @@ void main() {
     expect(find.text('Edit draft'), findsNothing);
     // Own library: 4 builtins + 1 org row, all deletable.
     expect(find.text('Delete'), findsNWidgets(5));
-    expect(find.text('Duplicate'), findsWidgets);
+    expect(find.text('Duplicate'), findsNothing);
     final myRemoteId = (await db.listOrgTemplates())
         .firstWhere((t) => t.name == 'My review')
         .remoteId;

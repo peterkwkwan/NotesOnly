@@ -324,7 +324,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
             selected: items[i].template.id == _selectedId,
             canEdit: _canEdit(items[i], viewerUid),
             onSelect: () => setState(() => _selectedId = items[i].template.id),
-            onDuplicate: () => _duplicate(items[i], viewerUid),
             onDelete: !_canEdit(items[i], viewerUid)
                 ? null
                 : () => _confirmDelete(items[i], viewerUid),
@@ -375,36 +374,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     } catch (e) {
       if (!mounted) return;
       showPelviSnackBar(context, 'Could not add template: $e');
-    }
-  }
-
-  Future<void> _duplicate(_LibraryEntry entry, String? viewerUid) async {
-    final db = AppDatabaseProvider.maybeOf(context);
-    if (db == null) return;
-    final uid = viewerUid?.trim() ?? '';
-    if (uid.isEmpty) {
-      _stubAction('Duplicate');
-      return;
-    }
-    final liveName = NotesAuth.currentUser?.displayName?.trim() ?? '';
-    final sourceName = entry.workingName ?? entry.template.label;
-    final copyName = sourceName.trim().isEmpty
-        ? 'Copy of Untitled template'
-        : 'Copy of $sourceName';
-    try {
-      await db.saveOrgTemplate(
-        name: copyName,
-        description: entry.workingDescription ?? entry.description,
-        fieldsJson: entry.fieldsJson ?? _fieldsJsonForBuiltin(entry.template),
-        createdBy: uid,
-        createdByName: liveName,
-        published: false,
-      );
-      if (!mounted) return;
-      showPelviSnackBar(context, 'Duplicated as a draft.');
-    } catch (e) {
-      if (!mounted) return;
-      showPelviSnackBar(context, 'Could not duplicate: $e');
     }
   }
 
@@ -681,7 +650,6 @@ class _TemplateCard extends StatefulWidget {
     required this.selected,
     required this.canEdit,
     required this.onSelect,
-    required this.onDuplicate,
     required this.onAdd,
     required this.onEdit,
     this.onDelete,
@@ -692,7 +660,6 @@ class _TemplateCard extends StatefulWidget {
   final bool selected;
   final bool canEdit;
   final VoidCallback onSelect;
-  final VoidCallback onDuplicate;
   final VoidCallback? onDelete;
   final ValueChanged<String>? onRename;
   final VoidCallback onAdd;
@@ -897,24 +864,7 @@ class _TemplateCardState extends State<_TemplateCard> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   if (canEdit) ...[
-                    TextButton(
-                      onPressed: widget.onDuplicate,
-                      style: TextButton.styleFrom(
-                        foregroundColor: c.pink700,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text(
-                        'Duplicate',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ),
                     if (widget.onDelete != null) ...[
-                      const SizedBox(width: 4),
                       TextButton(
                         onPressed: widget.onDelete,
                         style: TextButton.styleFrom(
@@ -931,8 +881,8 @@ class _TemplateCardState extends State<_TemplateCard> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 4),
                     ],
-                    const SizedBox(width: 4),
                     OutlinedButton.icon(
                       onPressed: widget.onEdit,
                       icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
