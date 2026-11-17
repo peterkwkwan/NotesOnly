@@ -60,6 +60,7 @@ Future<T?> showPelviPickerSheet<T>({
       builder: (context) {
         return Dialog(
           backgroundColor: PelviColors.of(context).surface,
+          clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(PelviRadius.lg),
           ),
