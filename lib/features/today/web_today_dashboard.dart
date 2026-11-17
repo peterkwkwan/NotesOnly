@@ -77,8 +77,6 @@ class WebTodayDashboard extends StatelessWidget {
                                           CrossAxisAlignment.stretch,
                                       children: [
                                         _HeroRow(
-                                          onNewNote: () =>
-                                              openNoteViaPickers(context),
                                           onAddAppointment: () =>
                                               _addAppointment(context),
                                         ),
@@ -220,11 +218,9 @@ String _upNextDayLabel(DateTime d) {
 
 class _HeroRow extends StatelessWidget {
   const _HeroRow({
-    required this.onNewNote,
     required this.onAddAppointment,
   });
 
-  final VoidCallback onNewNote;
   final VoidCallback onAddAppointment;
 
   @override
@@ -251,28 +247,6 @@ class _HeroRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 20),
-        OutlinedButton.icon(
-          onPressed: onNewNote,
-          icon: Icon(Icons.edit_note_outlined, size: 16, color: c.ink),
-          label: Text(
-            'New note',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            backgroundColor: c.surface,
-            side: BorderSide(color: c.border),
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
         FilledButton.icon(
           onPressed: onAddAppointment,
           icon: const Icon(Icons.add, size: 16),
