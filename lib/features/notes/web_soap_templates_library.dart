@@ -7,6 +7,7 @@ import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../shell/desktop_chrome.dart';
 import '../templates/template_body.dart';
+import 'soap_dictation.dart';
 import 'soap_templates.dart';
 
 /// Opens the template builder from the library (Edit / Create draft).
@@ -18,6 +19,7 @@ typedef OpenTemplateBuilder =
       String? remoteId,
       String? fieldsJson,
       bool published,
+      bool hasPendingDraft,
     });
 
 /// Desktop SOAP template library (Figma `NotesOnly · SOAP template library`).
@@ -98,6 +100,8 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   }
 
   _LibraryEntry _orgEntry(Template row) {
+    final pending = templateHasPendingDraft(row);
+    final working = templateWorkingCopy(row);
     return _LibraryEntry(
       template: SoapTemplate(
         id: orgTemplateChoiceId(row.remoteId),
@@ -105,15 +109,18 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       ),
       description: row.description,
       versionLine: row.published
-          ? 'Shared with the clinic'
+          ? (pending
+              ? 'Shared with the clinic · Draft pending'
+              : 'Shared with the clinic')
           : 'Draft · only you',
       isPublished: row.published,
-      // Pure drafts use Edit; Edit draft is only for published-with-pending-draft.
-      editDraftLabel: false,
       draftOnly: !row.published,
+      hasPendingDraft: pending,
       createdBy: row.createdBy,
       remoteId: row.remoteId,
-      fieldsJson: row.fieldsJson,
+      fieldsJson: working.fieldsJson,
+      workingName: working.name,
+      workingDescription: working.description,
     );
   }
 
@@ -144,6 +151,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     String? remoteId,
     String? fieldsJson,
     bool published = false,
+    bool hasPendingDraft = false,
   }) {
     final open = widget.onOpenBuilder;
     if (open == null) {
@@ -157,6 +165,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       remoteId: remoteId,
       fieldsJson: fieldsJson,
       published: published,
+      hasPendingDraft: hasPendingDraft,
     );
   }
 
@@ -278,19 +287,23 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
             selected: items[i].template.id == _selectedId,
             canEdit: _canEdit(items[i], viewerUid),
             onSelect: () => setState(() => _selectedId = items[i].template.id),
-            onDuplicate: () => _stubAction('Duplicate'),
+            onDuplicate: () => _duplicate(items[i], viewerUid),
+            onDelete: items[i].remoteId == null
+                ? null
+                : () => _confirmDelete(items[i], viewerUid),
             onAdd: () => _addCopy(items[i], viewerUid),
             onEdit: () {
               final e = items[i];
               if (!_canEdit(e, viewerUid)) return;
               _openBuilder(
-                name: e.template.label,
-                description: e.description,
+                name: e.workingName ?? e.template.label,
+                description: e.workingDescription ?? e.description,
                 seedPostnatal:
                     e.remoteId == null && e.template.id == 'postnatal_check',
                 remoteId: e.remoteId,
                 fieldsJson: e.fieldsJson,
-                published: e.isPublished && !e.draftOnly,
+                published: e.isPublished,
+                hasPendingDraft: e.hasPendingDraft,
               );
             },
           ),
@@ -312,27 +325,91 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       await db.saveOrgTemplate(
         name: entry.template.label,
         description: entry.description,
-        fieldsJson: entry.fieldsJson ?? '[]',
+        fieldsJson: entry.fieldsJson ?? _fieldsJsonForBuiltin(entry.template),
         createdBy: uid,
         createdByName: liveName,
         published: false,
       );
       if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(
-          content: Text('Added to your templates.'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showPelviSnackBar(context, 'Added to your templates.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(
-          content: Text('Could not add template: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showPelviSnackBar(context, 'Could not add template: $e');
+    }
+  }
+
+  Future<void> _duplicate(_LibraryEntry entry, String? viewerUid) async {
+    final db = AppDatabaseProvider.maybeOf(context);
+    if (db == null) return;
+    final uid = viewerUid?.trim() ?? '';
+    if (uid.isEmpty) {
+      _stubAction('Duplicate');
+      return;
+    }
+    final liveName = NotesAuth.currentUser?.displayName?.trim() ?? '';
+    final sourceName = entry.workingName ?? entry.template.label;
+    final copyName = sourceName.trim().isEmpty
+        ? 'Copy of Untitled template'
+        : 'Copy of $sourceName';
+    try {
+      await db.saveOrgTemplate(
+        name: copyName,
+        description: entry.workingDescription ?? entry.description,
+        fieldsJson: entry.fieldsJson ?? _fieldsJsonForBuiltin(entry.template),
+        createdBy: uid,
+        createdByName: liveName,
+        published: false,
       );
+      if (!mounted) return;
+      showPelviSnackBar(context, 'Duplicated as a draft.');
+    } catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, 'Could not duplicate: $e');
+    }
+  }
+
+  Future<void> _confirmDelete(
+    _LibraryEntry entry,
+    String? viewerUid,
+  ) async {
+    final remoteId = entry.remoteId;
+    if (remoteId == null || remoteId.isEmpty) return;
+    if (!_canEdit(entry, viewerUid)) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this template?'),
+        content: Text('Delete “${entry.template.label}”? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: PelviColors.of(context).danger,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final db = AppDatabaseProvider.maybeOf(context);
+    if (db == null) return;
+    final uid = viewerUid?.trim() ?? '';
+    if (uid.isEmpty) {
+      _stubAction('Delete');
+      return;
+    }
+    try {
+      await db.deleteOrgTemplate(remoteId: remoteId, deletedBy: uid);
+      if (!mounted) return;
+      showPelviSnackBar(context, 'Template deleted.');
+    } catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, 'Could not delete: $e');
     }
   }
 
@@ -345,6 +422,20 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       seedPostnatal: false,
     );
   }
+}
+
+String _fieldsJsonForBuiltin(SoapTemplate template) {
+  if (template.fields.isNotEmpty) {
+    return encodeTemplateFields(template.fields);
+  }
+  return encodeTemplateFields(
+    fieldsFromSectionBodies({
+      SoapSection.subjective: template.subjective,
+      SoapSection.objective: template.objective,
+      SoapSection.assessment: template.assessment,
+      SoapSection.plan: template.plan,
+    }),
+  );
 }
 
 class _Heading extends StatelessWidget {
@@ -521,6 +612,7 @@ class _TemplateCard extends StatelessWidget {
     required this.onDuplicate,
     required this.onAdd,
     required this.onEdit,
+    this.onDelete,
   });
 
   final _LibraryEntry entry;
@@ -528,6 +620,7 @@ class _TemplateCard extends StatelessWidget {
   final bool canEdit;
   final VoidCallback onSelect;
   final VoidCallback onDuplicate;
+  final VoidCallback? onDelete;
   final VoidCallback onAdd;
   final VoidCallback onEdit;
 
@@ -627,55 +720,47 @@ class _TemplateCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    if (entry.editDraftLabel)
-                      FilledButton.icon(
-                        onPressed: onEdit,
-                        icon: Icon(
-                          Icons.edit_outlined,
-                          size: 16,
-                          color: c.pink700,
+                    if (onDelete != null) ...[
+                      const SizedBox(width: 4),
+                      TextButton(
+                        onPressed: onDelete,
+                        style: TextButton.styleFrom(
+                          foregroundColor: c.danger,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        label: Text(
-                          'Edit draft',
+                        child: const Text(
+                          'Delete',
                           style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: c.pink700,
-                          ),
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: c.pink50,
-                          foregroundColor: c.pink700,
-                          minimumSize: const Size(0, 38),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(PelviRadius.sm),
-                          ),
-                        ),
-                      )
-                    else
-                      OutlinedButton.icon(
-                        onPressed: onEdit,
-                        icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
-                        label: Text(
-                          'Edit',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: c.ink,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: c.surface,
-                          side: BorderSide(color: c.border),
-                          minimumSize: const Size(0, 38),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(PelviRadius.sm),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
                       ),
+                    ],
+                    const SizedBox(width: 4),
+                    OutlinedButton.icon(
+                      onPressed: onEdit,
+                      icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
+                      label: Text(
+                        'Edit',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: c.ink,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: c.surface,
+                        side: BorderSide(color: c.border),
+                        minimumSize: const Size(0, 38),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(PelviRadius.sm),
+                        ),
+                      ),
+                    ),
                   ] else
                     FilledButton.icon(
                       onPressed: onAdd,
@@ -982,56 +1067,54 @@ class _LibraryEntry {
     required this.description,
     required this.versionLine,
     required this.isPublished,
-    required this.editDraftLabel,
     this.draftOnly = false,
+    this.hasPendingDraft = false,
     this.createdBy,
     this.remoteId,
     this.fieldsJson,
+    this.workingName,
+    this.workingDescription,
   });
 
   final SoapTemplate template;
   final String description;
   final String versionLine;
   final bool isPublished;
-  /// True only for published templates that still have a pending draft.
-  final bool editDraftLabel;
   final bool draftOnly;
+  final bool hasPendingDraft;
   final String? createdBy;
   final String? remoteId;
   final String? fieldsJson;
+  final String? workingName;
+  final String? workingDescription;
 
   String get statusLabel => draftOnly ? 'Draft' : 'Published';
 }
 
-/// shortcut: version/publish stubs; upgrade when template model persists them
 final _builtinEntries = <_LibraryEntry>[
   _LibraryEntry(
     template: soapTemplateBlank,
     description: 'Four open SOAP sections for free-form documentation.',
     versionLine: 'Version 1',
     isPublished: true,
-    editDraftLabel: false,
   ),
   _LibraryEntry(
     template: soapTemplatePostnatal,
     description: 'Guided prompts for a postnatal review.',
-    versionLine: 'Version 1 · Version 2 draft',
+    versionLine: 'Version 1',
     isPublished: true,
-    editDraftLabel: true,
   ),
   _LibraryEntry(
     template: soapTemplatePelvicFloor,
     description: 'Structured prompts for a pelvic floor review.',
     versionLine: 'Version 1',
     isPublished: true,
-    editDraftLabel: false,
   ),
   _LibraryEntry(
     template: soapTemplateDram,
     description: 'A draft structure for a focused review.',
     versionLine: 'Version 1 draft',
     isPublished: false,
-    editDraftLabel: false,
     draftOnly: true,
   ),
 ];

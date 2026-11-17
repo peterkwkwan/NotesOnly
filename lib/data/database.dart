@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
@@ -13,6 +14,60 @@ import 'sync.dart';
 export 'recall.dart';
 
 part 'database.g.dart';
+
+/// Working draft overlay stored on a published [Template] row.
+class TemplateDraftOverlay {
+  const TemplateDraftOverlay({
+    required this.name,
+    required this.description,
+    required this.fieldsJson,
+  });
+
+  final String name;
+  final String description;
+  final String fieldsJson;
+}
+
+String encodeTemplateDraftOverlay({
+  required String name,
+  required String description,
+  required String fieldsJson,
+}) {
+  return jsonEncode({
+    'name': name,
+    'description': description,
+    'fieldsJson': fieldsJson,
+  });
+}
+
+TemplateDraftOverlay? decodeTemplateDraftOverlay(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(trimmed);
+    if (decoded is! Map) return null;
+    return TemplateDraftOverlay(
+      name: decoded['name']?.toString() ?? '',
+      description: decoded['description']?.toString() ?? '',
+      fieldsJson: decoded['fieldsJson']?.toString() ?? '[]',
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+bool templateHasPendingDraft(Template row) =>
+    row.draftOverlayJson.trim().isNotEmpty;
+
+/// Draft overlay when present; otherwise the live published / never-published body.
+TemplateDraftOverlay templateWorkingCopy(Template row) {
+  return decodeTemplateDraftOverlay(row.draftOverlayJson) ??
+      TemplateDraftOverlay(
+        name: row.name,
+        description: row.description,
+        fieldsJson: row.fieldsJson,
+      );
+}
 
 /// Thrown when a create/update would overlap another appointment.
 class AppointmentConflictException implements Exception {
@@ -179,6 +234,12 @@ class Templates extends Table {
   /// Teammates only see published templates; creator keeps drafts in own tabs.
   BoolColumn get published =>
       boolean().withDefault(const Constant(false))();
+
+  /// Unpublished draft overlay on a published row. Empty = none.
+  /// JSON: `{name, description, fieldsJson}`. Never-published drafts use the
+  /// main columns instead; Save draft of published updates this in place.
+  TextColumn get draftOverlayJson =>
+      text().withDefault(const Constant(''))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   IntColumn get syncStatus => intEnum<RowSyncStatus>()
@@ -206,7 +267,7 @@ class AppDatabase extends _$AppDatabase {
       onAppointmentChanged?.call(id, deleteGoogleEventId: deleteGoogleEventId);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   /// True if [table] exists (half-applied migrate / never-created templates).
   Future<bool> hasSqliteTable(String table) async {
@@ -369,6 +430,13 @@ class AppDatabase extends _$AppDatabase {
             // Existing org templates were clinic-visible; keep them published.
             await customStatement(
               'UPDATE templates SET published = 1 WHERE deleted_at IS NULL',
+            );
+          }
+          if (from < 12) {
+            await _addColumnIfMissing(
+              m,
+              templates,
+              templates.draftOverlayJson,
             );
           }
         },
@@ -2048,6 +2116,10 @@ class AppDatabase extends _$AppDatabase {
 
   /// Insert, or update the row with [remoteId]. [createdBy] is set only on insert.
   /// Updates require the caller to be the stored creator when one is set.
+  ///
+  /// One card per template: Save draft of a published row writes
+  /// [draftOverlayJson] in place (keeps [published] true + live body). Publish
+  /// promotes the working body to the live columns and clears the overlay.
   Future<Template> saveOrgTemplate({
     String? remoteId,
     required String name,
@@ -2071,19 +2143,51 @@ class AppDatabase extends _$AppDatabase {
             existing.createdBy.isNotEmpty &&
             existing.createdBy == createdBy &&
             createdByName.trim().isNotEmpty;
-        await (update(templates)..where((t) => t.id.equals(existing.id))).write(
-          TemplatesCompanion(
+        final TemplatesCompanion companion;
+        if (published) {
+          companion = TemplatesCompanion(
             name: Value(trimmed),
             description: Value(description),
             fieldsJson: Value(fieldsJson),
-            published: Value(published),
+            published: const Value(true),
+            draftOverlayJson: const Value(''),
             createdByName: fillName
                 ? Value(createdByName.trim())
                 : const Value.absent(),
             updatedAt: Value(now),
             syncStatus: const Value(RowSyncStatus.pending),
-          ),
-        );
+          );
+        } else if (existing.published) {
+          companion = TemplatesCompanion(
+            draftOverlayJson: Value(
+              encodeTemplateDraftOverlay(
+                name: trimmed,
+                description: description,
+                fieldsJson: fieldsJson,
+              ),
+            ),
+            createdByName: fillName
+                ? Value(createdByName.trim())
+                : const Value.absent(),
+            updatedAt: Value(now),
+            syncStatus: const Value(RowSyncStatus.pending),
+          );
+        } else {
+          companion = TemplatesCompanion(
+            name: Value(trimmed),
+            description: Value(description),
+            fieldsJson: Value(fieldsJson),
+            published: const Value(false),
+            draftOverlayJson: const Value(''),
+            createdByName: fillName
+                ? Value(createdByName.trim())
+                : const Value.absent(),
+            updatedAt: Value(now),
+            syncStatus: const Value(RowSyncStatus.pending),
+          );
+        }
+        await (update(templates)..where((t) => t.id.equals(existing.id)))
+            .write(companion);
         _notifyDirty();
         return (select(templates)..where((t) => t.id.equals(existing.id)))
             .getSingle();
@@ -2101,6 +2205,7 @@ class AppDatabase extends _$AppDatabase {
         createdBy: Value(createdBy),
         createdByName: Value(createdByName.trim()),
         published: Value(published),
+        draftOverlayJson: const Value(''),
         createdAt: Value(now),
         updatedAt: Value(now),
         syncStatus: const Value(RowSyncStatus.pending),
@@ -2108,6 +2213,29 @@ class AppDatabase extends _$AppDatabase {
     );
     _notifyDirty();
     return (select(templates)..where((t) => t.id.equals(localId))).getSingle();
+  }
+
+  /// Soft-delete. Creator-only when [createdBy] is set on the row.
+  Future<void> deleteOrgTemplate({
+    required String remoteId,
+    required String deletedBy,
+  }) async {
+    final existing = await (select(templates)
+          ..where((t) => t.remoteId.equals(remoteId) & t.deletedAt.isNull()))
+        .getSingleOrNull();
+    if (existing == null) return;
+    if (existing.createdBy.isNotEmpty && existing.createdBy != deletedBy) {
+      throw StateError('Only the template creator can delete it.');
+    }
+    final now = DateTime.now();
+    await (update(templates)..where((t) => t.id.equals(existing.id))).write(
+      TemplatesCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    _notifyDirty();
   }
 
   /// Stamp [uid] onto a row that was saved before we knew the author.
@@ -2139,6 +2267,7 @@ class AppDatabase extends _$AppDatabase {
     DateTime? deletedAt,
     required bool pending,
     bool published = true,
+    String draftOverlayJson = '',
   }) async {
     final existing = await (select(templates)
           ..where((t) => t.remoteId.equals(remoteId)))
@@ -2161,6 +2290,7 @@ class AppDatabase extends _$AppDatabase {
       createdBy: Value(by),
       createdByName: Value(byName),
       published: Value(published),
+      draftOverlayJson: Value(draftOverlayJson),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: Value(deletedAt),

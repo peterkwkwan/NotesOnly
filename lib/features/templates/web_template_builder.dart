@@ -37,6 +37,7 @@ class WebTemplateBuilder extends StatefulWidget {
     this.remoteId,
     this.fieldsJson,
     this.initialPublished = false,
+    this.initialHasPendingDraft = false,
     this.onBackToLibrary,
   });
 
@@ -50,8 +51,11 @@ class WebTemplateBuilder extends StatefulWidget {
   /// Saved builder fields. Null uses the postnatal or blank starter.
   final String? fieldsJson;
 
-  /// Draft/published chip + Publish path. New templates start as drafts.
+  /// Live published flag on the org row (teammates still see published body).
   final bool initialPublished;
+
+  /// True when opening a published row that already has a draft overlay.
+  final bool initialHasPendingDraft;
   final VoidCallback? onBackToLibrary;
 
   @override
@@ -66,13 +70,17 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
   late SoapSection _section;
   String? _remoteId;
   bool _published = false;
+  bool _hasPendingDraft = false;
   bool _saving = false;
+
+  bool get _chipPublished => _published && !_hasPendingDraft;
 
   @override
   void initState() {
     super.initState();
     _remoteId = widget.remoteId;
     _published = widget.initialPublished;
+    _hasPendingDraft = widget.initialHasPendingDraft;
     final seedFields = widget.fieldsJson != null
         ? decodeTemplateFields(widget.fieldsJson!)
         : widget.seedPostnatal
@@ -149,6 +157,7 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
       setState(() {
         _remoteId = saved.remoteId;
         _published = saved.published;
+        _hasPendingDraft = templateHasPendingDraft(saved);
       });
       showPelviSnackBar(
         context,
@@ -249,16 +258,16 @@ class _WebTemplateBuilderState extends State<WebTemplateBuilder> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
-            color: _published ? c.pink50 : c.purple50,
+            color: _chipPublished ? c.pink50 : c.purple50,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
-            _published ? 'Published' : 'Draft',
+            _chipPublished ? 'Published' : 'Draft',
             style: TextStyle(
               fontSize: 11,
               height: 1.5,
               fontWeight: FontWeight.w500,
-              color: _published ? c.pink700 : c.purple700,
+              color: _chipPublished ? c.pink700 : c.purple700,
             ),
           ),
         ),

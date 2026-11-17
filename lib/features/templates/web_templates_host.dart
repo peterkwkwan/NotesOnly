@@ -16,6 +16,7 @@ class WebTemplatesHost extends StatelessWidget {
     String? remoteId,
     String? fieldsJson,
     bool published = false,
+    bool hasPendingDraft = false,
   }) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -26,6 +27,7 @@ class WebTemplatesHost extends StatelessWidget {
           remoteId: remoteId,
           fieldsJson: fieldsJson,
           initialPublished: published,
+          initialHasPendingDraft: hasPendingDraft,
           onBackToLibrary: () => Navigator.of(routeContext).pop(),
         ),
       ),
@@ -43,6 +45,7 @@ class WebTemplatesHost extends StatelessWidget {
             String? remoteId,
             String? fieldsJson,
             bool published = false,
+            bool hasPendingDraft = false,
           }) {
             _openBuilder(
               context,
@@ -52,6 +55,7 @@ class WebTemplatesHost extends StatelessWidget {
               remoteId: remoteId,
               fieldsJson: fieldsJson,
               published: published,
+              hasPendingDraft: hasPendingDraft,
             );
           },
     );

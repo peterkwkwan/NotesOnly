@@ -568,6 +568,85 @@ void main() {
     expect(await db.hasSqliteColumn('templates', 'fields_json'), isTrue);
   });
 
+  test('published template keeps one card for draft overlay, duplicate, delete',
+      () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    expect(await db.hasSqliteColumn('templates', 'draft_overlay_json'), isTrue);
+
+    final live = await db.saveOrgTemplate(
+      name: 'Clinic form',
+      description: 'Live',
+      fieldsJson: '[{"id":"f1","section":"subjective","label":"Live S"}]',
+      createdBy: 'uid-a',
+      published: true,
+    );
+    expect(live.published, isTrue);
+    expect(templateHasPendingDraft(live), isFalse);
+
+    final drafted = await db.saveOrgTemplate(
+      remoteId: live.remoteId,
+      name: 'Clinic form v2',
+      description: 'Drafting',
+      fieldsJson: '[{"id":"f1","section":"subjective","label":"Draft S"}]',
+      createdBy: 'uid-a',
+      published: false,
+    );
+    expect(await db.listOrgTemplates(), hasLength(1));
+    expect(drafted.published, isTrue);
+    expect(drafted.name, 'Clinic form');
+    expect(drafted.description, 'Live');
+    expect(drafted.fieldsJson, contains('Live S'));
+    expect(templateHasPendingDraft(drafted), isTrue);
+    final working = templateWorkingCopy(drafted);
+    expect(working.name, 'Clinic form v2');
+    expect(working.description, 'Drafting');
+    expect(working.fieldsJson, contains('Draft S'));
+
+    final promoted = await db.saveOrgTemplate(
+      remoteId: live.remoteId,
+      name: 'Clinic form v2',
+      description: 'Drafting',
+      fieldsJson: '[{"id":"f1","section":"subjective","label":"Draft S"}]',
+      createdBy: 'uid-a',
+      published: true,
+    );
+    expect(await db.listOrgTemplates(), hasLength(1));
+    expect(promoted.published, isTrue);
+    expect(promoted.name, 'Clinic form v2');
+    expect(promoted.fieldsJson, contains('Draft S'));
+    expect(templateHasPendingDraft(promoted), isFalse);
+
+    final copy = await db.saveOrgTemplate(
+      name: 'Copy of Clinic form v2',
+      description: promoted.description,
+      fieldsJson: promoted.fieldsJson,
+      createdBy: 'uid-a',
+      published: false,
+    );
+    expect(await db.listOrgTemplates(), hasLength(2));
+    expect(copy.published, isFalse);
+    expect(copy.remoteId, isNot(promoted.remoteId));
+
+    await db.deleteOrgTemplate(remoteId: copy.remoteId, deletedBy: 'uid-a');
+    expect(await db.listOrgTemplates(), hasLength(1));
+
+    await expectLater(
+      () => db.deleteOrgTemplate(
+        remoteId: promoted.remoteId,
+        deletedBy: 'uid-b',
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('Only the template creator'),
+        ),
+      ),
+    );
+    expect(await db.listOrgTemplates(), hasLength(1));
+  });
+
   test('nextWholeHour rounds past the hour, keeps exact hour', () {
     expect(
       nextWholeHour(DateTime(2026, 10, 28, 12, 48)),
@@ -2216,8 +2295,10 @@ void main() {
     expect(find.text('Their draft'), findsNothing);
     expect(find.textContaining('Created by'), findsNothing);
     expect(find.text('Edit'), findsWidgets);
-    // Published builtin with pending draft stub keeps "Edit draft".
-    expect(find.text('Edit draft'), findsOneWidget);
+    expect(find.text('Edit draft'), findsNothing);
+    // Org rows show Delete; builtins do not.
+    expect(find.text('Delete'), findsOneWidget);
+    expect(find.text('Duplicate'), findsWidgets);
 
     await tester.tap(find.text('Drafts (1)'));
     await tester.pump();

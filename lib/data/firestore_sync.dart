@@ -561,6 +561,7 @@ class FirestoreSyncEngine implements SyncEngine {
           'createdBy': row.createdBy,
           'createdByName': row.createdByName,
           'published': row.published,
+          'draftOverlayJson': row.draftOverlayJson,
           'createdAt': _ts(row.createdAt)!,
           'updatedAt': _ts(row.updatedAt)!,
           'deletedAt': _ts(row.deletedAt),
@@ -1008,6 +1009,7 @@ class FirestoreSyncEngine implements SyncEngine {
       createdByName: (data['createdByName'] as String?) ?? '',
       // Missing key = pre-publish-flag docs; treat as published (old clinic-visible).
       published: data['published'] as bool? ?? true,
+      draftOverlayJson: (data['draftOverlayJson'] as String?) ?? '',
       createdAt: _readTs(data['createdAt']) ?? remoteUpdated,
       updatedAt: remoteUpdated,
       deletedAt: _readTs(data['deletedAt']),
