@@ -9,6 +9,9 @@ const STATE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_REDIRECT_URI =
   'https://us-central1-notesonly-e4829.cloudfunctions.net/googleCalendarOAuthCallback';
 const DEFAULT_SUCCESS_URL = 'https://notesonly-e4829.web.app/?gcal=connected';
+/** Android App Link / custom scheme — intent-filter in AndroidManifest. */
+const APP_RETURN_URL = 'notesonly://gcal/connected';
+const APP_CANCEL_URL = 'notesonly://gcal/cancelled';
 
 function redirectUri() {
   return process.env.GCAL_REDIRECT_URI || DEFAULT_REDIRECT_URI;
@@ -16,6 +19,36 @@ function redirectUri() {
 
 function successUrl() {
   return process.env.GCAL_SUCCESS_URL || DEFAULT_SUCCESS_URL;
+}
+
+/**
+ * Post-consent bridge: open the Android app via custom scheme, then fall back
+ * to Hosting for desktop/web. Google redirect URI stays the Function URL.
+ */
+function oauthReturnHtml({ title, heading, detail, appUrl, webUrl }) {
+  const app = String(appUrl);
+  const web = String(webUrl);
+  const detailHtml = detail
+    ? `<p>${String(detail).replace(/</g, '&lt;')}</p>`
+    : '';
+  return htmlPage(
+    title,
+    `<h1>${heading}</h1>
+     ${detailHtml}
+     <p>Returning to NotesOnly…</p>
+     <p><a href="${app}">Open NotesOnly app</a></p>
+     <p><a href="${web}">Continue in browser</a></p>
+     <script>
+       (function () {
+         var app = ${JSON.stringify(app)};
+         var web = ${JSON.stringify(web)};
+         try { window.location.replace(app); } catch (e) {}
+         setTimeout(function () {
+           try { window.location.replace(web); } catch (e) {}
+         }, 700);
+       })();
+     </script>`,
+  );
 }
 
 function clientId() {
@@ -200,14 +233,17 @@ async function beginGoogleCalendarOAuth(db, auth) {
 async function handleOAuthCallback(db, req, res) {
   const q = req.query || {};
   if (q.error) {
+    const webCancel = successUrl().replace('gcal=connected', 'gcal=cancelled');
     res
       .status(400)
       .send(
-        htmlPage(
-          'Calendar connect failed',
-          `<h1>Calendar connect cancelled</h1><p>${String(q.error)}</p>
-           <p><a href="${successUrl().replace('gcal=connected', 'gcal=cancelled')}">Back to NotesOnly</a></p>`,
-        ),
+        oauthReturnHtml({
+          title: 'Calendar connect failed',
+          heading: 'Calendar connect cancelled',
+          detail: String(q.error),
+          appUrl: APP_CANCEL_URL,
+          webUrl: webCancel,
+        }),
       );
     return;
   }
@@ -278,7 +314,17 @@ async function handleOAuthCallback(db, req, res) {
       { merge: true },
     );
     await ref.delete().catch(() => {});
-    res.redirect(302, successUrl());
+    // Bridge page (not a bare Hosting redirect) so Android returns to the app.
+    res
+      .status(200)
+      .send(
+        oauthReturnHtml({
+          title: 'Calendar connected',
+          heading: 'Google Calendar connected',
+          appUrl: APP_RETURN_URL,
+          webUrl: successUrl(),
+        }),
+      );
   } catch (err) {
     await ref.delete().catch(() => {});
     res
@@ -374,6 +420,7 @@ async function disconnectGoogleCalendar(db, auth) {
 
 module.exports = {
   CALENDAR_SCOPE,
+  APP_RETURN_URL,
   encryptRefreshToken,
   decryptRefreshToken,
   buildAuthUrl,
@@ -387,5 +434,8 @@ module.exports = {
     redirectUri,
     successUrl,
     normalizeEmail,
+    oauthReturnHtml,
+    APP_RETURN_URL,
+    APP_CANCEL_URL,
   },
 };

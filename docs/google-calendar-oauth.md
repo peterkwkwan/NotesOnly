@@ -66,22 +66,36 @@ Optional runtime env:
 | Name | Default | Purpose |
 | --- | --- | --- |
 | `GCAL_REDIRECT_URI` | `https://us-central1-notesonly-e4829.cloudfunctions.net/googleCalendarOAuthCallback` | Must match Console redirect URI |
-| `GCAL_SUCCESS_URL` | `https://notesonly-e4829.web.app/?gcal=connected` | Post-consent browser redirect |
+| `GCAL_SUCCESS_URL` | `https://notesonly-e4829.web.app/?gcal=connected` | Desktop/web fallback after consent bridge |
+
+**Google Console redirect URI does not change** for the mobile return fix.
+The Function callback still exchanges the code, then serves an HTML bridge that
+opens `notesonly://gcal/connected` (Android intent-filter) and falls back to
+`GCAL_SUCCESS_URL` for desktop/web.
 
 ## Deploy order
 
 ```bash
-# 1) Secrets first (above)
+# 1) Secrets first (above) — only on first setup
 cd functions && npm ci && npm test && cd ..
+# Mobile return-to-app fix: Functions only (Hosting optional; bridge no longer
+# depends on Hosting for Android). No Google Console redirect URI change.
+firebase deploy --only functions:googleCalendarOAuthCallback,functions:beginGoogleCalendarOAuth
+# Or simply:
 firebase deploy --only functions
-firebase deploy --only firestore:rules
 ```
+
+Ship a new Android build (Custom Tabs launch mode + `notesonly://gcal` intent
+filter). Until Functions are redeployed, consent still lands on Hosting only
+and the app relies on the in-app poll / resume recovery alone.
 
 ## App behaviour
 
-- **Connect** (Account settings): opens Google consent (`access_type=offline`,
-  `prompt=consent`) → Function stores refresh token → client polls status →
-  backfill + drain.
+- **Connect** (Account settings): opens Google consent in a Chrome Custom Tab
+  on Android (`LaunchMode.inAppBrowserView`; web still uses an external tab)
+  with `access_type=offline` + `prompt=consent` → Function stores refresh
+  token → bridge opens `notesonly://gcal/connected` → client polls status
+  (and finishes on resume if status was `connecting`) → backfill + drain.
 - **Drain**: client outbox; each tick calls `getCalendarAccessToken` (cached
   ~1h in memory) then Calendar REST.
 - **Toggle off / Disconnect**: `disconnectGoogleCalendar` (revoke + delete).
@@ -97,3 +111,15 @@ firebase deploy --only firestore:rules
 4. Create an appointment → confirm event on calendar.google.com primary.
 5. Hard-refresh the web app → create/edit another appointment without re-consent.
 6. Toggle off → confirm Functions doc gone; events remain on Google.
+
+### Android return-to-app smoke
+
+1. Install a build that includes the `notesonly://gcal` intent-filter.
+2. Confirm Functions callback deploy is live (bridge page mentions
+   “Open NotesOnly app”, not a bare Hosting redirect).
+3. On the phone: More → enable Google Calendar sync.
+4. Consent in the Custom Tab; after success you should land back in the app
+   (or tap **Open NotesOnly app**).
+5. Toggle subtitle shows **Connected** (not stuck on Connecting… / Needs
+   permission). Local `sync_google_calendar_enabled` is on for that device.
+6. Create an appointment on the phone → event appears on Google primary.

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -49,6 +50,8 @@ class GoogleCalendarSync {
     db.onAppointmentChanged = (id, {deleteGoogleEventId}) {
       unawaited(_onAppointmentChanged(id, deleteGoogleEventId));
     };
+    // Process death mid-consent can leave status=connecting; recover on boot.
+    unawaited(_finishPendingConnect());
   }
 
   void stop() {
@@ -61,7 +64,11 @@ class GoogleCalendarSync {
 
   void onAppResumed() {
     if (!_started) return;
-    unawaited(drain());
+    // Deep link / Custom Tab close brings us here after Functions stores the token.
+    unawaited(() async {
+      await _finishPendingConnect();
+      await drain();
+    }());
   }
 
   void _clearAccessCache() {
@@ -69,14 +76,26 @@ class GoogleCalendarSync {
     _accessExpiresAt = null;
   }
 
+  /// Chrome Custom Tabs / SFSafariView on mobile so consent can return via
+  /// `notesonly://gcal/*`. Web keeps an external tab (same as before).
+  static LaunchMode get _oauthLaunchMode =>
+      kIsWeb ? LaunchMode.externalApplication : LaunchMode.inAppBrowserView;
+
   /// Opt-in: offline OAuth via Functions + backfill. Returns false if denied/timeout.
   Future<bool> enable() async {
     try {
       final authUrl = await _oauth.beginConnect();
-      final launched = await launchUrl(
+      var launched = await launchUrl(
         Uri.parse(authUrl),
-        mode: LaunchMode.externalApplication,
+        mode: _oauthLaunchMode,
       );
+      // Older WebViews / rare devices: fall back to external browser.
+      if (!launched && !kIsWeb) {
+        launched = await launchUrl(
+          Uri.parse(authUrl),
+          mode: LaunchMode.externalApplication,
+        );
+      }
       if (!launched) {
         await db.setGoogleCalendarSyncEnabled(false);
         await db.setGoogleCalendarSyncStatus('needs_permission');
@@ -96,16 +115,39 @@ class GoogleCalendarSync {
         }
       }
       if (!connected) {
+        // Deep link / resume may have already flipped us to connected, or the
+        // last poll missed a just-written token — don't undo that.
+        if (await db.getGoogleCalendarSyncStatus() == 'connected') {
+          return true;
+        }
+        if (await _finishPendingConnect()) return true;
         await db.setGoogleCalendarSyncEnabled(false);
         await db.setGoogleCalendarSyncStatus('needs_permission');
         return false;
       }
     } catch (_) {
+      if (await db.getGoogleCalendarSyncStatus() == 'connected') {
+        return true;
+      }
       await db.setGoogleCalendarSyncEnabled(false);
       await db.setGoogleCalendarSyncStatus('needs_permission');
       return false;
     }
 
+    await _finishConnected();
+    return true;
+  }
+
+  /// If Account toggle left us in `connecting` and the server now has a
+  /// refresh token (consent finished in Custom Tab / returned via deep link),
+  /// flip local opt-in on. No-op when the user never started Connect here.
+  Future<bool> _finishPendingConnect() async {
+    if (await db.getGoogleCalendarSyncStatus() != 'connecting') return false;
+    try {
+      if (!await _oauth.isConnected()) return false;
+    } catch (_) {
+      return false;
+    }
     await _finishConnected();
     return true;
   }

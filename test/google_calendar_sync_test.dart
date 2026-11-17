@@ -64,6 +64,41 @@ void main() {
     expect(oauth.beginCalls, 0);
   });
 
+  test('resume finishes connecting when server already has token', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setGoogleCalendarSyncEnabled(true);
+    await db.setGoogleCalendarSyncStatus('connecting');
+    final oauth = _FakeGcalOAuth(connected: true);
+    final sync = GoogleCalendarSync(db, gcalOAuth: oauth);
+
+    sync.start();
+    // start()/onAppResumed schedule _finishPendingConnect without awaiting.
+    for (var i = 0; i < 20; i++) {
+      if (await db.getGoogleCalendarSyncStatus() == 'connected') break;
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(await db.getGoogleCalendarSyncEnabled(), isTrue);
+    expect(await db.getGoogleCalendarSyncStatus(), 'connected');
+    expect(oauth.beginCalls, 0);
+  });
+
+  test('resume leaves connecting alone when server not connected', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setGoogleCalendarSyncEnabled(true);
+    await db.setGoogleCalendarSyncStatus('connecting');
+    final oauth = _FakeGcalOAuth(connected: false);
+    final sync = GoogleCalendarSync(db, gcalOAuth: oauth);
+
+    sync.start();
+    sync.onAppResumed();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(await db.getGoogleCalendarSyncStatus(), 'connecting');
+  });
+
   test('outbox retry delay uses earliest future nextAttemptAt', () {
     const now = 1_000_000;
     expect(googleCalendarOutboxRetryDelay([], now), isNull);

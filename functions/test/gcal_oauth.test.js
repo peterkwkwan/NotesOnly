@@ -14,6 +14,8 @@ const {
   decryptRefreshToken,
   buildAuthUrl,
   CALENDAR_SCOPE,
+  APP_RETURN_URL,
+  _internals,
 } = require('../gcal_oauth');
 
 describe('gcal_oauth encrypt/decrypt', () => {
@@ -46,5 +48,20 @@ describe('gcal_oauth buildAuthUrl', () => {
     assert.equal(u.searchParams.get('state'), 'abc');
     assert.equal(u.searchParams.get('login_hint'), 'peter@example.com');
     assert.equal(u.searchParams.get('response_type'), 'code');
+  });
+});
+
+describe('gcal_oauth return bridge', () => {
+  it('embeds notesonly:// deep link and web fallback', () => {
+    assert.equal(APP_RETURN_URL, 'notesonly://gcal/connected');
+    const html = _internals.oauthReturnHtml({
+      title: 'Calendar connected',
+      heading: 'Google Calendar connected',
+      appUrl: APP_RETURN_URL,
+      webUrl: 'https://notesonly-e4829.web.app/?gcal=connected',
+    });
+    assert.match(html, /notesonly:\/\/gcal\/connected/);
+    assert.match(html, /notesonly-e4829\.web\.app\/\?gcal=connected/);
+    assert.match(html, /Open NotesOnly app/);
   });
 });

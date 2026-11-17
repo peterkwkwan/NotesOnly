@@ -465,7 +465,8 @@ class MoreScreen extends StatelessWidget {
     if (!enabled) return base;
     final line = switch (status) {
       'connected' => 'Connected',
-      'connecting' => 'Connecting… finish Google consent in the browser',
+      'connecting' =>
+          'Connecting… finish Google consent, then return to NotesOnly',
       'needs_permission' => 'Needs permission',
       'error' => 'Temporary error',
       _ => 'Connecting…',
