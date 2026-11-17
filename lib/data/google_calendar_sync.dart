@@ -28,7 +28,9 @@ class GoogleCalendarSync {
   void Function(String message)? onSoftError;
 
   bool _draining = false;
+  bool _drainAgain = false;
   Timer? _debounce;
+  Timer? _retry;
   bool _started = false;
 
   String? _accessToken;
@@ -39,6 +41,7 @@ class GoogleCalendarSync {
   static const _maxAttempts = 8;
   static const _connectTimeout = Duration(minutes: 2);
   static const _pollInterval = Duration(seconds: 2);
+  static const _offlineRetry = Duration(seconds: 15);
 
   void start() {
     if (_started) return;
@@ -52,6 +55,8 @@ class GoogleCalendarSync {
     _started = false;
     db.onAppointmentChanged = null;
     _debounce?.cancel();
+    _retry?.cancel();
+    _drainAgain = false;
   }
 
   void onAppResumed() {
@@ -112,6 +117,9 @@ class GoogleCalendarSync {
 
   /// Stop future pushes + revoke server refresh token. Leaves Google events (v1).
   Future<void> disable() async {
+    _debounce?.cancel();
+    _retry?.cancel();
+    _drainAgain = false;
     await db.setGoogleCalendarSyncEnabled(false);
     await db.setGoogleCalendarSyncStatus('');
     await db.setSetting(AppDatabase.googleCalendarOutboxKey, '[]');
@@ -183,21 +191,45 @@ class GoogleCalendarSync {
     });
   }
 
+  void _scheduleRetry(Duration delay) {
+    _retry?.cancel();
+    final wait = delay.isNegative ? Duration.zero : delay;
+    _retry = Timer(wait, () {
+      unawaited(drain());
+    });
+  }
+
+  void _armEarliestRetry(List<Map<String, dynamic>> remaining, int nowMs) {
+    _retry?.cancel();
+    final delay = googleCalendarOutboxRetryDelay(remaining, nowMs);
+    if (delay == null) return;
+    _scheduleRetry(delay);
+  }
+
   Future<void> drain() async {
-    if (_draining) return;
+    if (_draining) {
+      _drainAgain = true;
+      return;
+    }
     if (!await db.getGoogleCalendarSyncEnabled()) return;
     // Wait out browser consent before minting / pushing.
     if (await db.getGoogleCalendarSyncStatus() == 'connecting') return;
     final queued = await _readOutbox();
-    if (queued.isEmpty) return;
+    if (queued.isEmpty) {
+      _retry?.cancel();
+      return;
+    }
     if (!await deviceLooksOnline()) {
       // Previously a silent return left status "Connected" with a full outbox.
       onSoftError?.call(
         "Couldn't update Google Calendar — will retry",
       );
+      // Don't soft-exit forever — probe again on a timer (push/resume still work).
+      _scheduleRetry(_offlineRetry);
       return;
     }
     _draining = true;
+    _drainAgain = false;
     try {
       var items = queued;
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -232,6 +264,7 @@ class GoogleCalendarSync {
         }
       }
       await _writeOutbox(remaining);
+      _armEarliestRetry(remaining, now);
       if (softFailed) {
         onSoftError?.call(
           "Couldn't update Google Calendar — will retry",
@@ -239,6 +272,10 @@ class GoogleCalendarSync {
       }
     } finally {
       _draining = false;
+      if (_drainAgain) {
+        _drainAgain = false;
+        _scheduleDrain();
+      }
     }
   }
 
@@ -472,6 +509,22 @@ class GoogleCalendarSync {
     });
     await _writeOutbox(items);
   }
+}
+
+/// Soonest wait until an outbox item's [nextAttemptAt], or null if none deferred.
+Duration? googleCalendarOutboxRetryDelay(
+  Iterable<Map<String, dynamic>> items,
+  int nowMs,
+) {
+  int? earliest;
+  for (final item in items) {
+    final nextAt = (item['nextAttemptAt'] as num?)?.toInt() ?? 0;
+    if (nextAt > nowMs && (earliest == null || nextAt < earliest)) {
+      earliest = nextAt;
+    }
+  }
+  if (earliest == null) return null;
+  return Duration(milliseconds: earliest - nowMs);
 }
 
 class _CalendarHttpException implements Exception {

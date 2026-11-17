@@ -3,8 +3,29 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/data/appointment_overlap.dart';
 import 'package:pelvi_crm/data/database.dart';
+import 'package:pelvi_crm/data/google_calendar_sync.dart';
 
 void main() {
+  test('outbox retry delay uses earliest future nextAttemptAt', () {
+    const now = 1_000_000;
+    expect(googleCalendarOutboxRetryDelay([], now), isNull);
+    expect(
+      googleCalendarOutboxRetryDelay([
+        {'nextAttemptAt': now},
+        {'nextAttemptAt': now - 1},
+      ], now),
+      isNull,
+    );
+    expect(
+      googleCalendarOutboxRetryDelay([
+        {'nextAttemptAt': now + 8000},
+        {'nextAttemptAt': now + 2000},
+        {'nextAttemptAt': now - 50},
+      ], now),
+      const Duration(milliseconds: 2000),
+    );
+  });
+
   test('effective end fills null endsAt for Calendar payload', () {
     final start = DateTime(2026, 11, 14, 10, 0);
     expect(
