@@ -8,6 +8,20 @@ import '../clients/client_format.dart';
 import '../shell/desktop_chrome.dart';
 import 'note_editor_screen.dart';
 
+/// Open an existing SOAP note (desktop workspace or mobile editor).
+Future<void> openExistingNote(BuildContext context, int noteId) async {
+  final shell = ShellNavigation.maybeOf(context);
+  if (shell?.openSoapNote != null && isDesktopShell(context)) {
+    shell!.openSoapNote!(noteId);
+    return;
+  }
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => NoteEditorScreen(noteId: noteId),
+    ),
+  );
+}
+
 /// Open the note for an appointment (create draft if none).
 Future<void> openNoteForAppointment(
   BuildContext context, {
@@ -22,16 +36,7 @@ Future<void> openNoteForAppointment(
     noteDate: noteDate,
   );
   if (!context.mounted) return;
-  final shell = ShellNavigation.maybeOf(context);
-  if (shell?.openSoapNote != null && isDesktopShell(context)) {
-    shell!.openSoapNote!(note.id);
-    return;
-  }
-  await Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => NoteEditorScreen(noteId: note.id),
-    ),
-  );
+  await openExistingNote(context, note.id);
 }
 
 /// FAB / quick-add: pick client → pick appointment → open note.

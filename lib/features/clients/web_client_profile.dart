@@ -1071,7 +1071,10 @@ class _HistoryColumn extends StatelessWidget {
             for (final note in notes)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _NoteHistoryCard(note: note),
+                child: _NoteHistoryCard(
+                  note: note,
+                  onTap: () => openExistingNote(context, note.id),
+                ),
               ),
         ],
       ],
@@ -1210,43 +1213,51 @@ class _HistoryCard extends StatelessWidget {
 }
 
 class _NoteHistoryCard extends StatelessWidget {
-  const _NoteHistoryCard({required this.note});
+  const _NoteHistoryCard({required this.note, required this.onTap});
 
   final Note note;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: c.surface,
+    return Material(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(PelviRadius.md),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(PelviRadius.md),
-        border: Border.all(color: c.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            formatNoteDate(note.noteDate),
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.5,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(PelviRadius.md),
+            border: Border.all(color: c.border),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'SOAP note',
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.5,
-              color: c.inkMuted,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                formatNoteDate(note.noteDate),
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                  color: c.ink,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'SOAP note',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.5,
+                  color: c.inkMuted,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
