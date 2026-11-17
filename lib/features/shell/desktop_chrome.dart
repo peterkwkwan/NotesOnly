@@ -719,28 +719,80 @@ class _DesktopAccountMenuChipState extends State<_DesktopAccountMenuChip> {
     setState(() => _open = open);
   }
 
+  ButtonStyle _itemStyle(PelviPalette c) {
+    return ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.focused) ||
+            states.contains(WidgetState.pressed)) {
+          return c.surfaceMuted;
+        }
+        return Colors.transparent;
+      }),
+      foregroundColor: WidgetStatePropertyAll(c.ink),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      minimumSize: const WidgetStatePropertyAll(Size(220, 40)),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(PelviRadius.sm),
+        ),
+      ),
+      textStyle: const WidgetStatePropertyAll(
+        TextStyle(fontSize: 13, fontWeight: FontWeight.w500, height: 1.3),
+      ),
+      iconSize: const WidgetStatePropertyAll(18),
+      iconColor: WidgetStatePropertyAll(c.inkMuted),
+      visualDensity: VisualDensity.standard,
+    );
+  }
+
+  Widget _itemIcon(IconData icon) => Icon(icon, size: 18);
+
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
+    final itemStyle = _itemStyle(c);
     // MenuAnchor + GestureDetector: PopupMenuButton's InkWell always paints
     // an M3 hover overlay; Theme.hoverColor does not suppress it.
     return MenuAnchor(
       alignmentOffset: const Offset(0, 8),
       onOpen: () => _setOpen(true),
       onClose: () => _setOpen(false),
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(c.surface),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shadowColor: WidgetStatePropertyAll(c.ink.withValues(alpha: 0.14)),
+        elevation: const WidgetStatePropertyAll(10),
+        padding: const WidgetStatePropertyAll(EdgeInsets.all(6)),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.lg),
+            side: BorderSide(color: c.border),
+          ),
+        ),
+      ),
       menuChildren: [
         MenuItemButton(
+          style: itemStyle,
+          leadingIcon: _itemIcon(Icons.settings_outlined),
           onPressed: () => ShellNavigation.maybeOf(context)
               ?.goTo(DesktopDest.accountSettings),
           child: const Text('Account settings'),
         ),
         if (canManagePracticeSettings(widget.roles))
           MenuItemButton(
+            style: itemStyle,
+            leadingIcon: _itemIcon(Icons.apartment_outlined),
             onPressed: () => ShellNavigation.maybeOf(context)
                 ?.goTo(DesktopDest.practiceSettings),
             child: const Text('Practice settings'),
           ),
         MenuItemButton(
+          style: itemStyle,
+          leadingIcon: _itemIcon(Icons.logout),
           onPressed: () => _signOutFromDesktop(context),
           child: const Text('Sign out'),
         ),
