@@ -40,6 +40,20 @@ String formatRevisionDateTime(DateTime dt) {
   return '${local.day} ${months[local.month - 1]} ${local.year}, $hh:$mm';
 }
 
+/// First non-empty SOAP section (S → O → A → P), trimmed. Empty if none.
+String soapNotePreviewBody({
+  required String subjective,
+  required String objective,
+  required String assessment,
+  required String plan,
+}) {
+  for (final raw in [subjective, objective, assessment, plan]) {
+    final t = raw.trim();
+    if (t.isNotEmpty) return t;
+  }
+  return '';
+}
+
 /// One-line revision preview: prefer the latest changed SOAP chunk vs [previous*],
 /// else the first non-empty section.
 String soapRevisionPreview({
@@ -67,12 +81,14 @@ String soapRevisionPreview({
     );
     if (changed != null) return _oneLinePreview(changed);
   }
-  for (final raw in [subjective, objective, assessment, plan]) {
-    final t = raw.trim();
-    if (t.isEmpty) continue;
-    return _oneLinePreview(t);
-  }
-  return 'Empty snapshot';
+  final body = soapNotePreviewBody(
+    subjective: subjective,
+    objective: objective,
+    assessment: assessment,
+    plan: plan,
+  );
+  if (body.isEmpty) return 'Empty snapshot';
+  return _oneLinePreview(body);
 }
 
 /// Last SOAP field that differs from [previous], showing the changed sentence/block.

@@ -1221,6 +1221,12 @@ class _NoteHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
+    final preview = soapNotePreviewBody(
+      subjective: note.subjective,
+      objective: note.objective,
+      assessment: note.assessment,
+      plan: note.plan,
+    );
     return Material(
       color: c.surface,
       borderRadius: BorderRadius.circular(PelviRadius.md),
@@ -1229,7 +1235,7 @@ class _NoteHistoryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(PelviRadius.md),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(PelviRadius.md),
             border: Border.all(color: c.border),
@@ -1246,9 +1252,11 @@ class _NoteHistoryCard extends StatelessWidget {
                   color: c.ink,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
-                'SOAP note',
+                preview.isEmpty ? 'Nothing written yet' : preview,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.5,
