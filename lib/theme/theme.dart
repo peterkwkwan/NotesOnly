@@ -200,6 +200,10 @@ ThemeData _pelviTheme(PelviPalette p, Brightness brightness) {
     dialogTheme: DialogThemeData(
       backgroundColor: p.surface,
       surfaceTintColor: Colors.transparent,
+      // AlertDialog falls back to textTheme.headlineSmall, which
+      // GoogleFonts.interTextTheme() leaves as light-theme ink.
+      titleTextStyle: text.titleMedium,
+      contentTextStyle: text.bodyMedium,
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((s) {
