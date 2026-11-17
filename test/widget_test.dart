@@ -2329,11 +2329,17 @@ void main() {
     // Own library: 4 builtins + 1 org row, all deletable.
     expect(find.text('Delete'), findsNWidgets(5));
     expect(find.text('Duplicate'), findsNothing);
-    final myRemoteId = (await db.listOrgTemplates())
-        .firstWhere((t) => t.name == 'My review')
-        .remoteId;
+    expect(find.text('Version 1'), findsNothing);
+    final myRow = (await db.listOrgTemplates())
+        .firstWhere((t) => t.name == 'My review');
     expect(
-      find.byKey(ValueKey('rename-${orgTemplateChoiceId(myRemoteId)}')),
+      find.text(
+        'Last updated: ${formatNoteDate(myRow.updatedAt.toLocal())}',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ValueKey('rename-${orgTemplateChoiceId(myRow.remoteId)}')),
       findsOneWidget,
     );
 

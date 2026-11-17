@@ -7,6 +7,7 @@ import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../shell/desktop_chrome.dart';
 import '../templates/template_body.dart';
+import 'note_format.dart';
 import 'soap_dictation.dart';
 import 'soap_templates.dart';
 
@@ -127,11 +128,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
         label: row.name,
       ),
       description: row.description,
-      versionLine: row.published
-          ? (pending
-              ? 'Shared with the clinic · Draft pending'
-              : 'Shared with the clinic')
-          : 'Draft · only you',
+      updatedAt: row.updatedAt,
       isPublished: row.published,
       draftOnly: !row.published,
       hasPendingDraft: pending,
@@ -835,14 +832,15 @@ class _TemplateCardState extends State<_TemplateCard> {
                                 ),
                             ],
                           ),
-                        Text(
-                          entry.versionLine,
-                          style: TextStyle(
-                            fontSize: 11,
-                            height: 1.5,
-                            color: c.inkMuted,
+                        if (entry.updatedAt != null)
+                          Text(
+                            'Last updated: ${formatNoteDate(entry.updatedAt!.toLocal())}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              height: 1.5,
+                              color: c.inkMuted,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -1208,8 +1206,8 @@ class _LibraryEntry {
   const _LibraryEntry({
     required this.template,
     required this.description,
-    required this.versionLine,
     required this.isPublished,
+    this.updatedAt,
     this.draftOnly = false,
     this.hasPendingDraft = false,
     this.createdBy,
@@ -1221,7 +1219,7 @@ class _LibraryEntry {
 
   final SoapTemplate template;
   final String description;
-  final String versionLine;
+  final DateTime? updatedAt;
   final bool isPublished;
   final bool draftOnly;
   final bool hasPendingDraft;
@@ -1238,25 +1236,21 @@ final _builtinEntries = <_LibraryEntry>[
   _LibraryEntry(
     template: soapTemplateBlank,
     description: 'Four open SOAP sections for free-form documentation.',
-    versionLine: 'Version 1',
     isPublished: true,
   ),
   _LibraryEntry(
     template: soapTemplatePostnatal,
     description: 'Guided prompts for a postnatal review.',
-    versionLine: 'Version 1',
     isPublished: true,
   ),
   _LibraryEntry(
     template: soapTemplatePelvicFloor,
     description: 'Structured prompts for a pelvic floor review.',
-    versionLine: 'Version 1',
     isPublished: true,
   ),
   _LibraryEntry(
     template: soapTemplateDram,
     description: 'A draft structure for a focused review.',
-    versionLine: 'Version 1 draft',
     isPublished: false,
     draftOnly: true,
   ),
