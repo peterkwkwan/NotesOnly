@@ -2215,6 +2215,36 @@ class AppDatabase extends _$AppDatabase {
     return (select(templates)..where((t) => t.id.equals(localId))).getSingle();
   }
 
+  /// Rename the live title. Creator-only when [createdBy] is set on the row.
+  Future<Template> renameOrgTemplate({
+    required String remoteId,
+    required String name,
+    required String renamedBy,
+  }) async {
+    final existing = await (select(templates)
+          ..where((t) => t.remoteId.equals(remoteId) & t.deletedAt.isNull()))
+        .getSingleOrNull();
+    if (existing == null) {
+      throw StateError('Template not found.');
+    }
+    if (existing.createdBy.isNotEmpty && existing.createdBy != renamedBy) {
+      throw StateError('Only the template creator can edit it.');
+    }
+    final trimmed = name.trim().isEmpty ? 'Untitled template' : name.trim();
+    if (trimmed == existing.name) return existing;
+    final now = DateTime.now();
+    await (update(templates)..where((t) => t.id.equals(existing.id))).write(
+      TemplatesCompanion(
+        name: Value(trimmed),
+        updatedAt: Value(now),
+        syncStatus: const Value(RowSyncStatus.pending),
+      ),
+    );
+    _notifyDirty();
+    return (select(templates)..where((t) => t.id.equals(existing.id)))
+        .getSingle();
+  }
+
   /// Soft-delete. Creator-only when [createdBy] is set on the row.
   Future<void> deleteOrgTemplate({
     required String remoteId,

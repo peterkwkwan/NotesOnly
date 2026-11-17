@@ -504,6 +504,29 @@ void main() {
     expect(updated.createdByName, 'Ada');
     expect(await db.listOrgTemplates(), hasLength(1));
 
+    await expectLater(
+      () => db.renameOrgTemplate(
+        remoteId: saved.remoteId,
+        name: 'Hijacked',
+        renamedBy: 'uid-b',
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('Only the template creator'),
+        ),
+      ),
+    );
+    final renamed = await db.renameOrgTemplate(
+      remoteId: saved.remoteId,
+      name: 'Evening renamed',
+      renamedBy: 'uid-a',
+    );
+    expect(renamed.name, 'Evening renamed');
+    expect(renamed.createdBy, 'uid-a');
+    expect(renamed.syncStatus, RowSyncStatus.pending);
+
     await db.applyRemoteOrgTemplate(
       remoteId: saved.remoteId,
       name: 'From cloud',
@@ -2299,6 +2322,13 @@ void main() {
     // Org rows show Delete; builtins do not.
     expect(find.text('Delete'), findsOneWidget);
     expect(find.text('Duplicate'), findsWidgets);
+    final myRemoteId = (await db.listOrgTemplates())
+        .firstWhere((t) => t.name == 'My review')
+        .remoteId;
+    expect(
+      find.byKey(ValueKey('rename-${orgTemplateChoiceId(myRemoteId)}')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Drafts (1)'));
     await tester.pump();
@@ -2318,6 +2348,14 @@ void main() {
     expect(find.textContaining('Created by'), findsNothing);
     expect(find.text('Add'), findsOneWidget);
     expect(find.text('Edit'), findsNothing);
+    expect(
+      find.byKey(
+        ValueKey(
+          'rename-${orgTemplateChoiceId((await db.listOrgTemplates()).firstWhere((t) => t.name == 'Their review').remoteId)}',
+        ),
+      ),
+      findsNothing,
+    );
 
     await tester.tap(find.text('Add'));
     await tester.pump();
@@ -2342,4 +2380,5 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));
   });
+
 }

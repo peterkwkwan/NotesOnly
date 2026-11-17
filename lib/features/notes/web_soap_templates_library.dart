@@ -291,6 +291,9 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
             onDelete: items[i].remoteId == null
                 ? null
                 : () => _confirmDelete(items[i], viewerUid),
+            onRename: items[i].remoteId == null || !_canEdit(items[i], viewerUid)
+                ? null
+                : (name) => _rename(items[i], name, viewerUid),
             onAdd: () => _addCopy(items[i], viewerUid),
             onEdit: () {
               final e = items[i];
@@ -365,6 +368,35 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     } catch (e) {
       if (!mounted) return;
       showPelviSnackBar(context, 'Could not duplicate: $e');
+    }
+  }
+
+  Future<void> _rename(
+    _LibraryEntry entry,
+    String name,
+    String? viewerUid,
+  ) async {
+    final remoteId = entry.remoteId;
+    if (remoteId == null || remoteId.isEmpty) return;
+    if (!_canEdit(entry, viewerUid)) return;
+    final trimmed = name.trim().isEmpty ? 'Untitled template' : name.trim();
+    if (trimmed == entry.template.label) return;
+    final db = AppDatabaseProvider.maybeOf(context);
+    if (db == null) return;
+    final uid = viewerUid?.trim() ?? '';
+    if (uid.isEmpty) {
+      _stubAction('Rename');
+      return;
+    }
+    try {
+      await db.renameOrgTemplate(
+        remoteId: remoteId,
+        name: trimmed,
+        renamedBy: uid,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, 'Could not rename: $e');
     }
   }
 
@@ -603,7 +635,7 @@ class _ViewTabs extends StatelessWidget {
   }
 }
 
-class _TemplateCard extends StatelessWidget {
+class _TemplateCard extends StatefulWidget {
   const _TemplateCard({
     required this.entry,
     required this.selected,
@@ -613,6 +645,7 @@ class _TemplateCard extends StatelessWidget {
     required this.onAdd,
     required this.onEdit,
     this.onDelete,
+    this.onRename,
   });
 
   final _LibraryEntry entry;
@@ -621,20 +654,91 @@ class _TemplateCard extends StatelessWidget {
   final VoidCallback onSelect;
   final VoidCallback onDuplicate;
   final VoidCallback? onDelete;
+  final ValueChanged<String>? onRename;
   final VoidCallback onAdd;
   final VoidCallback onEdit;
 
   @override
+  State<_TemplateCard> createState() => _TemplateCardState();
+}
+
+class _TemplateCardState extends State<_TemplateCard> {
+  bool _renaming = false;
+  late final TextEditingController _renameCtrl;
+  late final FocusNode _renameFocus;
+  bool _committing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _renameCtrl = TextEditingController(text: widget.entry.template.label);
+    _renameFocus = FocusNode()..addListener(_onRenameFocus);
+  }
+
+  @override
+  void didUpdateWidget(covariant _TemplateCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_renaming &&
+        oldWidget.entry.template.label != widget.entry.template.label) {
+      _renameCtrl.text = widget.entry.template.label;
+    }
+  }
+
+  @override
+  void dispose() {
+    _renameFocus.removeListener(_onRenameFocus);
+    _renameFocus.dispose();
+    _renameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onRenameFocus() {
+    if (!_renameFocus.hasFocus && _renaming) {
+      _commitRename();
+    }
+  }
+
+  void _startRename() {
+    _renameCtrl.text = widget.entry.template.label;
+    _renameCtrl.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _renameCtrl.text.length,
+    );
+    setState(() => _renaming = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _renameFocus.requestFocus();
+    });
+  }
+
+  void _commitRename() {
+    if (_committing || !_renaming) return;
+    _committing = true;
+    final next = _renameCtrl.text;
+    setState(() => _renaming = false);
+    widget.onRename?.call(next);
+    _committing = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final selected = widget.selected;
+    final canEdit = widget.canEdit;
     final c = PelviColors.of(context);
     final glyphBg = selected ? c.pink50 : c.purple50;
     final glyphColor = selected ? c.pink700 : c.purple700;
+    final titleStyle = TextStyle(
+      fontSize: 17,
+      height: 1.5,
+      fontWeight: FontWeight.w500,
+      color: c.ink,
+    );
 
     return Material(
       color: c.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: onSelect,
+        onTap: _renaming ? null : widget.onSelect,
         borderRadius: BorderRadius.circular(12),
         child: Container(
           width: double.infinity,
@@ -666,15 +770,64 @@ class _TemplateCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          entry.template.label,
-                          style: TextStyle(
-                            fontSize: 17,
-                            height: 1.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.ink,
+                        if (_renaming)
+                          TextField(
+                            controller: _renameCtrl,
+                            focusNode: _renameFocus,
+                            style: titleStyle,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _commitRename(),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: BorderSide(color: c.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: BorderSide(color: c.pink700),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: BorderSide(color: c.pink700),
+                              ),
+                            ),
+                          )
+                        else
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  entry.template.label,
+                                  style: titleStyle,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (widget.onRename != null)
+                                IconButton(
+                                  key: ValueKey(
+                                    'rename-${entry.template.id}',
+                                  ),
+                                  onPressed: _startRename,
+                                  tooltip: 'Rename',
+                                  icon: Icon(
+                                    Icons.edit_outlined,
+                                    size: 16,
+                                    color: c.inkMuted,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 28,
+                                    minHeight: 28,
+                                  ),
+                                ),
+                            ],
                           ),
-                        ),
                         Text(
                           entry.versionLine,
                           style: TextStyle(
@@ -705,7 +858,7 @@ class _TemplateCard extends StatelessWidget {
                 children: [
                   if (canEdit) ...[
                     TextButton(
-                      onPressed: onDuplicate,
+                      onPressed: widget.onDuplicate,
                       style: TextButton.styleFrom(
                         foregroundColor: c.pink700,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -720,10 +873,10 @@ class _TemplateCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (onDelete != null) ...[
+                    if (widget.onDelete != null) ...[
                       const SizedBox(width: 4),
                       TextButton(
-                        onPressed: onDelete,
+                        onPressed: widget.onDelete,
                         style: TextButton.styleFrom(
                           foregroundColor: c.danger,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -741,7 +894,7 @@ class _TemplateCard extends StatelessWidget {
                     ],
                     const SizedBox(width: 4),
                     OutlinedButton.icon(
-                      onPressed: onEdit,
+                      onPressed: widget.onEdit,
                       icon: Icon(Icons.edit_outlined, size: 16, color: c.ink),
                       label: Text(
                         'Edit',
@@ -763,7 +916,7 @@ class _TemplateCard extends StatelessWidget {
                     ),
                   ] else
                     FilledButton.icon(
-                      onPressed: onAdd,
+                      onPressed: widget.onAdd,
                       icon: Icon(Icons.add, size: 16, color: c.inkInverse),
                       label: const Text(
                         'Add',
