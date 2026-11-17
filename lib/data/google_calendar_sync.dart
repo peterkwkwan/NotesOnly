@@ -106,13 +106,37 @@ class GoogleCalendarSync {
       return false;
     }
 
+    await _finishConnected();
+    return true;
+  }
+
+  /// After interactive Google sign-in: turn on device sync when Calendar is
+  /// already granted server-side, otherwise same browser consent as [enable].
+  /// Denial/timeout leaves sync off and never undoes Firebase Auth.
+  Future<bool> enableAfterSignIn() async {
+    try {
+      if (await db.getGoogleCalendarSyncEnabled() &&
+          await db.getGoogleCalendarSyncStatus() == 'connected') {
+        return true;
+      }
+      if (await _oauth.isConnected()) {
+        await _finishConnected();
+        return true;
+      }
+      return await enable();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _finishConnected() async {
+    await db.setGoogleCalendarSyncEnabled(true);
     await db.setGoogleCalendarSyncStatus('connected');
     await db.setSetting(AppDatabase.googleCalendarLastErrorKey, '');
     await _enqueueBackfill();
-    // Await first drain so enable() reflects push errors (status / soft snackbar)
+    // Await first drain so callers reflect push errors (status / soft snackbar)
     // instead of claiming Connected while the outbox never left the device.
     await drain();
-    return true;
   }
 
   /// Stop future pushes + revoke server refresh token. Leaves Google events (v1).

@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../../data/auth.dart';
+import '../../data/database_provider.dart';
 import '../../features/shell/desktop_chrome.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
@@ -22,10 +24,18 @@ class _SignInScreenState extends State<SignInScreen> {
   Future<void> _signIn() async {
     if (_busy) return;
     setState(() => _busy = true);
+    // Capture before auth flips the tree off SignInScreen.
+    final gcal = AppDatabaseProvider.googleCalendarOf(context);
     try {
       final ok = await NotesAuth.signInWithGoogle();
       if (!ok && mounted) {
         showPelviSnackBar(context, 'Sign-in cancelled');
+        return;
+      }
+      // Calendar consent is separate (Functions offline OAuth). Denial must
+      // not block Firebase sign-in — same path as Account sync toggle.
+      if (ok && gcal != null) {
+        unawaited(gcal.enableAfterSignIn());
       }
     } catch (e) {
       if (mounted) {

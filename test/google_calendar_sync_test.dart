@@ -3,9 +3,67 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/data/appointment_overlap.dart';
 import 'package:pelvi_crm/data/database.dart';
+import 'package:pelvi_crm/data/gcal_oauth.dart';
 import 'package:pelvi_crm/data/google_calendar_sync.dart';
 
+class _FakeGcalOAuth extends GcalOAuth {
+  _FakeGcalOAuth({this.connected = false, this.throwOnBegin = false});
+
+  bool connected;
+  bool throwOnBegin;
+  int beginCalls = 0;
+
+  @override
+  Future<String> beginConnect() async {
+    beginCalls++;
+    if (throwOnBegin) throw StateError('calendar denied');
+    return 'https://example.test/gcal-auth';
+  }
+
+  @override
+  Future<bool> isConnected() async => connected;
+}
+
 void main() {
+  test('enableAfterSignIn opts in when server already connected', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    final oauth = _FakeGcalOAuth(connected: true);
+    final sync = GoogleCalendarSync(db, gcalOAuth: oauth);
+
+    expect(await sync.enableAfterSignIn(), isTrue);
+    expect(await db.getGoogleCalendarSyncEnabled(), isTrue);
+    expect(await db.getGoogleCalendarSyncStatus(), 'connected');
+    expect(oauth.beginCalls, 0);
+  });
+
+  test('enableAfterSignIn denial leaves sync off', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    final oauth = _FakeGcalOAuth(connected: false, throwOnBegin: true);
+    final sync = GoogleCalendarSync(db, gcalOAuth: oauth);
+
+    expect(await sync.enableAfterSignIn(), isFalse);
+    expect(await db.getGoogleCalendarSyncEnabled(), isFalse);
+    expect(await db.getGoogleCalendarSyncStatus(), 'needs_permission');
+    expect(oauth.beginCalls, 1);
+  });
+
+  test('enableAfterSignIn skips consent when already connected locally', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setGoogleCalendarSyncEnabled(true);
+    await db.setGoogleCalendarSyncStatus('connected');
+    final oauth = _FakeGcalOAuth(connected: false, throwOnBegin: true);
+    final sync = GoogleCalendarSync(db, gcalOAuth: oauth);
+
+    expect(await sync.enableAfterSignIn(), isTrue);
+    expect(oauth.beginCalls, 0);
+  });
+
   test('outbox retry delay uses earliest future nextAttemptAt', () {
     const now = 1_000_000;
     expect(googleCalendarOutboxRetryDelay([], now), isNull);
