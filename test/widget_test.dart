@@ -668,6 +668,13 @@ void main() {
       ),
     );
     expect(await db.listOrgTemplates(), hasLength(1));
+
+    expect(await db.getHiddenBuiltinTemplateIds(), isEmpty);
+    await db.hideBuiltinTemplate('dram');
+    expect(await db.getHiddenBuiltinTemplateIds(), {'dram'});
+    final choices = await soapTemplateChoices(db, viewerUid: 'uid-a');
+    expect(choices.map((t) => t.id), isNot(contains('dram')));
+    expect(choices.map((t) => t.id), contains('blank'));
   });
 
   test('nextWholeHour rounds past the hour, keeps exact hour', () {
@@ -2319,8 +2326,8 @@ void main() {
     expect(find.textContaining('Created by'), findsNothing);
     expect(find.text('Edit'), findsWidgets);
     expect(find.text('Edit draft'), findsNothing);
-    // Org rows show Delete; builtins do not.
-    expect(find.text('Delete'), findsOneWidget);
+    // Own library: 4 builtins + 1 org row, all deletable.
+    expect(find.text('Delete'), findsNWidgets(5));
     expect(find.text('Duplicate'), findsWidgets);
     final myRemoteId = (await db.listOrgTemplates())
         .firstWhere((t) => t.name == 'My review')

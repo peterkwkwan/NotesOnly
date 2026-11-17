@@ -474,6 +474,8 @@ class AppDatabase extends _$AppDatabase {
   /// Comma-separated client ids, most recently opened first.
   static const recentClientIdsKey = 'recent_client_ids';
   static const recentClientLimit = 8;
+  /// Comma-separated built-in SOAP template ids removed from the library.
+  static const hiddenBuiltinTemplateIdsKey = 'hidden_builtin_template_ids';
   /// Comma-separated pinned client [Clients.remoteId]s (most recently pinned
   /// first). Cloud-synced via org settings so desktop ↔ mobile share pins.
   /// Legacy local Drift ints are still accepted on read and rewritten on write.
@@ -793,6 +795,34 @@ class AppDatabase extends _$AppDatabase {
       ids.remove(clientId);
     }
     await setSetting(recallMutedIdsKey, ids.join(','));
+  }
+
+  static Set<String> parseStringIdSet(String? raw) {
+    if (raw == null || raw.isEmpty) return {};
+    return {
+      for (final part in raw.split(','))
+        if (part.trim().isNotEmpty) part.trim(),
+    };
+  }
+
+  Future<Set<String>> getHiddenBuiltinTemplateIds() async =>
+      parseStringIdSet(await getSetting(hiddenBuiltinTemplateIdsKey));
+
+  Stream<Set<String>> watchHiddenBuiltinTemplateIds() {
+    return (select(settings)
+          ..where((t) => t.key.equals(hiddenBuiltinTemplateIdsKey)))
+        .watch()
+        .map((rows) {
+          final raw = rows.isEmpty ? null : rows.first.value;
+          return parseStringIdSet(raw);
+        });
+  }
+
+  Future<void> hideBuiltinTemplate(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = Set<String>.of(await getHiddenBuiltinTemplateIds())..add(trimmed);
+    await setSetting(hiddenBuiltinTemplateIdsKey, ids.join(','));
   }
 
   /// Hide one due recall from the notifications inbox / bell (not Due tab).

@@ -24,7 +24,7 @@ typedef OpenTemplateBuilder =
 
 /// Desktop SOAP template library (Figma `NotesOnly · SOAP template library`).
 ///
-/// Built-in starters stay in the list. Saved templates are org records.
+/// Built-in starters ship in the list until deleted. Saved templates are org records.
 class WebSoapTemplatesLibrary extends StatefulWidget {
   const WebSoapTemplatesLibrary({super.key, this.onOpenBuilder});
 
@@ -44,6 +44,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   bool _showNewPanel = true;
   Stream<List<Template>>? _orgStream;
   Stream<String?>? _uidStream;
+  Stream<Set<String>>? _hiddenBuiltinsStream;
   final _nameCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
 
@@ -79,24 +80,42 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     return templateMatchesMine(createdBy: e.createdBy, viewerUid: viewerUid);
   }
 
-  List<_LibraryEntry> _entriesFor(List<Template> org) => [
-    ..._builtinEntries,
+  List<_LibraryEntry> _entriesFor(
+    List<Template> org,
+    Set<String> hiddenBuiltins,
+  ) => [
+    for (final e in _builtinEntries)
+      if (!hiddenBuiltins.contains(e.template.id)) e,
     for (final row in org) _orgEntry(row),
   ];
 
-  List<_LibraryEntry> _ownFor(List<Template> org, String? viewerUid) => [
-    for (final entry in _entriesFor(org))
+  List<_LibraryEntry> _ownFor(
+    List<Template> org,
+    String? viewerUid,
+    Set<String> hiddenBuiltins,
+  ) => [
+    for (final entry in _entriesFor(org, hiddenBuiltins))
       if (_inOwnLibrary(entry, viewerUid)) entry,
   ];
 
-  List<_LibraryEntry> _teamFor(List<Template> org, String? viewerUid) => [
-    for (final entry in _entriesFor(org))
+  List<_LibraryEntry> _teamFor(
+    List<Template> org,
+    String? viewerUid,
+    Set<String> hiddenBuiltins,
+  ) => [
+    for (final entry in _entriesFor(org, hiddenBuiltins))
       if (_inTeamLibrary(entry, viewerUid)) entry,
   ];
 
-  List<_LibraryEntry> _tabBase(List<Template> org, String? viewerUid) {
-    if (_tab == _LibraryTab.team) return _teamFor(org, viewerUid);
-    return _ownFor(org, viewerUid);
+  List<_LibraryEntry> _tabBase(
+    List<Template> org,
+    String? viewerUid,
+    Set<String> hiddenBuiltins,
+  ) {
+    if (_tab == _LibraryTab.team) {
+      return _teamFor(org, viewerUid, hiddenBuiltins);
+    }
+    return _ownFor(org, viewerUid, hiddenBuiltins);
   }
 
   _LibraryEntry _orgEntry(Template row) {
@@ -124,9 +143,13 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     );
   }
 
-  List<_LibraryEntry> _visibleFor(List<Template> org, String? viewerUid) {
+  List<_LibraryEntry> _visibleFor(
+    List<Template> org,
+    String? viewerUid,
+    Set<String> hiddenBuiltins,
+  ) {
     final q = _query.trim().toLowerCase();
-    return _tabBase(org, viewerUid).where((e) {
+    return _tabBase(org, viewerUid, hiddenBuiltins).where((e) {
       final tabOk = switch (_tab) {
         _LibraryTab.all => true,
         _LibraryTab.published => e.isPublished,
@@ -172,28 +195,42 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   @override
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.maybeOf(context);
-    if (db == null) return _page(const [], null);
+    if (db == null) return _page(const [], null, const {});
     // New stream instances make StreamBuilder resubscribe every rebuild.
     _orgStream ??= db.watchOrgTemplates();
     _uidStream ??= db.watchSetting(AppDatabase.syncBoundUidKey);
+    _hiddenBuiltinsStream ??= db.watchHiddenBuiltinTemplateIds();
     return StreamBuilder<List<Template>>(
       stream: _orgStream,
       builder: (context, orgSnap) {
         return StreamBuilder<String?>(
           stream: _uidStream,
           builder: (context, uidSnap) {
-            return _page(orgSnap.data ?? const [], uidSnap.data);
+            return StreamBuilder<Set<String>>(
+              stream: _hiddenBuiltinsStream,
+              builder: (context, hiddenSnap) {
+                return _page(
+                  orgSnap.data ?? const [],
+                  uidSnap.data,
+                  hiddenSnap.data ?? const {},
+                );
+              },
+            );
           },
         );
       },
     );
   }
 
-  Widget _page(List<Template> org, String? boundUid) {
+  Widget _page(
+    List<Template> org,
+    String? boundUid,
+    Set<String> hiddenBuiltins,
+  ) {
     final viewerUid = _viewerUid(boundUid);
-    final own = _ownFor(org, viewerUid);
-    final team = _teamFor(org, viewerUid);
-    final visible = _visibleFor(org, viewerUid);
+    final own = _ownFor(org, viewerUid, hiddenBuiltins);
+    final team = _teamFor(org, viewerUid, hiddenBuiltins);
+    final visible = _visibleFor(org, viewerUid, hiddenBuiltins);
     final c = PelviColors.of(context);
     return ColoredBox(
       color: c.canvas,
@@ -288,7 +325,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
             canEdit: _canEdit(items[i], viewerUid),
             onSelect: () => setState(() => _selectedId = items[i].template.id),
             onDuplicate: () => _duplicate(items[i], viewerUid),
-            onDelete: items[i].remoteId == null
+            onDelete: !_canEdit(items[i], viewerUid)
                 ? null
                 : () => _confirmDelete(items[i], viewerUid),
             onRename: items[i].remoteId == null || !_canEdit(items[i], viewerUid)
@@ -404,8 +441,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     _LibraryEntry entry,
     String? viewerUid,
   ) async {
-    final remoteId = entry.remoteId;
-    if (remoteId == null || remoteId.isEmpty) return;
     if (!_canEdit(entry, viewerUid)) return;
     final ok = await showDialog<bool>(
       context: context,
@@ -435,8 +470,13 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
       _stubAction('Delete');
       return;
     }
+    final remoteId = entry.remoteId;
     try {
-      await db.deleteOrgTemplate(remoteId: remoteId, deletedBy: uid);
+      if (remoteId == null || remoteId.isEmpty) {
+        await db.hideBuiltinTemplate(entry.template.id);
+      } else {
+        await db.deleteOrgTemplate(remoteId: remoteId, deletedBy: uid);
+      }
       if (!mounted) return;
       showPelviSnackBar(context, 'Template deleted.');
     } catch (e) {

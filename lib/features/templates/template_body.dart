@@ -27,10 +27,12 @@ Future<List<SoapTemplate>> soapTemplateChoices(
   String? viewerUid,
 }) async {
   final org = await db.listOrgTemplates();
+  final hidden = await db.getHiddenBuiltinTemplateIds();
   final uid = (viewerUid ?? await db.getSetting(AppDatabase.syncBoundUidKey) ?? '')
       .trim();
   return [
-    ...soapTemplates,
+    for (final t in soapTemplates)
+      if (!hidden.contains(t.id)) t,
     for (final row in org)
       if (row.published ||
           row.createdBy.isEmpty ||
