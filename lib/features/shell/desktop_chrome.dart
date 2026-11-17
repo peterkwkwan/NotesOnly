@@ -676,72 +676,10 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
                       stream: db.watchSetting(AppDatabase.activeOrgRolesKey),
                       builder: (context, roleSnap) {
                         final roles = parseOrgRoles(roleSnap.data);
-                        return PopupMenuButton<String>(
-                          tooltip: 'Account menu',
-                          offset: const Offset(0, 44),
-                          onSelected: (value) async {
-                            if (value == 'account') {
-                              ShellNavigation.maybeOf(context)
-                                  ?.goTo(DesktopDest.accountSettings);
-                            } else if (value == 'practice') {
-                              ShellNavigation.maybeOf(context)
-                                  ?.goTo(DesktopDest.practiceSettings);
-                            } else if (value == 'signOut') {
-                              await _signOutFromDesktop(context);
-                            }
-                          },
-                          itemBuilder: (_) => [
-                            const PopupMenuItem(
-                              value: 'account',
-                              child: Text('Account settings'),
-                            ),
-                            if (canManagePracticeSettings(roles))
-                              const PopupMenuItem(
-                                value: 'practice',
-                                child: Text('Practice settings'),
-                              ),
-                            const PopupMenuItem(
-                              value: 'signOut',
-                              child: Text('Sign out'),
-                            ),
-                          ],
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: c.pink50,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    initials,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.pink700,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  display,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    height: 1.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: c.ink,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(Icons.expand_more,
-                                    size: 14, color: c.inkMuted),
-                              ],
-                            ),
-                          ),
+                        return _DesktopAccountMenuChip(
+                          displayName: display,
+                          initials: initials,
+                          roles: roles,
                         );
                       },
                     );
@@ -752,6 +690,114 @@ class _DesktopTopBarState extends State<DesktopTopBar> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Desktop top-bar account chip: no hover wash/tooltip; chevron flips while open.
+class _DesktopAccountMenuChip extends StatefulWidget {
+  const _DesktopAccountMenuChip({
+    required this.displayName,
+    required this.initials,
+    required this.roles,
+  });
+
+  final String displayName;
+  final String initials;
+  final List<OrgRole> roles;
+
+  @override
+  State<_DesktopAccountMenuChip> createState() =>
+      _DesktopAccountMenuChipState();
+}
+
+class _DesktopAccountMenuChipState extends State<_DesktopAccountMenuChip> {
+  bool _open = false;
+
+  void _setOpen(bool open) {
+    if (_open == open) return;
+    setState(() => _open = open);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    // MenuAnchor + GestureDetector: PopupMenuButton's InkWell always paints
+    // an M3 hover overlay; Theme.hoverColor does not suppress it.
+    return MenuAnchor(
+      alignmentOffset: const Offset(0, 8),
+      onOpen: () => _setOpen(true),
+      onClose: () => _setOpen(false),
+      menuChildren: [
+        MenuItemButton(
+          onPressed: () => ShellNavigation.maybeOf(context)
+              ?.goTo(DesktopDest.accountSettings),
+          child: const Text('Account settings'),
+        ),
+        if (canManagePracticeSettings(widget.roles))
+          MenuItemButton(
+            onPressed: () => ShellNavigation.maybeOf(context)
+                ?.goTo(DesktopDest.practiceSettings),
+            child: const Text('Practice settings'),
+          ),
+        MenuItemButton(
+          onPressed: () => _signOutFromDesktop(context),
+          child: const Text('Sign out'),
+        ),
+      ],
+      builder: (context, controller, child) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (controller.isOpen) {
+              controller.close();
+            } else {
+              controller.open();
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: c.pink50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    widget.initials,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: c.pink700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  widget.displayName,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.5,
+                    fontWeight: FontWeight.w600,
+                    color: c.ink,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedRotation(
+                  turns: _open ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(Icons.expand_more, size: 14, color: c.inkMuted),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
