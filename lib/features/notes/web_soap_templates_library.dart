@@ -42,7 +42,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
   _LibraryTab _tab = _LibraryTab.all;
   String _query = '';
   String? _selectedId = 'postnatal_check';
-  bool _showNewPanel = true;
   Stream<List<Template>>? _orgStream;
   Stream<String?>? _uidStream;
   Stream<Set<String>>? _hiddenBuiltinsStream;
@@ -231,66 +230,75 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     final c = PelviColors.of(context);
     return ColoredBox(
       color: c.canvas,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final sideBySide = constraints.maxWidth >= 980 && _showNewPanel;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Heading(
-                  onNewTemplate: () => setState(() => _showNewPanel = true),
-                ),
-                const SizedBox(height: 26),
-                _SearchRow(onQuery: (v) => setState(() => _query = v)),
-                const SizedBox(height: 26),
-                _ViewTabs(
-                  tab: _tab,
-                  allCount: own.length,
-                  publishedCount: own.where((e) => e.isPublished).length,
-                  draftCount: own.where((e) => !e.isPublished).length,
-                  teamCount: team.length,
-                  onSelect: (t) => setState(() => _tab = t),
-                ),
-                const SizedBox(height: 26),
-                if (sideBySide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildList(c, visible, viewerUid)),
-                      const SizedBox(width: 24),
-                      SizedBox(
-                        width: 378,
-                        child: _NewTemplatePanel(
-                          nameCtrl: _nameCtrl,
-                          descCtrl: _descCtrl,
-                          onClose: () => setState(() => _showNewPanel = false),
-                          onCreateDraft: _createDraft,
-                          onNameChanged: () => setState(() {}),
-                        ),
-                      ),
-                    ],
-                  )
-                else ...[
-                  _buildList(c, visible, viewerUid),
-                  if (_showNewPanel) ...[
-                    const SizedBox(height: 24),
-                    _NewTemplatePanel(
-                      nameCtrl: _nameCtrl,
-                      descCtrl: _descCtrl,
-                      onClose: () => setState(() => _showNewPanel = false),
-                      onCreateDraft: _createDraft,
-                      onNameChanged: () => setState(() {}),
-                    ),
-                  ],
-                ],
-              ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Heading(onNewTemplate: _openNewTemplateDialog),
+            const SizedBox(height: 26),
+            _SearchRow(onQuery: (v) => setState(() => _query = v)),
+            const SizedBox(height: 26),
+            _ViewTabs(
+              tab: _tab,
+              allCount: own.length,
+              publishedCount: own.where((e) => e.isPublished).length,
+              draftCount: own.where((e) => !e.isPublished).length,
+              teamCount: team.length,
+              onSelect: (t) => setState(() => _tab = t),
             ),
-          );
-        },
+            const SizedBox(height: 26),
+            _buildList(c, visible, viewerUid),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openNewTemplateDialog() async {
+    final c = PelviColors.of(context);
+    await showDialog<void>(
+      context: context,
+      barrierColor: c.overlay,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: SingleChildScrollView(
+                  child: _NewTemplatePanel(
+                    nameCtrl: _nameCtrl,
+                    descCtrl: _descCtrl,
+                    onClose: () => Navigator.of(ctx).pop(),
+                    onCreateDraft: () {
+                      final name = _nameCtrl.text.trim();
+                      if (name.isEmpty) return;
+                      final description = _descCtrl.text.trim();
+                      Navigator.of(ctx).pop();
+                      _openBuilder(
+                        name: name,
+                        description: description,
+                        seedPostnatal: false,
+                      );
+                    },
+                    onNameChanged: () => setDialogState(() {}),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    _nameCtrl.clear();
+    _descCtrl.clear();
   }
 
   Widget _buildList(
@@ -451,15 +459,6 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
     }
   }
 
-  void _createDraft() {
-    final name = _nameCtrl.text.trim();
-    if (name.isEmpty) return;
-    _openBuilder(
-      name: name,
-      description: _descCtrl.text.trim(),
-      seedPostnatal: false,
-    );
-  }
 }
 
 String _fieldsJsonForBuiltin(SoapTemplate template) {

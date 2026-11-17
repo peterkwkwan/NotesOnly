@@ -118,7 +118,10 @@ void main() {
     expect(find.text('SOAP templates'), findsOneWidget);
     expect(find.text('All (4)'), findsOneWidget);
     expect(find.text('Postnatal Check'), findsOneWidget);
-    expect(find.text('New template'), findsWidgets);
+    expect(find.text('New template'), findsOneWidget);
+    expect(find.text('Create draft'), findsNothing);
+    await tester.tap(find.text('New template'));
+    await tester.pumpAndSettle();
     expect(find.text('Create draft'), findsOneWidget);
 
     final boundary =
