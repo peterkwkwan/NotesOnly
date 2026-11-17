@@ -2439,12 +2439,13 @@ void main() {
     );
     expect(
       rows.where((r) => r.name == 'Their review' && r.createdBy == 'uid-me').single.published,
-      isFalse,
+      isTrue,
     );
 
-    await tester.tap(find.text('All (6)'));
+    await tester.tap(find.text('Published (5)'));
     await tester.pump();
-    expect(find.text('Their review'), findsWidgets);
+    expect(find.text('Their review'), findsOneWidget);
+    expect(find.text('My review'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));

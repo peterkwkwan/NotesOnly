@@ -364,7 +364,7 @@ class _WebSoapTemplatesLibraryState extends State<WebSoapTemplatesLibrary> {
         fieldsJson: entry.fieldsJson ?? _fieldsJsonForBuiltin(entry.template),
         createdBy: uid,
         createdByName: liveName,
-        published: false,
+        published: true,
       );
       if (!mounted) return;
       showPelviSnackBar(context, 'Added to your templates.');
