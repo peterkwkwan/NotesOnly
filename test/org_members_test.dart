@@ -559,4 +559,38 @@ void main() {
         .first;
     expect(nobody, isNull);
   });
+
+  test('Today agenda only returns the signed-in practitioner bookings',
+      () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final mine = await db.insertClient(firstName: 'Mine', lastName: 'Client');
+    final theirs =
+        await db.insertClient(firstName: 'Theirs', lastName: 'Client');
+    final day = DateTime(2026, 11, 18);
+
+    await db.insertAppointment(
+      clientId: theirs,
+      practitionerUid: 'physio-other',
+      startsAt: DateTime(2026, 11, 18, 22),
+    );
+    await db.insertAppointment(
+      clientId: mine,
+      practitionerUid: 'physio-self',
+      startsAt: DateTime(2026, 11, 18, 23),
+    );
+
+    final mineDay = await db
+        .watchAppointmentsWithClientOnDay(
+          day,
+          practitionerUid: 'physio-self',
+        )
+        .first;
+    expect(mineDay, hasLength(1));
+    expect(mineDay.single.client.firstName, 'Mine');
+
+    final allDay = await db.watchAppointmentsWithClientOnDay(day).first;
+    expect(allDay, hasLength(2));
+  });
 }

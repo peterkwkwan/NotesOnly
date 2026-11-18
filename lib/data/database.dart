@@ -1468,25 +1468,41 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Appointments whose [Appointments.startsAt] falls on [day] (local date).
+  ///
+  /// When [practitionerUid] is set (Today “Your agenda”), only that member’s
+  /// bookings. Omit for Calendar (filter applied in the UI).
   Stream<List<({Appointment appointment, Client client})>>
-      watchAppointmentsWithClientOnDay(DateTime day) {
+      watchAppointmentsWithClientOnDay(
+    DateTime day, {
+    String? practitionerUid,
+  }) {
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
-    return watchAppointmentsWithClientInRange(start, end);
+    return watchAppointmentsWithClientInRange(
+      start,
+      end,
+      practitionerUid: practitionerUid,
+    );
   }
 
   /// Appointments in [[start], [end]) with client (local datetimes).
   Stream<List<({Appointment appointment, Client client})>>
-      watchAppointmentsWithClientInRange(DateTime start, DateTime end) {
+      watchAppointmentsWithClientInRange(
+    DateTime start,
+    DateTime end, {
+    String? practitionerUid,
+  }) {
+    var where = appointments.startsAt.isBiggerOrEqualValue(start) &
+        appointments.startsAt.isSmallerThanValue(end) &
+        appointments.deletedAt.isNull() &
+        clients.deletedAt.isNull();
+    if (practitionerUid != null) {
+      where = where & appointments.practitionerUid.equals(practitionerUid);
+    }
     final query = select(appointments).join([
       innerJoin(clients, clients.id.equalsExp(appointments.clientId)),
     ])
-      ..where(
-        appointments.startsAt.isBiggerOrEqualValue(start) &
-            appointments.startsAt.isSmallerThanValue(end) &
-            appointments.deletedAt.isNull() &
-            clients.deletedAt.isNull(),
-      )
+      ..where(where)
       ..orderBy([OrderingTerm.asc(appointments.startsAt)]);
     return query.watch().map(
           (rows) => [

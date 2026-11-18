@@ -32,12 +32,16 @@ class WebTodayDashboard extends StatelessWidget {
     final today = DateTime.now();
     final tomorrow = DateTime(today.year, today.month, today.day)
         .add(const Duration(days: 1));
+    final selfUid = NotesAuth.currentUser?.uid ?? '';
     final c = PelviColors.of(context);
 
     return ColoredBox(
       color: c.canvas,
       child: StreamBuilder(
-        stream: db.watchAppointmentsWithClientOnDay(today),
+        stream: db.watchAppointmentsWithClientOnDay(
+          today,
+          practitionerUid: selfUid,
+        ),
         builder: (context, apptSnap) {
           return StreamBuilder(
             stream: db.watchOpenSoapDrafts(),
@@ -51,8 +55,7 @@ class WebTodayDashboard extends StatelessWidget {
                       return StreamBuilder(
                         stream: db.watchNextAppointmentOnOrAfter(
                           tomorrow,
-                          practitionerUid:
-                              NotesAuth.currentUser?.uid ?? '',
+                          practitionerUid: selfUid,
                         ),
                         builder: (context, nextSnap) {
                           return StreamBuilder(

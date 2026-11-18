@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
@@ -29,6 +30,7 @@ class TodayScreen extends StatelessWidget {
 
     final db = AppDatabaseProvider.of(context);
     final today = DateTime.now();
+    final selfUid = NotesAuth.currentUser?.uid ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -48,7 +50,10 @@ class TodayScreen extends StatelessWidget {
         ],
       ),
       body: StreamBuilder(
-        stream: db.watchAppointmentsWithClientOnDay(today),
+        stream: db.watchAppointmentsWithClientOnDay(
+          today,
+          practitionerUid: selfUid,
+        ),
         builder: (context, snap) {
           final rows = snap.data;
           if (rows == null) {
