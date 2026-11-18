@@ -863,7 +863,7 @@ class _TimezoneDropdown extends StatelessWidget {
             for (final z in zones)
               DropdownMenuItem(
                 value: z,
-                child: Text(z.replaceAll('_', ' ')),
+                child: Text(AppDatabase.timezoneLabel(z)),
               ),
           ],
           onChanged: (v) {

@@ -485,6 +485,40 @@ class AppDatabase extends _$AppDatabase {
     'UTC',
   ];
 
+  // shortcut: standard (non-DST) offsets only; add timezone package if labels must track DST
+  static const _timezoneOffsets = <String, Duration>{
+    'Asia/Hong_Kong': Duration(hours: 8),
+    'Asia/Macau': Duration(hours: 8),
+    'Asia/Shanghai': Duration(hours: 8),
+    'Asia/Singapore': Duration(hours: 8),
+    'Asia/Tokyo': Duration(hours: 9),
+    'Asia/Seoul': Duration(hours: 9),
+    'Australia/Sydney': Duration(hours: 10),
+    'Pacific/Auckland': Duration(hours: 12),
+    'Europe/London': Duration.zero,
+    'Europe/Paris': Duration(hours: 1),
+    'America/New_York': Duration(hours: -5),
+    'America/Toronto': Duration(hours: -5),
+    'America/Chicago': Duration(hours: -6),
+    'America/Denver': Duration(hours: -7),
+    'America/Los_Angeles': Duration(hours: -8),
+    'America/Vancouver': Duration(hours: -8),
+    'UTC': Duration.zero,
+  };
+
+  /// Dropdown label for an IANA id (stored value unchanged). e.g. `Asia/Hong Kong +8:00 GMT`.
+  static String timezoneLabel(String iana) {
+    final name = iana.replaceAll('_', ' ');
+    final offset = _timezoneOffsets[iana];
+    if (offset == null) return name;
+    final total = offset.inMinutes;
+    final sign = total >= 0 ? '+' : '-';
+    final abs = total.abs();
+    final h = abs ~/ 60;
+    final m = abs % 60;
+    return '$name $sign$h:${m.toString().padLeft(2, '0')} GMT';
+  }
+
   /// Maps any stored minutes value onto [allowedAppointmentMinutes] (nearest; ties → 60).
   static int normalizeAppointmentMinutes(int minutes) {
     if (allowedAppointmentMinutes.contains(minutes)) return minutes;

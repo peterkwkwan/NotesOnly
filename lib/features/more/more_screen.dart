@@ -92,7 +92,7 @@ class MoreScreen extends StatelessWidget {
       selected: current,
       options: [
         for (final z in zones)
-          PelviPickerOption(value: z, label: z.replaceAll('_', ' ')),
+          PelviPickerOption(value: z, label: AppDatabase.timezoneLabel(z)),
       ],
     );
     if (picked == null) return;

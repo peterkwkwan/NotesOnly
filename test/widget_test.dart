@@ -1750,6 +1750,19 @@ void main() {
     expect(await db.getDarkModeEnabled(), isFalse);
   });
 
+  test('timezoneLabel appends standard GMT offset', () {
+    expect(
+      AppDatabase.timezoneLabel('Asia/Hong_Kong'),
+      'Asia/Hong Kong +8:00 GMT',
+    );
+    expect(AppDatabase.timezoneLabel('UTC'), 'UTC +0:00 GMT');
+    expect(
+      AppDatabase.timezoneLabel('America/Los_Angeles'),
+      'America/Los Angeles -8:00 GMT',
+    );
+    expect(AppDatabase.timezoneLabel('Etc/Unknown'), 'Etc/Unknown');
+  });
+
   test('default appointment minutes normalize to allowed set', () async {
     expect(AppDatabase.normalizeAppointmentMinutes(45), 45);
     expect(AppDatabase.normalizeAppointmentMinutes(60), 60);
