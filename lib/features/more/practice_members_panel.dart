@@ -879,19 +879,15 @@ class _MemberRow extends StatelessWidget {
           ),
         if (canRemove) ...[
           const SizedBox(width: 8),
-          OutlinedButton.icon(
+          // Paint Icon in child Row — OutlinedButton.icon's icon slot /
+          // ButtonStyle IconTheme was not visible on Flutter web (same as
+          // desktop account menu leadingIcon fix).
+          OutlinedButton(
             onPressed: onRemove,
-            icon: Icon(Icons.delete_outline, size: 16, color: c.danger),
-            label: Text(
-              'Remove',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: c.danger,
-              ),
-            ),
             style: OutlinedButton.styleFrom(
               backgroundColor: c.surface,
+              foregroundColor: c.danger,
+              iconColor: c.danger,
               side: BorderSide(color: c.border),
               minimumSize: const Size(0, 36),
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -899,6 +895,21 @@ class _MemberRow extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(PelviRadius.md),
               ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.delete_outline, size: 16, color: c.danger),
+                const SizedBox(width: 6),
+                Text(
+                  'Remove',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: c.danger,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
