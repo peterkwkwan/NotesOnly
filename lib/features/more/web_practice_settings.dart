@@ -146,27 +146,14 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    clinicLabel,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: c.ink,
-                      height: 1.5,
-                    ),
-                  ),
-                  Text(
-                    'Organization',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: c.inkMuted,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
+              Text(
+                clinicLabel,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: c.ink,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 8),
               DesktopSettingsRow(
