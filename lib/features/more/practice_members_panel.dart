@@ -370,6 +370,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
 
   Future<void> _remove(OrgMember member) async {
     if (_busy) return;
+    if (member.uid == NotesAuth.currentUser?.uid) return;
     final owners = activeOwnerCount(_members);
     if (!canRemoveMember(actor: _actor, target: member, owners: owners)) {
       return;
@@ -625,6 +626,7 @@ class _ActiveMembersList extends StatelessWidget {
                   target: active[i],
                   owners: owners,
                 ) &&
+                active[i].uid != NotesAuth.currentUser?.uid &&
                 !busy,
             onSetRoles: (roles) => onSetRoles(active[i], roles),
             onRemove: () => onRemove(active[i]),
