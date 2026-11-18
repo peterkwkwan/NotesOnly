@@ -377,22 +377,31 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
     }
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remove member'),
-        content: Text(
-          '${memberLabel(member)} loses access. Past appointments stay on the clinic.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+      builder: (ctx) {
+        final c = PelviColors.of(ctx);
+        return AlertDialog(
+          title: const Text('Remove member'),
+          content: Text(
+            '${memberLabel(member)} loses access. Past appointments stay on the clinic.',
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: FilledButton.styleFrom(
+                backgroundColor: c.pink200,
+                foregroundColor: c.pink700,
+                elevation: 0,
+              ),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: TextButton.styleFrom(foregroundColor: c.danger),
+              child: const Text('Remove'),
+            ),
+          ],
+        );
+      },
     );
     if (ok != true || !mounted) return;
     setState(() => _busy = true);
