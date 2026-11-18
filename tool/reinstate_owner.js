@@ -25,19 +25,19 @@ const CLIENT_ID =
   '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com';
 const CLIENT_SECRET = 'j9iVZfS8kkCEFUPaAeJV0sAi';
 
-const HELP = `Reinstate Owner on a NotesOnly membership (Amber org by default).
-
-Usage:
-  node tool/reinstate_owner.js --check
-  node tool/reinstate_owner.js --dry-run [--org <id>] [--email <addr>]
-  node tool/reinstate_owner.js --live [--org <id>] [--email <addr>]
-
-Finds memberships/{orgId}_{uid} for the email in the org, sets active:true,
-ensures roles include owner (keeps admin/practitioner; adds practitioner if
-roles would otherwise be owner-only), and adds uid to orgs/{orgId}.ownerUids.
-
-Requires: firebase login (project owner of notesonly-e4829), or FIREBASE_TOKEN.
-`;
+const HELP =
+  'Reinstate Owner on a NotesOnly membership (Amber org by default).\n' +
+  '\n' +
+  'Usage:\n' +
+  '  node tool/reinstate_owner.js --check\n' +
+  '  node tool/reinstate_owner.js --dry-run [--org <id>] [--email <addr>]\n' +
+  '  node tool/reinstate_owner.js --live [--org <id>] [--email <addr>]\n' +
+  '\n' +
+  'Finds memberships/{orgId}_{uid} for the email in the org, sets active:true,\n' +
+  'ensures roles include owner (keeps admin/practitioner; adds practitioner if\n' +
+  'roles would otherwise be owner-only), and adds uid to orgs/{orgId}.ownerUids.\n' +
+  '\n' +
+  'Requires: firebase login (project owner of notesonly-e4829), or FIREBASE_TOKEN.\n';
 
 function tokenPaths() {
   const home = os.homedir();
@@ -317,8 +317,8 @@ async function commitReinstate(token, plan) {
   );
 }
 
-function printPlan(plan, orgName) {
-  console.log(`org: ${orgId}`);
+function printPlan(plan) {
+  console.log(`org: ${plan.orgId}`);
   console.log(`email: ${plan.email}`);
   console.log(`uid: ${plan.uid}`);
   console.log(`membership: ${plan.membershipId}`);
@@ -370,6 +370,17 @@ function selfCheck() {
   assert.strictEqual(args.email, 'a@b.c');
   assert.strictEqual(args.orgId, 'x');
   assert.strictEqual(args.dryRun, true);
+  // Regression: printPlan must read plan.orgId (bare orgId → ReferenceError).
+  const lines = [];
+  const origLog = console.log;
+  console.log = (msg) => lines.push(String(msg));
+  try {
+    printPlan(plan);
+  } finally {
+    console.log = origLog;
+  }
+  assert.strictEqual(lines[0], `org: ${DEFAULT_ORG}`);
+  assert.ok(lines.some((line) => line === 'needsWrite: true'));
   console.log('check ok');
 }
 
@@ -446,7 +457,7 @@ async function main() {
     roles: normalizeRoles(stringArrayField(fields, 'roles')),
     ownerUids,
   });
-  printPlan(plan, opts.orgId);
+  printPlan(plan);
 
   if (!plan.needsWrite) {
     console.log('already owner+active; no write');
