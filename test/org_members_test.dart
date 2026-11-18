@@ -288,6 +288,38 @@ void main() {
     );
   });
 
+  test('resolveActorRoles prefers live membership over stale cache', () {
+    final peter = _member(
+      'peter',
+      const [OrgRole.owner, OrgRole.admin, OrgRole.practitioner],
+    );
+    final other = _member('pelvirun', const [OrgRole.admin, OrgRole.practitioner]);
+    expect(
+      resolveActorRoles(
+        cached: const [OrgRole.admin, OrgRole.practitioner],
+        members: [peter, other],
+        selfUid: 'peter',
+      ),
+      const [OrgRole.owner, OrgRole.admin, OrgRole.practitioner],
+    );
+    expect(
+      resolveActorRoles(
+        cached: const [OrgRole.admin],
+        members: [peter, other],
+        selfUid: 'missing',
+      ),
+      const [OrgRole.admin],
+    );
+    expect(
+      resolveActorRoles(
+        cached: const [OrgRole.admin],
+        members: [peter, other],
+        selfUid: null,
+      ),
+      const [OrgRole.admin],
+    );
+  });
+
   test('owner role edits keep the last owner and block admins', () {
     final owner = _member('o1', const [OrgRole.owner, OrgRole.practitioner]);
     final second = _member('o2', const [OrgRole.owner]);

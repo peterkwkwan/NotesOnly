@@ -49,13 +49,13 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
     try {
       final db = AppDatabaseProvider.of(context);
       final orgId = (await db.getSetting(AppDatabase.activeOrgIdKey)) ?? '';
-      final roles =
+      final cached =
           parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
       if (!mounted) return;
       if (orgId.isEmpty) {
         setState(() {
           _orgId = '';
-          _actor = roles;
+          _actor = cached;
           _members = const [];
           _pending = const [];
           _loading = false;
@@ -64,15 +64,28 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
       }
       final directory = OrgDirectory();
       final members = await directory.listMembers(orgId);
+      // Prefer live membership over cached sync_org_roles — stale cache
+      // hides the role dropdown while Remove (admin) still shows.
+      final actor = resolveActorRoles(
+        cached: cached,
+        members: members,
+        selfUid: NotesAuth.currentUser?.uid,
+      );
+      if (joinOrgRoles(actor) != joinOrgRoles(cached)) {
+        await db.setSetting(
+          AppDatabase.activeOrgRolesKey,
+          joinOrgRoles(actor),
+        );
+      }
       var pending = const <OrgInvite>[];
-      if (canSendClinicInvite(roles)) {
+      if (canSendClinicInvite(actor)) {
         pending = await directory.listPendingInvites(orgId);
       }
       if (!mounted) return;
-      final inviteRoles = clinicInviteRolesFor(roles);
+      final inviteRoles = clinicInviteRolesFor(actor);
       setState(() {
         _orgId = orgId;
-        _actor = roles;
+        _actor = actor;
         _members = members;
         _pending = pending;
         if (!inviteRoles.contains(_inviteRole) && inviteRoles.isNotEmpty) {
@@ -833,6 +846,12 @@ class _MemberRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
     final roles = member.roles.map(orgRoleLabel).join(', ');
+    // When the owner can edit, the check-dropdown is the role UI — keep the
+    // muted subtitle only for read-only rows (otherwise it looks like the
+    // Change role control vanished and only plain text + Remove remain).
+    final roleSubtitle = !canChange
+        ? (member.active ? (roles.isEmpty ? 'Member' : roles) : 'Removed')
+        : null;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -849,16 +868,17 @@ class _MemberRow extends StatelessWidget {
                   height: 1.5,
                 ),
               ),
-              Text(
-                member.active ? (roles.isEmpty ? 'Member' : roles) : 'Removed',
-                style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-              ),
+              if (roleSubtitle != null)
+                Text(
+                  roleSubtitle,
+                  style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
+                ),
             ],
           ),
         ),
         if (canChange)
           DesktopSettingsCheckDropdown<OrgRole>(
-            values: member.roles.toSet(),
+            values: {...member.roles},
             width: 160,
             emptyLabel: 'Role',
             items: [

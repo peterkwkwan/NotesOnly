@@ -27,6 +27,19 @@ List<OrgRole> parseOrgRoles(String? raw) {
 String joinOrgRoles(Iterable<OrgRole> roles) =>
     roles.map((role) => role.name).join(',');
 
+/// Live membership wins over cached `sync_org_roles` on the device.
+List<OrgRole> resolveActorRoles({
+  required List<OrgRole> cached,
+  required Iterable<OrgMember> members,
+  required String? selfUid,
+}) {
+  if (selfUid == null || selfUid.isEmpty) return cached;
+  for (final member in members) {
+    if (member.active && member.uid == selfUid) return member.roles;
+  }
+  return cached;
+}
+
 /// Owner, then admin, then practitioner. Drops duplicates.
 List<OrgRole> normalizeOrgRoles(Iterable<OrgRole> roles) {
   return [
