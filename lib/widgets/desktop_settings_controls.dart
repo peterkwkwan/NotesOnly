@@ -243,6 +243,178 @@ class _DesktopSettingsDropdownState<T>
   }
 }
 
+/// Same chrome as [DesktopSettingsDropdown], with checkmarks on every held
+/// value. Tap toggles one item; caller decides persistence.
+class DesktopSettingsCheckDropdown<T> extends StatefulWidget {
+  const DesktopSettingsCheckDropdown({
+    super.key,
+    required this.values,
+    required this.items,
+    required this.onToggle,
+    this.isToggleEnabled,
+    this.width = 220,
+    this.emptyLabel = 'Select',
+  });
+
+  final Set<T> values;
+  final List<DesktopSettingsDropdownItem<T>> items;
+  final ValueChanged<T> onToggle;
+  final bool Function(T value)? isToggleEnabled;
+  final double width;
+  final String emptyLabel;
+
+  @override
+  State<DesktopSettingsCheckDropdown<T>> createState() =>
+      _DesktopSettingsCheckDropdownState<T>();
+}
+
+class _DesktopSettingsCheckDropdownState<T>
+    extends State<DesktopSettingsCheckDropdown<T>> {
+  bool _open = false;
+
+  void _setOpen(bool open) {
+    if (_open == open) return;
+    setState(() => _open = open);
+  }
+
+  String get _label {
+    final labels = [
+      for (final item in widget.items)
+        if (widget.values.contains(item.value)) item.label,
+    ];
+    if (labels.isEmpty) return widget.emptyLabel;
+    return labels.join(', ');
+  }
+
+  ButtonStyle _itemStyle(PelviPalette c) {
+    return ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.focused) ||
+            states.contains(WidgetState.pressed)) {
+          return c.surfaceMuted;
+        }
+        return Colors.transparent;
+      }),
+      foregroundColor: WidgetStatePropertyAll(c.ink),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      minimumSize: WidgetStatePropertyAll(Size(widget.width, 36)),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(PelviRadius.sm),
+        ),
+      ),
+      textStyle: const WidgetStatePropertyAll(
+        TextStyle(fontSize: 13, fontWeight: FontWeight.w400, height: 1.3),
+      ),
+      visualDensity: VisualDensity.standard,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return MenuAnchor(
+      alignmentOffset: const Offset(0, 6),
+      onOpen: () => _setOpen(true),
+      onClose: () => _setOpen(false),
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(c.surface),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shadowColor: WidgetStatePropertyAll(c.ink.withValues(alpha: 0.12)),
+        elevation: const WidgetStatePropertyAll(8),
+        padding: const WidgetStatePropertyAll(EdgeInsets.all(6)),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.md),
+            side: BorderSide(color: c.border),
+          ),
+        ),
+      ),
+      menuChildren: [
+        for (final item in widget.items)
+          MenuItemButton(
+            style: _itemStyle(c),
+            onPressed: widget.isToggleEnabled?.call(item.value) == false
+                ? null
+                : () => widget.onToggle(item.value),
+            child: SizedBox(
+              width: widget.width - 24,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.3,
+                        color: c.ink,
+                        fontWeight: widget.values.contains(item.value)
+                            ? FontWeight.w500
+                            : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                  if (widget.values.contains(item.value))
+                    Icon(Icons.check, size: 16, color: c.pink700),
+                ],
+              ),
+            ),
+          ),
+      ],
+      builder: (context, controller, child) {
+        return Material(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(PelviRadius.md),
+          child: InkWell(
+            onTap: () {
+              if (controller.isOpen) {
+                controller.close();
+              } else {
+                controller.open();
+              }
+            },
+            borderRadius: BorderRadius.circular(PelviRadius.md),
+            child: Container(
+              width: widget.width,
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(PelviRadius.md),
+                border: Border.all(color: _open ? c.pink700 : c.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _label,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.3,
+                        color: c.ink,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.expand_more,
+                    size: 18,
+                    color: _open ? c.pink700 : c.inkMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Compact right-aligned text field for settings rows.
 ///
 /// With [suffixText], width is intrinsic so the value and suffix sit close —

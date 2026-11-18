@@ -7,6 +7,7 @@ import '../../data/database_provider.dart';
 import '../../data/org.dart';
 import '../../data/org_directory.dart';
 import '../../theme/theme.dart';
+import '../../widgets/desktop_settings_controls.dart';
 import '../../widgets/show_snack.dart';
 
 /// Clinic roster for the active org. Owners change roles. Owners and admins
@@ -325,12 +326,15 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
     }
   }
 
-  Future<void> _changeRole(OrgMember member) async {
+  Future<void> _setRoles(OrgMember member, List<OrgRole> nextRoles) async {
     if (_busy) return;
     final owners = activeOwnerCount(_members);
-    final next = await _askRoles(member, owners);
-    if (next == null || !mounted) return;
+    final next = normalizeOrgRoles(nextRoles);
     if (joinOrgRoles(next) == joinOrgRoles(member.roles)) return;
+    if (next.isEmpty) {
+      showPelviSnackBar(context, 'Pick at least one role');
+      return;
+    }
     if (!canSetMemberRoles(
       actor: _actor,
       target: member,
@@ -401,74 +405,6 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<List<OrgRole>?> _askRoles(OrgMember member, int owners) {
-    var selected = {...member.roles};
-    final lastOwner = member.roles.contains(OrgRole.owner) && owners <= 1;
-    return showDialog<List<OrgRole>>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            final next = normalizeOrgRoles(selected);
-            final allowed = canSetMemberRoles(
-              actor: _actor,
-              target: member,
-              nextRoles: next,
-              owners: owners,
-            );
-            final c = PelviColors.of(ctx);
-            return AlertDialog(
-              title: Text(memberLabel(member)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final role in OrgRole.values)
-                    CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      value: selected.contains(role),
-                      title: Text(orgRoleLabel(role)),
-                      onChanged: role == OrgRole.owner && lastOwner
-                          ? null
-                          : (value) {
-                              setLocal(() {
-                                if (value == true) {
-                                  selected.add(role);
-                                } else {
-                                  selected.remove(role);
-                                }
-                              });
-                            },
-                    ),
-                  if (lastOwner)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'The last owner stays an owner.',
-                        style: TextStyle(fontSize: 12, color: c.inkMuted),
-                      ),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed:
-                      allowed ? () => Navigator.pop(ctx, next) : null,
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
@@ -545,7 +481,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
               owners: owners,
               canEditRoles: canEditRoles,
               busy: _busy,
-              onChange: _changeRole,
+              onSetRoles: _setRoles,
               onRemove: _remove,
             ),
         ] else ...[
@@ -556,7 +492,7 @@ class _PracticeMembersPanelState extends State<PracticeMembersPanel> {
             owners: owners,
             canEditRoles: canEditRoles,
             busy: _busy,
-            onChange: _changeRole,
+            onSetRoles: _setRoles,
             onRemove: _remove,
           ),
         ],
@@ -649,7 +585,7 @@ class _ActiveMembersList extends StatelessWidget {
     required this.owners,
     required this.canEditRoles,
     required this.busy,
-    required this.onChange,
+    required this.onSetRoles,
     required this.onRemove,
   });
 
@@ -658,7 +594,7 @@ class _ActiveMembersList extends StatelessWidget {
   final int owners;
   final bool canEditRoles;
   final bool busy;
-  final ValueChanged<OrgMember> onChange;
+  final void Function(OrgMember member, List<OrgRole> roles) onSetRoles;
   final ValueChanged<OrgMember> onRemove;
 
   @override
@@ -682,6 +618,7 @@ class _ActiveMembersList extends StatelessWidget {
           ],
           _MemberRow(
             member: active[i],
+            owners: owners,
             canChange: canEditRoles && !busy,
             canRemove: canRemoveMember(
                   actor: actor,
@@ -689,7 +626,7 @@ class _ActiveMembersList extends StatelessWidget {
                   owners: owners,
                 ) &&
                 !busy,
-            onChange: () => onChange(active[i]),
+            onSetRoles: (roles) => onSetRoles(active[i], roles),
             onRemove: () => onRemove(active[i]),
           ),
         ],
@@ -867,16 +804,18 @@ class _PendingRow extends StatelessWidget {
 class _MemberRow extends StatelessWidget {
   const _MemberRow({
     required this.member,
+    required this.owners,
     required this.canChange,
     required this.canRemove,
-    required this.onChange,
+    required this.onSetRoles,
     required this.onRemove,
   });
 
   final OrgMember member;
+  final int owners;
   final bool canChange;
   final bool canRemove;
-  final VoidCallback onChange;
+  final ValueChanged<List<OrgRole>> onSetRoles;
   final VoidCallback onRemove;
 
   @override
@@ -907,10 +846,61 @@ class _MemberRow extends StatelessWidget {
           ),
         ),
         if (canChange)
-          _RowAction(label: 'Change role', color: c.pink700, onTap: onChange),
+          DesktopSettingsCheckDropdown<OrgRole>(
+            values: member.roles.toSet(),
+            width: 160,
+            emptyLabel: 'Role',
+            items: [
+              for (final role in OrgRole.values)
+                DesktopSettingsDropdownItem(
+                  value: role,
+                  label: orgRoleLabel(role),
+                ),
+            ],
+            isToggleEnabled: (role) {
+              final lastOwner =
+                  member.roles.contains(OrgRole.owner) && owners <= 1;
+              if (role == OrgRole.owner &&
+                  lastOwner &&
+                  member.roles.contains(OrgRole.owner)) {
+                return false;
+              }
+              return true;
+            },
+            onToggle: (role) {
+              final selected = {...member.roles};
+              if (selected.contains(role)) {
+                selected.remove(role);
+              } else {
+                selected.add(role);
+              }
+              onSetRoles(normalizeOrgRoles(selected));
+            },
+          ),
         if (canRemove) ...[
-          const SizedBox(width: 12),
-          _RowAction(label: 'Remove', color: c.danger, onTap: onRemove),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: onRemove,
+            icon: Icon(Icons.delete_outline, size: 16, color: c.danger),
+            label: Text(
+              'Remove',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: c.danger,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: c.surface,
+              side: BorderSide(color: c.border),
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              visualDensity: VisualDensity.compact,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.md),
+              ),
+            ),
+          ),
         ],
       ],
     );
