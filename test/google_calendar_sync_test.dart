@@ -7,11 +7,18 @@ import 'package:pelvi_crm/data/gcal_oauth.dart';
 import 'package:pelvi_crm/data/google_calendar_sync.dart';
 
 class _FakeGcalOAuth extends GcalOAuth {
-  _FakeGcalOAuth({this.connected = false, this.throwOnBegin = false});
+  _FakeGcalOAuth({
+    this.connected = false,
+    this.throwOnBegin = false,
+    this.throwOnStatusTimes = 0,
+  });
 
   bool connected;
   bool throwOnBegin;
+  /// First N [isConnected] calls throw (simulates post–Custom Tab blip).
+  int throwOnStatusTimes;
   int beginCalls = 0;
+  int statusCalls = 0;
 
   @override
   Future<String> beginConnect() async {
@@ -21,7 +28,13 @@ class _FakeGcalOAuth extends GcalOAuth {
   }
 
   @override
-  Future<bool> isConnected() async => connected;
+  Future<bool> isConnected() async {
+    statusCalls++;
+    if (statusCalls <= throwOnStatusTimes) {
+      throw StateError('transient functions blip');
+    }
+    return connected;
+  }
 }
 
 void main() {
@@ -97,6 +110,41 @@ void main() {
     sync.onAppResumed();
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(await db.getGoogleCalendarSyncStatus(), 'connecting');
+  });
+
+  test('transient isConnected errors do not abort pending connect', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    await db.setGoogleCalendarSyncEnabled(true);
+    await db.setGoogleCalendarSyncStatus('connecting');
+    final oauth = _FakeGcalOAuth(connected: true, throwOnStatusTimes: 2);
+    final sync = GoogleCalendarSync(db, gcalOAuth: oauth);
+
+    sync.onAppResumed();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    // First resume blipped; status still connecting — retry succeeds.
+    expect(await db.getGoogleCalendarSyncStatus(), 'connecting');
+    sync.onAppResumed();
+    for (var i = 0; i < 20; i++) {
+      if (await db.getGoogleCalendarSyncStatus() == 'connected') break;
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(await db.getGoogleCalendarSyncStatus(), 'connected');
+    expect(await db.getGoogleCalendarSyncEnabled(), isTrue);
+  });
+
+  test('enableAfterSignIn connects after one transient status blip', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    final oauth = _FakeGcalOAuth(connected: true, throwOnStatusTimes: 1);
+    final sync = GoogleCalendarSync(db, gcalOAuth: oauth);
+
+    expect(await sync.enableAfterSignIn(), isTrue);
+    expect(await db.getGoogleCalendarSyncEnabled(), isTrue);
+    expect(await db.getGoogleCalendarSyncStatus(), 'connected');
+    expect(oauth.beginCalls, 0);
   });
 
   test('outbox retry delay uses earliest future nextAttemptAt', () {

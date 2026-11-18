@@ -34,6 +34,9 @@ class GoogleCalendarSync {
   Timer? _retry;
   bool _started = false;
 
+  /// Completes when resume/deep-link finishes connect while [enable] is waiting.
+  Completer<bool>? _enableWaiter;
+
   String? _accessToken;
   DateTime? _accessExpiresAt;
 
@@ -83,6 +86,8 @@ class GoogleCalendarSync {
 
   /// Opt-in: offline OAuth via Functions + backfill. Returns false if denied/timeout.
   Future<bool> enable() async {
+    final waiter = Completer<bool>();
+    _enableWaiter = waiter;
     try {
       final authUrl = await _oauth.beginConnect();
       var launched = await launchUrl(
@@ -106,34 +111,77 @@ class GoogleCalendarSync {
       await db.setGoogleCalendarSyncEnabled(true);
       await db.setGoogleCalendarSyncStatus('connecting');
       final deadline = DateTime.now().add(_connectTimeout);
-      var connected = false;
       while (DateTime.now().isBefore(deadline)) {
-        await Future<void>.delayed(_pollInterval);
-        if (await _oauth.isConnected()) {
-          connected = true;
-          break;
-        }
-      }
-      if (!connected) {
-        // Deep link / resume may have already flipped us to connected, or the
-        // last poll missed a just-written token — don't undo that.
+        // Resume / deep link may finish connect while we wait.
+        if (waiter.isCompleted) return waiter.future;
         if (await db.getGoogleCalendarSyncStatus() == 'connected') {
           return true;
         }
-        if (await _finishPendingConnect()) return true;
-        await db.setGoogleCalendarSyncEnabled(false);
-        await db.setGoogleCalendarSyncStatus('needs_permission');
-        return false;
+        try {
+          if (await _oauth.isConnected()) {
+            await _finishConnected();
+            return true;
+          }
+        } catch (_) {
+          // Transient Functions/network blip after Custom Tab return — keep
+          // polling; do not treat as denial (that raced with resume success).
+        }
+        await Future<void>.delayed(_pollInterval);
       }
+      if (waiter.isCompleted) return waiter.future;
+      // Deep link / resume may have already flipped us to connected, or the
+      // last poll missed a just-written token — don't undo that.
+      if (await _succeedIfConnected()) return true;
+      // Brief retries: token/status can lag one poll behind the deep link.
+      for (var i = 0; i < 3; i++) {
+        if (await _completeConnectIfServerReady()) return true;
+        await Future<void>.delayed(const Duration(seconds: 1));
+        if (waiter.isCompleted) return waiter.future;
+        if (await _succeedIfConnected()) return true;
+      }
+      return _failEnableUnlessConnected();
     } catch (_) {
-      if (await db.getGoogleCalendarSyncStatus() == 'connected') {
-        return true;
-      }
-      await db.setGoogleCalendarSyncEnabled(false);
-      await db.setGoogleCalendarSyncStatus('needs_permission');
+      if (waiter.isCompleted) return waiter.future;
+      if (await _succeedIfConnected()) return true;
+      if (await _completeConnectIfServerReady()) return true;
+      return _failEnableUnlessConnected();
+    } finally {
+      if (identical(_enableWaiter, waiter)) _enableWaiter = null;
+    }
+  }
+
+  Future<bool> _succeedIfConnected() async =>
+      await db.getGoogleCalendarSyncStatus() == 'connected';
+
+  /// Timeout/error path: never clobber a concurrent resume success.
+  Future<bool> _failEnableUnlessConnected() async {
+    if (await _succeedIfConnected()) return true;
+    await db.setGoogleCalendarSyncEnabled(false);
+    if (await _succeedIfConnected()) {
+      await db.setGoogleCalendarSyncEnabled(true);
+      return true;
+    }
+    await db.setGoogleCalendarSyncStatus('needs_permission');
+    if (await _succeedIfConnected()) {
+      await db.setGoogleCalendarSyncEnabled(true);
+      return true;
+    }
+    return false;
+  }
+
+  void _signalEnableSuccess() {
+    final waiter = _enableWaiter;
+    if (waiter != null && !waiter.isCompleted) waiter.complete(true);
+  }
+
+  /// Server has a refresh token → mark local Connected. Used by resume and
+  /// by [enable]'s final check (no `connecting` guard — caller already opted in).
+  Future<bool> _completeConnectIfServerReady() async {
+    try {
+      if (!await _oauth.isConnected()) return false;
+    } catch (_) {
       return false;
     }
-
     await _finishConnected();
     return true;
   }
@@ -143,13 +191,7 @@ class GoogleCalendarSync {
   /// flip local opt-in on. No-op when the user never started Connect here.
   Future<bool> _finishPendingConnect() async {
     if (await db.getGoogleCalendarSyncStatus() != 'connecting') return false;
-    try {
-      if (!await _oauth.isConnected()) return false;
-    } catch (_) {
-      return false;
-    }
-    await _finishConnected();
-    return true;
+    return _completeConnectIfServerReady();
   }
 
   /// After interactive Google sign-in: turn on device sync when Calendar is
@@ -161,9 +203,20 @@ class GoogleCalendarSync {
           await db.getGoogleCalendarSyncStatus() == 'connected') {
         return true;
       }
-      if (await _oauth.isConnected()) {
-        await _finishConnected();
-        return true;
+      // One retry: Auth/Functions can blip right after interactive Google sign-in.
+      for (var i = 0; i < 2; i++) {
+        try {
+          if (await _oauth.isConnected()) {
+            await _finishConnected();
+            return true;
+          }
+          break;
+        } catch (_) {
+          if (i == 0) {
+            await Future<void>.delayed(const Duration(milliseconds: 400));
+            continue;
+          }
+        }
       }
       return await enable();
     } catch (_) {
@@ -175,6 +228,7 @@ class GoogleCalendarSync {
     await db.setGoogleCalendarSyncEnabled(true);
     await db.setGoogleCalendarSyncStatus('connected');
     await db.setSetting(AppDatabase.googleCalendarLastErrorKey, '');
+    _signalEnableSuccess();
     await _enqueueBackfill();
     // Await first drain so callers reflect push errors (status / soft snackbar)
     // instead of claiming Connected while the outbox never left the device.

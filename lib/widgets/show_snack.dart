@@ -10,7 +10,7 @@ const _kDesktopSnackMinWidth = 960.0;
 /// Tone for the desktop Acme-style toast icon.
 enum PelviSnackTone { success, error, warning }
 
-/// SnackBar helper: mobile keeps the top under-app-bar slot; desktop web shell
+/// SnackBar helper: mobile floats above the bottom nav; desktop web shell
 /// gets a dark bottom-center toast (icon + title + optional detail/action).
 void showPelviSnackBar(
   BuildContext context,
@@ -34,34 +34,15 @@ void showPelviSnackBar(
     return;
   }
 
-  final theme = Theme.of(context);
-  final top = media.padding.top + kToolbarHeight + 8;
   const side = 16.0;
-  // Match SnackBar content inset so measured wrap matches on-screen wrap.
-  const contentInset = 16.0;
-  final style = theme.snackBarTheme.contentTextStyle ??
-      theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onInverseSurface,
-      );
-  final painter = TextPainter(
-    text: TextSpan(text: message, style: style),
-    textDirection: Directionality.of(context),
-    textScaler: media.textScaler,
-  )..layout(maxWidth: media.size.width - side * 2 - contentInset * 2);
-  // Floating snack is bottom-aligned in the margin slot — slot ≈ bar height
-  // keeps the top edge under the app bar as content wraps.
-  final barHeight = math.max(48.0, painter.height + contentInset * 2);
+  // Body MediaQuery already excludes the shell bottom bar; sit just above it.
+  const bottomGap = 12.0;
 
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(message, softWrap: true),
       behavior: SnackBarBehavior.floating,
-      margin: EdgeInsets.only(
-        left: side,
-        right: side,
-        top: top,
-        bottom: media.size.height - top - barHeight,
-      ),
+      margin: const EdgeInsets.fromLTRB(side, 0, side, bottomGap),
     ),
   );
 }
