@@ -455,6 +455,8 @@ class AppDatabase extends _$AppDatabase {
   static const defaultRecallDays = '30';
   static const defaultAppointmentMinutesKey = 'default_appointment_minutes';
   static const defaultAppointmentMinutes = '60';
+  /// Allowed practice-default appointment lengths (minutes).
+  static const allowedAppointmentMinutes = <int>[45, 60, 90];
   static const clinicHoursStartKey = 'clinic_hours_start';
   static const clinicHoursEndKey = 'clinic_hours_end';
   static const defaultClinicHoursStart = '09:00';
@@ -462,6 +464,41 @@ class AppDatabase extends _$AppDatabase {
   static const timezoneKey = 'timezone';
   /// Display/label only — wall clock still uses device local.
   static const defaultTimezone = 'Asia/Hong_Kong';
+  /// Common clinic cities/regions for the timezone dropdown.
+  static const commonTimezones = <String>[
+    'Asia/Hong_Kong',
+    'Asia/Macau',
+    'Asia/Shanghai',
+    'Asia/Singapore',
+    'Asia/Tokyo',
+    'Asia/Seoul',
+    'Australia/Sydney',
+    'Pacific/Auckland',
+    'Europe/London',
+    'Europe/Paris',
+    'America/New_York',
+    'America/Toronto',
+    'America/Chicago',
+    'America/Denver',
+    'America/Los_Angeles',
+    'America/Vancouver',
+    'UTC',
+  ];
+
+  /// Maps any stored minutes value onto [allowedAppointmentMinutes] (nearest; ties → 60).
+  static int normalizeAppointmentMinutes(int minutes) {
+    if (allowedAppointmentMinutes.contains(minutes)) return minutes;
+    var best = 60;
+    var bestDist = 1 << 30;
+    for (final allowed in allowedAppointmentMinutes) {
+      final d = (allowed - minutes).abs();
+      if (d < bestDist || (d == bestDist && allowed == 60)) {
+        bestDist = d;
+        best = allowed;
+      }
+    }
+    return best;
+  }
   static const recallNotificationsKey = 'recall_notifications_enabled';
   static const defaultRecallNotifications = '1';
   /// `light` | `dark` — Account Settings toggle; default light.
@@ -847,12 +884,13 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> getDefaultAppointmentMinutes() async {
     final raw = await getSetting(defaultAppointmentMinutesKey);
-    return int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
+    final parsed = int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
+    return normalizeAppointmentMinutes(parsed);
   }
 
   Future<void> setDefaultAppointmentMinutes(int minutes) async {
-    final clamped = minutes < 5 ? 5 : minutes;
-    await setSetting(defaultAppointmentMinutesKey, '$clamped');
+    final normalized = normalizeAppointmentMinutes(minutes);
+    await setSetting(defaultAppointmentMinutesKey, '$normalized');
   }
 
   Stream<int> watchDefaultAppointmentMinutes() {
@@ -861,7 +899,8 @@ class AppDatabase extends _$AppDatabase {
         .watch()
         .map((rows) {
           final raw = rows.isEmpty ? null : rows.first.value;
-          return int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
+          final parsed = int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
+          return normalizeAppointmentMinutes(parsed);
         });
   }
 
@@ -975,6 +1014,13 @@ class AppDatabase extends _$AppDatabase {
         defaultAppointmentMinutesKey,
         defaultAppointmentMinutes,
       );
+    } else {
+      final parsed = int.tryParse(duration);
+      if (parsed == null ||
+          !allowedAppointmentMinutes.contains(parsed)) {
+        final normalized = normalizeAppointmentMinutes(parsed ?? 60);
+        await setSetting(defaultAppointmentMinutesKey, '$normalized');
+      }
     }
     if (await getSetting(clinicHoursStartKey) == null) {
       await setSetting(clinicHoursStartKey, defaultClinicHoursStart);

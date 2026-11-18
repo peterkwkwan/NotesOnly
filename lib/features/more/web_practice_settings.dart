@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../data/backup.dart';
@@ -44,14 +45,15 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
   _SettingsSection _section = _SettingsSection.members;
 
   String _snapClinicName = '';
-  String _snapRecallDays = '';
+  int _snapRecallDays = 30;
   bool _snapRecallNotifs = true;
 
   @override
   void initState() {
     super.initState();
     _clinicName = TextEditingController()..addListener(_onFieldChanged);
-    _recallDays = TextEditingController()..addListener(_onFieldChanged);
+    _recallDays = TextEditingController(text: '30')
+      ..addListener(_onFieldChanged);
   }
 
   @override
@@ -84,7 +86,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
     if (!mounted) return;
     setState(() {
       _snapClinicName = name;
-      _snapRecallDays = recall <= 0 ? 'Never' : '$recall days';
+      _snapRecallDays = recall < 0 ? 30 : recall;
       _snapRecallNotifs = notifs;
       _applySnapshot();
       _dirty = false;
@@ -94,7 +96,7 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
   void _applySnapshot() {
     _applying = true;
     _clinicName.text = _snapClinicName;
-    _recallDays.text = _snapRecallDays;
+    _recallDays.text = '$_snapRecallDays';
     _recallNotifs = _snapRecallNotifs;
     _applying = false;
   }
@@ -113,9 +115,9 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
       showPelviSnackBar(context, 'Clinic name cannot be empty');
       return;
     }
-    final recall = _parseRecallDays(_recallDays.text);
-    if (recall == null) {
-      showPelviSnackBar(context, 'Recall window must be Never or N days');
+    final recall = int.tryParse(_recallDays.text.trim());
+    if (recall == null || recall < 0) {
+      showPelviSnackBar(context, 'Recall window must be a number of days');
       return;
     }
 
@@ -126,20 +128,12 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
     if (!mounted) return;
     setState(() {
       _snapClinicName = name;
-      _snapRecallDays = recall <= 0 ? 'Never' : '$recall days';
+      _snapRecallDays = recall;
       _snapRecallNotifs = _recallNotifs;
       _applySnapshot();
       _dirty = false;
     });
     showPelviSnackBar(context, 'Practice settings saved');
-  }
-
-  static int? _parseRecallDays(String raw) {
-    final t = raw.trim().toLowerCase();
-    if (t == 'never' || t == '0' || t == '0 days') return 0;
-    final m = RegExp(r'(\d+)').firstMatch(t);
-    if (m == null) return null;
-    return int.tryParse(m.group(1)!);
   }
 
   void _goSection(_SettingsSection section) {
@@ -219,6 +213,9 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                 label: 'Recall window',
                 controller: _recallDays,
                 helper: 'Clients with no visit in the window appear in Due.',
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                suffixText: 'days',
               ),
               const SizedBox(height: 18),
               Divider(height: 1, color: c.border),
@@ -614,11 +611,17 @@ class _Field extends StatelessWidget {
     required this.label,
     required this.controller,
     this.helper,
+    this.keyboardType,
+    this.inputFormatters,
+    this.suffixText,
   });
 
   final String label;
   final TextEditingController controller;
   final String? helper;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final String? suffixText;
 
   @override
   Widget build(BuildContext context) {
@@ -638,12 +641,15 @@ class _Field extends StatelessWidget {
         const SizedBox(height: 7),
         TextField(
           controller: controller,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
           decoration: InputDecoration(
             isDense: true,
             contentPadding: const EdgeInsets.all(12),
             filled: true,
             fillColor: c.surface,
+            suffixText: suffixText,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(PelviRadius.sm),
               borderSide: BorderSide(color: c.border),

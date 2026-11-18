@@ -1750,6 +1750,22 @@ void main() {
     expect(await db.getDarkModeEnabled(), isFalse);
   });
 
+  test('default appointment minutes normalize to allowed set', () async {
+    expect(AppDatabase.normalizeAppointmentMinutes(45), 45);
+    expect(AppDatabase.normalizeAppointmentMinutes(60), 60);
+    expect(AppDatabase.normalizeAppointmentMinutes(90), 90);
+    expect(AppDatabase.normalizeAppointmentMinutes(30), 45);
+    expect(AppDatabase.normalizeAppointmentMinutes(75), 60);
+    expect(AppDatabase.normalizeAppointmentMinutes(0), 45);
+
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.setSetting(AppDatabase.defaultAppointmentMinutesKey, '30');
+    await db.ensureDefaults();
+    expect(await db.getSetting(AppDatabase.defaultAppointmentMinutesKey), '45');
+    expect(await db.getDefaultAppointmentMinutes(), 45);
+  });
+
   test('settings defaults + backup JSON round-trip', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);

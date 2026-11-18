@@ -18,16 +18,6 @@ import '../../widgets/show_snack.dart';
 import '../org/org_access_screen.dart';
 
 const _recallDayChoices = <int>[14, 21, 30, 45, 60, 90];
-const _durationChoices = <int>[30, 45, 60, 90];
-const _timezoneChoices = <String>[
-  'Asia/Hong_Kong',
-  'Asia/Macau',
-  'Asia/Shanghai',
-  'Asia/Singapore',
-  'America/Toronto',
-  'America/Vancouver',
-  'UTC',
-];
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -80,7 +70,7 @@ class MoreScreen extends StatelessWidget {
       title: 'Default duration',
       selected: current,
       options: [
-        for (final m in _durationChoices)
+        for (final m in AppDatabase.allowedAppointmentMinutes)
           PelviPickerOption(value: m, label: '$m min'),
       ],
     );
@@ -92,12 +82,16 @@ class MoreScreen extends StatelessWidget {
     final db = AppDatabaseProvider.of(context);
     final current = await db.getTimezone();
     if (!context.mounted) return;
+    final zones = [
+      if (!AppDatabase.commonTimezones.contains(current)) current,
+      ...AppDatabase.commonTimezones,
+    ];
     final picked = await showPelviPickerSheet<String>(
       context: context,
       title: 'Timezone',
       selected: current,
       options: [
-        for (final z in _timezoneChoices)
+        for (final z in zones)
           PelviPickerOption(value: z, label: z.replaceAll('_', ' ')),
       ],
     );

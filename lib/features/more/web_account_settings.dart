@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../data/auth.dart';
+import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
@@ -29,10 +30,6 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
   final _scroll = ScrollController();
 
   late final TextEditingController _name;
-  late final TextEditingController _duration;
-  late final TextEditingController _opens;
-  late final TextEditingController _closes;
-  late final TextEditingController _timezone;
 
   bool _loaded = false;
   bool _applying = false;
@@ -41,21 +38,22 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
   List<SoapTemplate> _publishedTemplates = const [];
   _AccountSection _section = _AccountSection.profile;
 
+  int _durationMins = 60;
+  String _opens = AppDatabase.defaultClinicHoursStart;
+  String _closes = AppDatabase.defaultClinicHoursEnd;
+  String _timezone = AppDatabase.defaultTimezone;
+
   String _snapName = '';
-  String _snapDuration = '';
-  String _snapOpens = '';
-  String _snapCloses = '';
-  String _snapTimezone = '';
+  int _snapDurationMins = 60;
+  String _snapOpens = AppDatabase.defaultClinicHoursStart;
+  String _snapCloses = AppDatabase.defaultClinicHoursEnd;
+  String _snapTimezone = AppDatabase.defaultTimezone;
   String _snapTemplateId = blankId;
 
   @override
   void initState() {
     super.initState();
     _name = TextEditingController()..addListener(_onFieldChanged);
-    _duration = TextEditingController()..addListener(_onFieldChanged);
-    _opens = TextEditingController()..addListener(_onFieldChanged);
-    _closes = TextEditingController()..addListener(_onFieldChanged);
-    _timezone = TextEditingController()..addListener(_onFieldChanged);
   }
 
   @override
@@ -71,10 +69,6 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
   void dispose() {
     _scroll.dispose();
     _name.dispose();
-    _duration.dispose();
-    _opens.dispose();
-    _closes.dispose();
-    _timezone.dispose();
     super.dispose();
   }
 
@@ -98,10 +92,10 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     if (!mounted) return;
     setState(() {
       _snapName = name;
-      _snapDuration = '$mins minutes';
+      _snapDurationMins = mins;
       _snapOpens = hours.$1;
       _snapCloses = hours.$2;
-      _snapTimezone = tz.replaceAll('_', ' ');
+      _snapTimezone = tz;
       _publishedTemplates = published;
       _snapTemplateId = resolved;
       _applySnapshot();
@@ -112,10 +106,10 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
   void _applySnapshot() {
     _applying = true;
     _name.text = _snapName;
-    _duration.text = _snapDuration;
-    _opens.text = _snapOpens;
-    _closes.text = _snapCloses;
-    _timezone.text = _snapTimezone;
+    _durationMins = _snapDurationMins;
+    _opens = _snapOpens;
+    _closes = _snapCloses;
+    _timezone = _snapTimezone;
     _templateId = _snapTemplateId;
     _applying = false;
   }
@@ -134,22 +128,12 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
       showPelviSnackBar(context, 'Display name cannot be empty');
       return;
     }
-    final mins = _parseMinutes(_duration.text);
-    if (mins == null) {
-      showPelviSnackBar(context, 'Default duration must be a number of minutes');
-      return;
-    }
-    final opens = _normalizeHhmm(_opens.text);
-    final closes = _normalizeHhmm(_closes.text);
-    if (opens == null || closes == null) {
-      showPelviSnackBar(context, 'Clinic hours must look like 09:00');
-      return;
-    }
-    final tzRaw = _timezone.text.trim().replaceAll(' ', '_');
-    if (tzRaw.isEmpty) {
-      showPelviSnackBar(context, 'Timezone cannot be empty');
-      return;
-    }
+    final mins = AppDatabase.normalizeAppointmentMinutes(_durationMins);
+    final opens = _opens;
+    final closes = _closes;
+    final tzRaw = _timezone.trim().isEmpty
+        ? AppDatabase.defaultTimezone
+        : _timezone.trim();
 
     await db.setPractitionerName(name, uid: NotesAuth.currentUser?.uid);
     await db.setDefaultAppointmentMinutes(mins);
@@ -162,10 +146,10 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     if (!mounted) return;
     setState(() {
       _snapName = name;
-      _snapDuration = '$mins minutes';
+      _snapDurationMins = mins;
       _snapOpens = opens;
       _snapCloses = closes;
-      _snapTimezone = tzRaw.replaceAll('_', ' ');
+      _snapTimezone = tzRaw;
       _snapTemplateId = _templateId;
       _applySnapshot();
       _dirty = false;
@@ -173,20 +157,29 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     showPelviSnackBar(context, 'Account settings saved');
   }
 
-  static int? _parseMinutes(String raw) {
-    final m = RegExp(r'(\d+)').firstMatch(raw.trim());
-    if (m == null) return null;
-    return int.tryParse(m.group(1)!);
-  }
-
-  static String? _normalizeHhmm(String raw) {
-    final t = raw.trim();
-    final m = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(t);
-    if (m == null) return null;
-    final h = int.tryParse(m.group(1)!);
-    final min = int.tryParse(m.group(2)!);
-    if (h == null || min == null || h > 23 || min > 59) return null;
-    return '${h.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+  Future<void> _pickClinicTime({required bool opens}) async {
+    final raw = opens ? _opens : _closes;
+    final parts = raw.split(':');
+    final initial = TimeOfDay(
+      hour: int.tryParse(parts.first) ?? (opens ? 9 : 18),
+      minute: parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0,
+    );
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+    );
+    if (picked == null) return;
+    final hhmm =
+        '${picked.hour.toString().padLeft(2, '0')}:'
+        '${picked.minute.toString().padLeft(2, '0')}';
+    setState(() {
+      if (opens) {
+        _opens = hhmm;
+      } else {
+        _closes = hhmm;
+      }
+      _dirty = true;
+    });
   }
 
   void _goSection(_AccountSection section) {
@@ -289,25 +282,39 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Field(
+              _LabeledControl(
                 label: 'Default duration',
-                controller: _duration,
                 helper: 'Used when the appointment end time is unset.',
+                child: _MinutesDropdown(
+                  value: _durationMins,
+                  onChanged: (v) {
+                    setState(() {
+                      _durationMins = v;
+                      _dirty = true;
+                    });
+                  },
+                ),
               ),
               const SizedBox(height: 18),
               Row(
                 children: [
                   Expanded(
-                    child: _Field(
+                    child: _LabeledControl(
                       label: 'Clinic opens',
-                      controller: _opens,
+                      child: _TimeField(
+                        value: _opens,
+                        onTap: () => unawaited(_pickClinicTime(opens: true)),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: _Field(
+                    child: _LabeledControl(
                       label: 'Clinic closes',
-                      controller: _closes,
+                      child: _TimeField(
+                        value: _closes,
+                        onTap: () => unawaited(_pickClinicTime(opens: false)),
+                      ),
                     ),
                   ),
                 ],
@@ -315,10 +322,18 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
               const SizedBox(height: 18),
               Divider(height: 1, color: c.border),
               const SizedBox(height: 18),
-              _Field(
+              _LabeledControl(
                 label: 'Timezone',
-                controller: _timezone,
                 helper: 'Label only (device clock).',
+                child: _TimezoneDropdown(
+                  value: _timezone,
+                  onChanged: (v) {
+                    setState(() {
+                      _timezone = v;
+                      _dirty = true;
+                    });
+                  },
+                ),
               ),
               const SizedBox(height: 18),
               Container(
@@ -335,8 +350,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                     Expanded(
                       child: Text(
                         'The week view uses your clinic hours, '
-                        '${_opens.text.trim().isEmpty ? '09:00' : _opens.text.trim()}–'
-                        '${_closes.text.trim().isEmpty ? '18:00' : _closes.text.trim()}.',
+                        '$_opens–$_closes.',
                         style: TextStyle(
                           fontSize: 11,
                           height: 1.5,
@@ -670,6 +684,49 @@ class _Field extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
+    return _LabeledControl(
+      label: label,
+      helper: helper,
+      child: TextField(
+        controller: controller,
+        style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.all(12),
+          filled: true,
+          fillColor: c.surface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            borderSide: BorderSide(color: c.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            borderSide: BorderSide(color: c.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            borderSide: BorderSide(color: c.pink700),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LabeledControl extends StatelessWidget {
+  const _LabeledControl({
+    required this.label,
+    required this.child,
+    this.helper,
+  });
+
+  final String label;
+  final Widget child;
+  final String? helper;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -683,28 +740,7 @@ class _Field extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 7),
-        TextField(
-          controller: controller,
-          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding: const EdgeInsets.all(12),
-            filled: true,
-            fillColor: c.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-              borderSide: BorderSide(color: c.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-              borderSide: BorderSide(color: c.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-              borderSide: BorderSide(color: c.pink700),
-            ),
-          ),
-        ),
+        child,
         if (helper != null) ...[
           const SizedBox(height: 7),
           Text(
@@ -713,6 +749,128 @@ class _Field extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _MinutesDropdown extends StatelessWidget {
+  const _MinutesDropdown({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final selected = AppDatabase.allowedAppointmentMinutes.contains(value)
+        ? value
+        : AppDatabase.normalizeAppointmentMinutes(value);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(PelviRadius.sm),
+        border: Border.all(color: c.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: selected,
+          isExpanded: true,
+          icon: Icon(Icons.expand_more, color: c.inkMuted, size: 20),
+          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
+          items: [
+            for (final m in AppDatabase.allowedAppointmentMinutes)
+              DropdownMenuItem(value: m, child: Text('$m minutes')),
+          ],
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeField extends StatelessWidget {
+  const _TimeField({required this.value, required this.onTap});
+
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return Material(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(PelviRadius.sm),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(PelviRadius.sm),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            border: Border.all(color: c.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
+                ),
+              ),
+              Icon(Icons.schedule, size: 18, color: c.inkMuted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimezoneDropdown extends StatelessWidget {
+  const _TimezoneDropdown({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final zones = [
+      if (value.isNotEmpty && !AppDatabase.commonTimezones.contains(value))
+        value,
+      ...AppDatabase.commonTimezones,
+    ];
+    final selected =
+        zones.contains(value) ? value : AppDatabase.defaultTimezone;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(PelviRadius.sm),
+        border: Border.all(color: c.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          isExpanded: true,
+          icon: Icon(Icons.expand_more, color: c.inkMuted, size: 20),
+          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
+          items: [
+            for (final z in zones)
+              DropdownMenuItem(
+                value: z,
+                child: Text(z.replaceAll('_', ' ')),
+              ),
+          ],
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
+      ),
     );
   }
 }
