@@ -6,8 +6,8 @@ import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
-import '../../widgets/show_snack.dart';
-import '../notes/soap_templates.dart';
+import '../../widgets/desktop_settings_controls.dart';
+import '../../widgets/show_snack.dart';import '../notes/soap_templates.dart';
 import '../shell/desktop_chrome.dart';
 import '../templates/template_body.dart';
 
@@ -267,12 +267,13 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
-              _Field(
+              const SizedBox(height: 8),
+              DesktopSettingsRow(
                 label: 'Display name',
-                controller: _name,
                 helper:
                     'Shown on the calendar when other members view your schedule.',
+                showDivider: false,
+                control: DesktopSettingsTextControl(controller: _name),
               ),
             ],
           ),
@@ -282,11 +283,21 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _LabeledControl(
+              DesktopSettingsRow(
                 label: 'Default duration',
                 helper: 'Used when the appointment end time is unset.',
-                child: _MinutesDropdown(
-                  value: _durationMins,
+                control: DesktopSettingsDropdown<int>(
+                  value: AppDatabase.allowedAppointmentMinutes.contains(
+                          _durationMins)
+                      ? _durationMins
+                      : AppDatabase.normalizeAppointmentMinutes(_durationMins),
+                  items: [
+                    for (final m in AppDatabase.allowedAppointmentMinutes)
+                      DesktopSettingsDropdownItem(
+                        value: m,
+                        label: '$m minutes',
+                      ),
+                  ],
                   onChanged: (v) {
                     setState(() {
                       _durationMins = v;
@@ -295,38 +306,49 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                   },
                 ),
               ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: _LabeledControl(
-                      label: 'Clinic opens',
-                      child: _TimeField(
-                        value: _opens,
-                        onTap: () => unawaited(_pickClinicTime(opens: true)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _LabeledControl(
-                      label: 'Clinic closes',
-                      child: _TimeField(
-                        value: _closes,
-                        onTap: () => unawaited(_pickClinicTime(opens: false)),
-                      ),
-                    ),
-                  ),
-                ],
+              DesktopSettingsRow(
+                label: 'Clinic opens',
+                control: _TimeField(
+                  value: _opens,
+                  onTap: () => unawaited(_pickClinicTime(opens: true)),
+                ),
               ),
-              const SizedBox(height: 18),
-              Divider(height: 1, color: c.border),
-              const SizedBox(height: 18),
-              _LabeledControl(
+              DesktopSettingsRow(
+                label: 'Clinic closes',
+                control: _TimeField(
+                  value: _closes,
+                  onTap: () => unawaited(_pickClinicTime(opens: false)),
+                ),
+              ),
+              DesktopSettingsRow(
                 label: 'Timezone',
                 helper: 'Label only (device clock).',
-                child: _TimezoneDropdown(
-                  value: _timezone,
+                showDivider: false,
+                control: DesktopSettingsDropdown<String>(
+                  value: () {
+                    final zones = [
+                      if (_timezone.isNotEmpty &&
+                          !AppDatabase.commonTimezones.contains(_timezone))
+                        _timezone,
+                      ...AppDatabase.commonTimezones,
+                    ];
+                    return zones.contains(_timezone)
+                        ? _timezone
+                        : AppDatabase.defaultTimezone;
+                  }(),
+                  width: 280,
+                  items: [
+                    for (final z in [
+                      if (_timezone.isNotEmpty &&
+                          !AppDatabase.commonTimezones.contains(_timezone))
+                        _timezone,
+                      ...AppDatabase.commonTimezones,
+                    ])
+                      DesktopSettingsDropdownItem(
+                        value: z,
+                        label: AppDatabase.timezoneLabel(z),
+                      ),
+                  ],
                   onChanged: (v) {
                     setState(() {
                       _timezone = v;
@@ -335,7 +357,7 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                   },
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -386,54 +408,21 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
                           'error' => 'Temporary error',
                           _ => 'Connecting…',
                         };
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Sync my appointments to Google Calendar',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: c.ink,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Creates and updates events on your Google '
-                                  'primary calendar. Client names appear in '
-                                  'event titles.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    height: 1.45,
-                                    color: c.inkMuted,
-                                  ),
-                                ),
-                                if (statusLine != null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    statusLine,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: c.inkMuted,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          Switch.adaptive(
-                            value: on,
-                            onChanged: (v) => _toggleGoogleCalendar(v),
-                          ),
-                        ],
-                      ),
-                    ],
+                  final helper = statusLine == null
+                      ? 'Creates and updates events on your Google '
+                          'primary calendar. Client names appear in '
+                          'event titles.'
+                      : 'Creates and updates events on your Google '
+                          'primary calendar. Client names appear in '
+                          'event titles.\n$statusLine';
+                  return DesktopSettingsRow(
+                    label: 'Sync my appointments to Google Calendar',
+                    helper: helper,
+                    showDivider: false,
+                    control: Switch.adaptive(
+                      value: on,
+                      onChanged: (v) => _toggleGoogleCalendar(v),
+                    ),
                   );
                 },
               );
@@ -445,36 +434,43 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Default SOAP template',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: c.ink,
-                  height: 1.5,
+              DesktopSettingsRow(
+                label: 'Default SOAP template',
+                helper:
+                    'Start with four open SOAP sections. You can choose another published template when writing a note.',
+                showDivider: false,
+                control: DesktopSettingsDropdown<String>(
+                  value: () {
+                    final items = _publishedTemplates.isEmpty
+                        ? soapTemplates
+                            .where(
+                                (t) => !draftBuiltinTemplateIds.contains(t.id))
+                            .toList()
+                        : _publishedTemplates;
+                    return items.any((t) => t.id == _templateId)
+                        ? _templateId
+                        : (items.isNotEmpty ? items.first.id : blankId);
+                  }(),
+                  width: 260,
+                  items: [
+                    for (final t in (_publishedTemplates.isEmpty
+                        ? soapTemplates.where(
+                            (t) => !draftBuiltinTemplateIds.contains(t.id))
+                        : _publishedTemplates))
+                      DesktopSettingsDropdownItem(
+                        value: t.id,
+                        label: t.label,
+                      ),
+                  ],
+                  onChanged: (id) {
+                    setState(() {
+                      _templateId = id;
+                      _dirty = true;
+                    });
+                  },
                 ),
               ),
-              const SizedBox(height: 7),
-              _TemplateDropdown(
-                value: _templateId,
-                templates: _publishedTemplates,
-                onChanged: (id) {
-                  setState(() {
-                    _templateId = id;
-                    _dirty = true;
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Start with four open SOAP sections. You can choose another published template when writing a note.',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   InkWell(
@@ -661,130 +657,9 @@ class _Panel extends StatelessWidget {
                 color: c.ink,
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 10),
             child,
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Field extends StatelessWidget {
-  const _Field({
-    required this.label,
-    required this.controller,
-    this.helper,
-  });
-
-  final String label;
-  final TextEditingController controller;
-  final String? helper;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return _LabeledControl(
-      label: label,
-      helper: helper,
-      child: TextField(
-        controller: controller,
-        style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: const EdgeInsets.all(12),
-          filled: true,
-          fillColor: c.surface,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(PelviRadius.sm),
-            borderSide: BorderSide(color: c.border),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(PelviRadius.sm),
-            borderSide: BorderSide(color: c.border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(PelviRadius.sm),
-            borderSide: BorderSide(color: c.pink700),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LabeledControl extends StatelessWidget {
-  const _LabeledControl({
-    required this.label,
-    required this.child,
-    this.helper,
-  });
-
-  final String label;
-  final Widget child;
-  final String? helper;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: c.ink,
-            height: 1.5,
-          ),
-        ),
-        const SizedBox(height: 7),
-        child,
-        if (helper != null) ...[
-          const SizedBox(height: 7),
-          Text(
-            helper!,
-            style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _MinutesDropdown extends StatelessWidget {
-  const _MinutesDropdown({required this.value, required this.onChanged});
-
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final selected = AppDatabase.allowedAppointmentMinutes.contains(value)
-        ? value
-        : AppDatabase.normalizeAppointmentMinutes(value);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-        border: Border.all(color: c.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: selected,
-          isExpanded: true,
-          icon: Icon(Icons.expand_more, color: c.inkMuted, size: 20),
-          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
-          items: [
-            for (final m in AppDatabase.allowedAppointmentMinutes)
-              DropdownMenuItem(value: m, child: Text('$m minutes')),
-          ],
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
         ),
       ),
     );
@@ -802,15 +677,16 @@ class _TimeField extends StatelessWidget {
     final c = PelviColors.of(context);
     return Material(
       color: c.surface,
-      borderRadius: BorderRadius.circular(PelviRadius.sm),
+      borderRadius: BorderRadius.circular(PelviRadius.md),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
+        borderRadius: BorderRadius.circular(PelviRadius.md),
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          width: 120,
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(PelviRadius.sm),
+            borderRadius: BorderRadius.circular(PelviRadius.md),
             border: Border.all(color: c.border),
           ),
           child: Row(
@@ -818,105 +694,12 @@ class _TimeField extends StatelessWidget {
               Expanded(
                 child: Text(
                   value,
-                  style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
+                  style: TextStyle(fontSize: 13, height: 1.3, color: c.ink),
                 ),
               ),
-              Icon(Icons.schedule, size: 18, color: c.inkMuted),
+              Icon(Icons.schedule, size: 16, color: c.inkMuted),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TimezoneDropdown extends StatelessWidget {
-  const _TimezoneDropdown({required this.value, required this.onChanged});
-
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final zones = [
-      if (value.isNotEmpty && !AppDatabase.commonTimezones.contains(value))
-        value,
-      ...AppDatabase.commonTimezones,
-    ];
-    final selected =
-        zones.contains(value) ? value : AppDatabase.defaultTimezone;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-        border: Border.all(color: c.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: selected,
-          isExpanded: true,
-          icon: Icon(Icons.expand_more, color: c.inkMuted, size: 20),
-          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
-          items: [
-            for (final z in zones)
-              DropdownMenuItem(
-                value: z,
-                child: Text(AppDatabase.timezoneLabel(z)),
-              ),
-          ],
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _TemplateDropdown extends StatelessWidget {
-  const _TemplateDropdown({
-    required this.value,
-    required this.templates,
-    required this.onChanged,
-  });
-
-  final String value;
-  final List<SoapTemplate> templates;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final items = templates.isEmpty
-        ? soapTemplates
-            .where((t) => !draftBuiltinTemplateIds.contains(t.id))
-            .toList()
-        : templates;
-    final selected = items.any((t) => t.id == value)
-        ? value
-        : (items.isNotEmpty ? items.first.id : blankId);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-        border: Border.all(color: c.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: selected,
-          isExpanded: true,
-          icon: Icon(Icons.expand_more, color: c.inkMuted, size: 20),
-          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
-          items: [
-            for (final t in items)
-              DropdownMenuItem(value: t.id, child: Text(t.label)),
-          ],
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
         ),
       ),
     );

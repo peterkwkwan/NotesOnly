@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,8 +11,8 @@ import '../../data/database_provider.dart';
 import '../../data/online.dart';
 import '../../data/sync.dart';
 import '../../theme/theme.dart';
-import '../../widgets/show_snack.dart';
-import '../org/org_access_screen.dart';
+import '../../widgets/desktop_settings_controls.dart';
+import '../../widgets/show_snack.dart';import '../org/org_access_screen.dart';
 import '../shell/desktop_chrome.dart';
 import 'practice_members_panel.dart';
 
@@ -191,11 +190,15 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
-              _Field(
+              const SizedBox(height: 8),
+              DesktopSettingsRow(
                 label: 'Clinic name',
-                controller: _clinicName,
                 helper: 'Shown in the sidebar for everyone in this clinic.',
+                showDivider: false,
+                control: DesktopSettingsTextControl(
+                  controller: _clinicName,
+                  width: 260,
+                ),
               ),
             ],
           ),
@@ -209,81 +212,41 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Field(
+              DesktopSettingsRow(
                 label: 'Recall window',
-                controller: _recallDays,
                 helper: 'Clients with no visit in the window appear in Due.',
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                suffixText: 'days',
-              ),
-              const SizedBox(height: 18),
-              Divider(height: 1, color: c.border),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Recall notifications',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: c.ink,
-                            height: 1.5,
-                          ),
-                        ),
-                        Text(
-                          'Daily local reminder when clients are due',
-                          style: TextStyle(
-                            fontSize: 11,
-                            height: 1.5,
-                            color: c.inkMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch.adaptive(
-                    value: _recallNotifs,
-                    onChanged: (v) {
-                      setState(() {
-                        _recallNotifs = v;
-                        _dirty = true;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Divider(height: 1, color: c.border),
-              const SizedBox(height: 18),
-              Text(
-                'Individual recall preferences',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: c.ink,
-                  height: 1.5,
+                control: DesktopSettingsTextControl(
+                  controller: _recallDays,
+                  width: 120,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  suffixText: 'days',
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Mute recalls in a client profile to exclude that client from Due. Review selected clients together in the directory.',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
+              DesktopSettingsRow(
+                label: 'Recall notifications',
+                helper: 'Daily local reminder when clients are due',
+                control: Switch.adaptive(
+                  value: _recallNotifs,
+                  onChanged: (v) {
+                    setState(() {
+                      _recallNotifs = v;
+                      _dirty = true;
+                    });
+                  },
                 ),
               ),
-              const SizedBox(height: 18),
-              _PinkSoftAction(
-                icon: Icons.people_outline,
-                label: 'Open recall management',
-                onPressed: () =>
-                    ShellNavigation.of(context).goTo(DesktopDest.clients),
+              DesktopSettingsRow(
+                label: 'Individual recall preferences',
+                helper:
+                    'Mute recalls in a client profile to exclude that client from Due. Review selected clients together in the directory.',
+                showDivider: false,
+                control: _PinkSoftAction(
+                  icon: Icons.people_outline,
+                  label: 'Open recall management',
+                  onPressed: () =>
+                      ShellNavigation.of(context).goTo(DesktopDest.clients),
+                ),
               ),
             ],
           ),
@@ -296,75 +259,32 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Export JSON backup',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: c.ink,
-                      height: 1.5,
+                  DesktopSettingsRow(
+                    label: 'Export JSON backup',
+                    helper: 'Clients, appointments, notes + settings',
+                    control: DesktopOutlineAction(
+                      icon: Icons.download_outlined,
+                      label: 'Export JSON',
+                      onPressed: () => unawaited(_exportJson()),
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    'Clients, appointments, notes + settings',
-                    style: TextStyle(
-                      fontSize: 11,
-                      height: 1.5,
-                      color: c.inkMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 9),
-                  DesktopOutlineAction(
-                    icon: Icons.download_outlined,
-                    label: 'Export JSON',
-                    onPressed: () => unawaited(_exportJson()),
-                  ),
-                  const SizedBox(height: 18),
-                  Divider(height: 1, color: c.border),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Export CSV',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: c.ink,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    'Three spreadsheet files: clients, appointments and notes.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      height: 1.5,
-                      color: c.inkMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 9),
-                  DesktopOutlineAction(
-                    icon: Icons.download_outlined,
+                  DesktopSettingsRow(
                     label: 'Export CSV',
-                    onPressed: () => unawaited(_exportCsv()),
-                  ),
-                  const SizedBox(height: 18),
-                  Divider(height: 1, color: c.border),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Cloud sync',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: c.ink,
-                      height: 1.5,
+                    helper:
+                        'Three spreadsheet files: clients, appointments and notes.',
+                    control: DesktopOutlineAction(
+                      icon: Icons.download_outlined,
+                      label: 'Export CSV',
+                      onPressed: () => unawaited(_exportCsv()),
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  const _WebSyncStrip(),
-                  const SizedBox(height: 9),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
+                  const _WebSyncRow(),
+                  DesktopSettingsRow(
+                    label: 'Invites',
+                    helper: 'Manage clinic access invites.',
+                    showDivider: false,
+                    control: DesktopOutlineAction(
+                      label: 'Invites',
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
@@ -372,7 +292,6 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                           ),
                         );
                       },
-                      child: const Text('Invites'),
                     ),
                   ),
                 ],
@@ -597,81 +516,11 @@ class _Panel extends StatelessWidget {
                 color: c.ink,
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 10),
             child,
           ],
         ),
       ),
-    );
-  }
-}
-
-class _Field extends StatelessWidget {
-  const _Field({
-    required this.label,
-    required this.controller,
-    this.helper,
-    this.keyboardType,
-    this.inputFormatters,
-    this.suffixText,
-  });
-
-  final String label;
-  final TextEditingController controller;
-  final String? helper;
-  final TextInputType? keyboardType;
-  final List<TextInputFormatter>? inputFormatters;
-  final String? suffixText;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: c.ink,
-            height: 1.5,
-          ),
-        ),
-        const SizedBox(height: 7),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          inputFormatters: inputFormatters,
-          style: TextStyle(fontSize: 13, height: 1.5, color: c.ink),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding: const EdgeInsets.all(12),
-            filled: true,
-            fillColor: c.surface,
-            suffixText: suffixText,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-              borderSide: BorderSide(color: c.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-              borderSide: BorderSide(color: c.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-              borderSide: BorderSide(color: c.pink700),
-            ),
-          ),
-        ),
-        if (helper != null) ...[
-          const SizedBox(height: 7),
-          Text(
-            helper!,
-            style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-          ),
-        ],
-      ],
     );
   }
 }
@@ -696,31 +545,24 @@ class _PinkSoftAction extends StatelessWidget {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(PelviRadius.sm),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: c.pink700),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: c.pink700,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: c.pink700),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: c.pink700,
+                  height: 1.5,
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -728,14 +570,14 @@ class _PinkSoftAction extends StatelessWidget {
   }
 }
 
-class _WebSyncStrip extends StatefulWidget {
-  const _WebSyncStrip();
+class _WebSyncRow extends StatefulWidget {
+  const _WebSyncRow();
 
   @override
-  State<_WebSyncStrip> createState() => _WebSyncStripState();
+  State<_WebSyncRow> createState() => _WebSyncRowState();
 }
 
-class _WebSyncStripState extends State<_WebSyncStrip> {
+class _WebSyncRowState extends State<_WebSyncRow> {
   bool _online = true;
   bool _busy = false;
 
@@ -771,7 +613,6 @@ class _WebSyncStripState extends State<_WebSyncStrip> {
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.of(context);
     final sync = AppDatabaseProvider.syncOf(context);
-    final c = PelviColors.of(context);
     return StreamBuilder<SyncStatus>(
       stream: sync.watchStatus(),
       initialData: SyncStatus.idle,
@@ -784,58 +625,33 @@ class _WebSyncStripState extends State<_WebSyncStrip> {
           SyncStatus.error => 'Could not sync',
           SyncStatus.idle => 'Not syncing',
         };
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            StreamBuilder<String?>(
-              stream: db.watchSetting(AppDatabase.syncLastSuccessKey),
-              builder: (context, lastSnap) {
-                final last = lastSnap.data;
-                final detail = switch (status) {
-                  SyncStatus.synced => (last == null || last.isEmpty)
-                      ? 'Your clinic data is up to date'
-                      : 'Last updated $last',
-                  SyncStatus.pending => 'Will update when you are back online',
-                  SyncStatus.syncing => 'Updating…',
-                  SyncStatus.error => 'Tap Sync now to try again',
-                  SyncStatus.idle => 'Sign in to keep devices in sync',
-                };
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: c.ink,
-                      ),
-                    ),
-                    Text(
-                      detail,
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.5,
-                        color: status == SyncStatus.error
-                            ? c.danger
-                            : c.inkMuted,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 9),
-            DesktopOutlineAction(
-              icon: Icons.cloud_sync_outlined,
-              label: _busy
-                  ? 'Updating…'
-                  : (!_online ? 'Offline' : 'Sync now'),
-              onPressed: (!_online || _busy)
-                  ? null
-                  : () => unawaited(_syncNow()),
-            ),
-          ],
+        return StreamBuilder<String?>(
+          stream: db.watchSetting(AppDatabase.syncLastSuccessKey),
+          builder: (context, lastSnap) {
+            final last = lastSnap.data;
+            final detail = switch (status) {
+              SyncStatus.synced => (last == null || last.isEmpty)
+                  ? 'Your clinic data is up to date'
+                  : 'Last updated $last',
+              SyncStatus.pending => 'Will update when you are back online',
+              SyncStatus.syncing => 'Updating…',
+              SyncStatus.error => 'Tap Sync now to try again',
+              SyncStatus.idle => 'Sign in to keep devices in sync',
+            };
+            return DesktopSettingsRow(
+              label: 'Cloud sync · $label',
+              helper: detail,
+              control: DesktopOutlineAction(
+                icon: Icons.cloud_sync_outlined,
+                label: _busy
+                    ? 'Updating…'
+                    : (!_online ? 'Offline' : 'Sync now'),
+                onPressed: (!_online || _busy)
+                    ? null
+                    : () => unawaited(_syncNow()),
+              ),
+            );
+          },
         );
       },
     );
