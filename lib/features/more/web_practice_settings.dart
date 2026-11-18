@@ -12,7 +12,7 @@ import '../../data/online.dart';
 import '../../data/sync.dart';
 import '../../theme/theme.dart';
 import '../../widgets/desktop_settings_controls.dart';
-import '../../widgets/show_snack.dart';import '../org/org_access_screen.dart';
+import '../../widgets/show_snack.dart';
 import '../shell/desktop_chrome.dart';
 import 'practice_members_panel.dart';
 
@@ -146,47 +146,25 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: c.pink50,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      practitionerInitials(clinicLabel),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        color: c.pink700,
-                      ),
+                  Text(
+                    clinicLabel,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: c.ink,
+                      height: 1.5,
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        clinicLabel,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          color: c.ink,
-                          height: 1.5,
-                        ),
-                      ),
-                      Text(
-                        'Organization',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: c.inkMuted,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'Organization',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: c.inkMuted,
+                      height: 1.5,
+                    ),
                   ),
                 ],
               ),
@@ -217,7 +195,6 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                 helper: 'Clients with no visit in the window appear in Due.',
                 control: DesktopSettingsTextControl(
                   controller: _recallDays,
-                  width: 120,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   suffixText: 'days',
@@ -279,21 +256,6 @@ class _WebPracticeSettingsState extends State<WebPracticeSettings> {
                     ),
                   ),
                   const _WebSyncRow(),
-                  DesktopSettingsRow(
-                    label: 'Invites',
-                    helper: 'Manage clinic access invites.',
-                    showDivider: false,
-                    control: DesktopOutlineAction(
-                      label: 'Invites',
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const OrgAccessScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -641,6 +603,7 @@ class _WebSyncRowState extends State<_WebSyncRow> {
             return DesktopSettingsRow(
               label: 'Cloud sync · $label',
               helper: detail,
+              showDivider: false,
               control: DesktopOutlineAction(
                 icon: Icons.cloud_sync_outlined,
                 label: _busy

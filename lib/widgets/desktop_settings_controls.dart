@@ -244,6 +244,9 @@ class _DesktopSettingsDropdownState<T>
 }
 
 /// Compact right-aligned text field for settings rows.
+///
+/// With [suffixText], width is intrinsic so the value and suffix sit close —
+/// Material's [InputDecoration.suffixText] expands between them.
 class DesktopSettingsTextControl extends StatelessWidget {
   const DesktopSettingsTextControl({
     super.key,
@@ -267,19 +270,63 @@ class DesktopSettingsTextControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
+    final style = TextStyle(fontSize: 13, height: 1.4, color: c.ink);
+    if (suffixText != null) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(PelviRadius.md),
+          border: Border.all(color: c.border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IntrinsicWidth(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 20),
+                  child: TextField(
+                    controller: controller,
+                    keyboardType: keyboardType,
+                    inputFormatters: inputFormatters,
+                    style: style,
+                    onSubmitted: onSubmitted,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: hint,
+                      hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      isCollapsed: true,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                suffixText!,
+                style: TextStyle(fontSize: 13, height: 1.4, color: c.inkMuted),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return SizedBox(
       width: width,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,
-        style: TextStyle(fontSize: 13, height: 1.4, color: c.ink),
+        style: style,
         onSubmitted: onSubmitted,
         decoration: InputDecoration(
           isDense: true,
           hintText: hint,
           hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
-          suffixText: suffixText,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           filled: true,
