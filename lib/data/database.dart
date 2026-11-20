@@ -457,6 +457,8 @@ class AppDatabase extends _$AppDatabase {
   static const defaultAppointmentMinutes = '60';
   /// Allowed practice-default appointment lengths (minutes).
   static const allowedAppointmentMinutes = <int>[45, 60, 90];
+  /// Per-appointment duration choices on New/Edit booking forms.
+  static const appointmentDurationChoices = <int>[30, 45, 60, 90, 120];
   static const clinicHoursStartKey = 'clinic_hours_start';
   static const clinicHoursEndKey = 'clinic_hours_end';
   static const defaultClinicHoursStart = '09:00';
@@ -519,20 +521,28 @@ class AppDatabase extends _$AppDatabase {
     return '$name $sign$h:${m.toString().padLeft(2, '0')} GMT';
   }
 
-  /// Maps any stored minutes value onto [allowedAppointmentMinutes] (nearest; ties → 60).
-  static int normalizeAppointmentMinutes(int minutes) {
-    if (allowedAppointmentMinutes.contains(minutes)) return minutes;
-    var best = 60;
+  /// Nearest value in [allowed] (ties → 60 when present, else first).
+  static int snapToAllowedMinutes(int minutes, List<int> allowed) {
+    if (allowed.contains(minutes)) return minutes;
+    var best = allowed.contains(60) ? 60 : allowed.first;
     var bestDist = 1 << 30;
-    for (final allowed in allowedAppointmentMinutes) {
-      final d = (allowed - minutes).abs();
-      if (d < bestDist || (d == bestDist && allowed == 60)) {
+    for (final option in allowed) {
+      final d = (option - minutes).abs();
+      if (d < bestDist || (d == bestDist && option == 60)) {
         bestDist = d;
-        best = allowed;
+        best = option;
       }
     }
     return best;
   }
+
+  /// Maps any stored minutes value onto [allowedAppointmentMinutes] (nearest; ties → 60).
+  static int normalizeAppointmentMinutes(int minutes) =>
+      snapToAllowedMinutes(minutes, allowedAppointmentMinutes);
+
+  /// Maps a length onto [appointmentDurationChoices] (nearest; ties → 60).
+  static int snapAppointmentDuration(int minutes) =>
+      snapToAllowedMinutes(minutes, appointmentDurationChoices);
   static const recallNotificationsKey = 'recall_notifications_enabled';
   static const defaultRecallNotifications = '1';
   /// `light` | `dark` — Account Settings toggle; default light.

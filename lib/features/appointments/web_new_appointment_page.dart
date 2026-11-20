@@ -4,6 +4,7 @@ import '../../data/appointment_overlap.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/desktop_settings_controls.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
@@ -40,6 +41,7 @@ class WebNewAppointmentPage extends StatefulWidget {
 class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
   late DateTime _day;
   late TimeOfDay _time;
+  int _durationMins = 60;
   AppointmentStatus _status = AppointmentStatus.scheduled;
   int? _clientId;
   bool _saving = false;
@@ -54,6 +56,17 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
     _day = DateTime(seed.year, seed.month, seed.day);
     _time = widget.initialTime ?? nextWholeHour();
     _clientId = widget.clientId;
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _loadDefaultDuration());
+  }
+
+  Future<void> _loadDefaultDuration() async {
+    final mins =
+        await AppDatabaseProvider.of(context).getDefaultAppointmentMinutes();
+    if (!mounted) return;
+    setState(() {
+      _durationMins = AppDatabase.snapAppointmentDuration(mins);
+    });
   }
 
   DateTime get _startsAt => DateTime(
@@ -63,6 +76,9 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
         _time.hour,
         _time.minute,
       );
+
+  DateTime get _endsAt =>
+      _startsAt.add(Duration(minutes: _durationMins));
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -138,6 +154,7 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
       await db.insertAppointment(
         clientId: clientId,
         startsAt: _startsAt,
+        endsAt: _endsAt,
         status: _status,
       );
       if (!mounted) return;
@@ -276,6 +293,30 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
                       DateTime(0, 1, 1, _time.hour, _time.minute),
                     ),
                     onTap: _pickTime,
+                  ),
+                  const SizedBox(height: 20),
+                  const _FieldLabel('DURATION'),
+                  const SizedBox(height: 6),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return DesktopSettingsDropdown<int>(
+                        width: constraints.maxWidth,
+                        value: AppDatabase.appointmentDurationChoices
+                                .contains(_durationMins)
+                            ? _durationMins
+                            : AppDatabase.snapAppointmentDuration(
+                                _durationMins),
+                        items: [
+                          for (final m
+                              in AppDatabase.appointmentDurationChoices)
+                            DesktopSettingsDropdownItem(
+                              value: m,
+                              label: '$m minutes',
+                            ),
+                        ],
+                        onChanged: (v) => setState(() => _durationMins = v),
+                      );
+                    },
                   ),
                   const SizedBox(height: 20),
                   const _FieldLabel('STATUS'),

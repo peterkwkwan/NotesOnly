@@ -19,6 +19,12 @@ TimeOfDay nextWholeHour([DateTime? now]) {
   return TimeOfDay(hour: n.hour, minute: 0);
 }
 
+/// [start] plus [minutes], wrapping past midnight.
+TimeOfDay addMinutesToTimeOfDay(TimeOfDay start, int minutes) {
+  final total = start.hour * 60 + start.minute + minutes;
+  return TimeOfDay(hour: (total ~/ 60) % 24, minute: total % 60);
+}
+
 /// Create or edit an appointment: date/time + client (+ status).
 class AppointmentFormScreen extends StatefulWidget {
   const AppointmentFormScreen({
@@ -45,6 +51,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late DateTime _day;
   late TimeOfDay _time;
+  int _durationMins = 60;
   AppointmentStatus _status = AppointmentStatus.scheduled;
   int? _clientId;
   bool _saving = false;
@@ -74,7 +81,18 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       _day = DateTime(seed.year, seed.month, seed.day);
       _time = nextWholeHour();
       _clientId = widget.clientId;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _loadDefaultDuration());
     }
+  }
+
+  Future<void> _loadDefaultDuration() async {
+    final mins =
+        await AppDatabaseProvider.of(context).getDefaultAppointmentMinutes();
+    if (!mounted || _editing) return;
+    setState(() {
+      _durationMins = AppDatabase.snapAppointmentDuration(mins);
+    });
   }
 
   Future<void> _loadHasNote() async {
@@ -93,6 +111,9 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
         _time.hour,
         _time.minute,
       );
+
+  DateTime get _endsAt =>
+      _startsAt.add(Duration(minutes: _durationMins));
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -149,6 +170,19 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       ],
     );
     if (status != null) setState(() => _status = status);
+  }
+
+  Future<void> _pickDuration() async {
+    final picked = await showPelviPickerSheet<int>(
+      context: context,
+      title: 'Duration',
+      selected: _durationMins,
+      options: [
+        for (final m in AppDatabase.appointmentDurationChoices)
+          PelviPickerOption(value: m, label: '$m min'),
+      ],
+    );
+    if (picked != null) setState(() => _durationMins = picked);
   }
 
   Future<void> _openSoap() async {
@@ -221,6 +255,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       await db.insertAppointment(
         clientId: clientId,
         startsAt: _startsAt,
+        endsAt: _endsAt,
         status: _status,
       );
       if (!mounted) return;
@@ -356,6 +391,16 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
               onTap: _pickTime,
               trailing: Icons.schedule_outlined,
             ),
+            if (!_editing) ...[
+              const SizedBox(height: PelviSpace.md),
+              Text('DURATION', style: text.labelMedium),
+              const SizedBox(height: PelviSpace.xs),
+              _fieldTap(
+                value: '$_durationMins min',
+                hint: '',
+                onTap: _pickDuration,
+              ),
+            ],
             const SizedBox(height: PelviSpace.md),
             Text('STATUS', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),

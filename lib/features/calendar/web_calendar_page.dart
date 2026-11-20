@@ -152,6 +152,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   bool _panelOpen = true;
   late TimeOfDay _starts;
   late TimeOfDay _ends;
+  int _durationMins = 60;
   int? _clientId;
   final _notesCtrl = TextEditingController();
   bool _saving = false;
@@ -178,7 +179,40 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     _selected = _dateOnly(now);
     _anchor = _sundayOf(now);
     _starts = nextWholeHour(now);
-    _ends = TimeOfDay(hour: (_starts.hour + 1) % 24, minute: _starts.minute);
+    _ends = addMinutesToTimeOfDay(_starts, _durationMins);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _loadDefaultDuration());
+  }
+
+  Future<void> _loadDefaultDuration() async {
+    final mins =
+        await AppDatabaseProvider.of(context).getDefaultAppointmentMinutes();
+    if (!mounted) return;
+    setState(() {
+      _durationMins = AppDatabase.snapAppointmentDuration(mins);
+      if (_reassign == null) {
+        _ends = addMinutesToTimeOfDay(_starts, _durationMins);
+      }
+    });
+  }
+
+  Future<void> _pickDuration() async {
+    final picked = await showPelviPickerSheet<int>(
+      context: context,
+      title: 'Duration',
+      selected: AppDatabase.appointmentDurationChoices.contains(_durationMins)
+          ? _durationMins
+          : AppDatabase.snapAppointmentDuration(_durationMins),
+      options: [
+        for (final m in AppDatabase.appointmentDurationChoices)
+          PelviPickerOption(value: m, label: '$m min'),
+      ],
+    );
+    if (picked == null) return;
+    setState(() {
+      _durationMins = picked;
+      _ends = addMinutesToTimeOfDay(_starts, picked);
+    });
   }
 
   @override
@@ -376,7 +410,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
           ? DateTime(now.year, now.month)
           : _sundayOf(now);
       _starts = nextWholeHour(now);
-      _ends = TimeOfDay(hour: (_starts.hour + 1) % 24, minute: _starts.minute);
+      _ends = addMinutesToTimeOfDay(_starts, _durationMins);
     });
   }
 
@@ -407,7 +441,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _status = AppointmentStatus.scheduled;
       _selected = _dateOnly(d);
       _starts = s;
-      _ends = TimeOfDay(hour: (s.hour + 1) % 24, minute: s.minute);
+      _ends = addMinutesToTimeOfDay(s, _durationMins);
       _clientId = null;
       _notesCtrl.clear();
     });
@@ -423,6 +457,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       row.appointment.endsAt,
       defaultMins,
     );
+    final span = end.difference(start).inMinutes;
     setState(() {
       _reassign = row;
       _reassignUid = row.appointment.practitionerUid;
@@ -430,6 +465,9 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _selected = _dateOnly(start);
       _starts = TimeOfDay(hour: start.hour, minute: start.minute);
       _ends = TimeOfDay(hour: end.hour, minute: end.minute);
+      _durationMins = AppDatabase.snapAppointmentDuration(
+        span > 0 ? span : defaultMins,
+      );
       _status = row.appointment.status;
       _hasNote = null;
       if (_view == _CalView.week) _anchor = _sundayOf(_selected);
@@ -933,7 +971,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                       notesCtrl: _notesCtrl,
                                                       practitioner:
                                                           practitioner,
-                                                      defaultMins: defaultMins,
+                                                      durationMins:
+                                                          _durationMins,
                                                       timezone: tz,
                                                       saving: _saving,
                                                       onClose: _closePanel,
@@ -976,13 +1015,10 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                         if (picked != null) {
                                                           setState(() {
                                                             _starts = picked;
-                                                            _ends = TimeOfDay(
-                                                              hour: (picked
-                                                                          .hour +
-                                                                      1) %
-                                                                  24,
-                                                              minute: picked
-                                                                  .minute,
+                                                            _ends =
+                                                                addMinutesToTimeOfDay(
+                                                              picked,
+                                                              _durationMins,
                                                             );
                                                           });
                                                         }
@@ -998,6 +1034,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                               _ends = picked);
                                                         }
                                                       },
+                                                      onPickDuration:
+                                                          _pickDuration,
                                                       onPickStatus:
                                                           _pickStatus,
                                                       onSave: () => _save(
@@ -1018,6 +1056,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                       ends: _ends,
                                                       status: _status,
                                                       hasNote: _hasNote,
+                                                      durationMins:
+                                                          _durationMins,
                                                       defaultMins: defaultMins,
                                                       canReassign:
                                                           _canReassign,
@@ -1061,33 +1101,11 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                         );
                                                         if (picked != null) {
                                                           setState(() {
-                                                            final span =
-                                                                (_ends.hour *
-                                                                            60 +
-                                                                        _ends
-                                                                            .minute) -
-                                                                    (_starts.hour *
-                                                                            60 +
-                                                                        _starts
-                                                                            .minute);
                                                             _starts = picked;
-                                                            final mins =
-                                                                span > 0
-                                                                    ? span
-                                                                    : defaultMins;
-                                                            final endTotal =
-                                                                picked.hour *
-                                                                        60 +
-                                                                    picked
-                                                                        .minute +
-                                                                    mins;
-                                                            _ends = TimeOfDay(
-                                                              hour: (endTotal ~/
-                                                                      60) %
-                                                                  24,
-                                                              minute:
-                                                                  endTotal %
-                                                                      60,
+                                                            _ends =
+                                                                addMinutesToTimeOfDay(
+                                                              picked,
+                                                              _durationMins,
                                                             );
                                                           });
                                                         }
@@ -1103,6 +1121,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                               _ends = picked);
                                                         }
                                                       },
+                                                      onPickDuration:
+                                                          _pickDuration,
                                                       onPickStatus:
                                                           _pickStatus,
                                                       onSoap:
@@ -2460,7 +2480,7 @@ class _NewAppointmentPanel extends StatelessWidget {
     required this.status,
     required this.notesCtrl,
     required this.practitioner,
-    required this.defaultMins,
+    required this.durationMins,
     required this.timezone,
     required this.saving,
     required this.onClose,
@@ -2469,6 +2489,7 @@ class _NewAppointmentPanel extends StatelessWidget {
     required this.onPickDate,
     required this.onPickStarts,
     required this.onPickEnds,
+    required this.onPickDuration,
     required this.onPickStatus,
     required this.onSave,
   });
@@ -2480,7 +2501,7 @@ class _NewAppointmentPanel extends StatelessWidget {
   final AppointmentStatus status;
   final TextEditingController notesCtrl;
   final String practitioner;
-  final int defaultMins;
+  final int durationMins;
   final String timezone;
   final bool saving;
   final VoidCallback onClose;
@@ -2489,6 +2510,7 @@ class _NewAppointmentPanel extends StatelessWidget {
   final VoidCallback onPickDate;
   final VoidCallback onPickStarts;
   final VoidCallback onPickEnds;
+  final VoidCallback onPickDuration;
   final VoidCallback onPickStatus;
   final VoidCallback onSave;
 
@@ -2618,10 +2640,12 @@ class _NewAppointmentPanel extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                '$defaultMins min · practice default',
-                style: TextStyle(fontSize: 11, color: c.inkMuted),
+              const SizedBox(height: 16),
+              const _FieldLabel('Duration'),
+              const SizedBox(height: 7),
+              _FieldBox(
+                value: '$durationMins min',
+                onTap: onPickDuration,
               ),
               const SizedBox(height: 16),
               const _FieldLabel('Status'),
@@ -2740,6 +2764,7 @@ class _ReassignPanel extends StatelessWidget {
     required this.ends,
     required this.status,
     required this.hasNote,
+    required this.durationMins,
     required this.defaultMins,
     required this.canReassign,
     required this.saving,
@@ -2748,6 +2773,7 @@ class _ReassignPanel extends StatelessWidget {
     required this.onPickDate,
     required this.onPickStarts,
     required this.onPickEnds,
+    required this.onPickDuration,
     required this.onPickStatus,
     required this.onSoap,
     required this.onSave,
@@ -2762,6 +2788,7 @@ class _ReassignPanel extends StatelessWidget {
   final TimeOfDay ends;
   final AppointmentStatus status;
   final bool? hasNote;
+  final int durationMins;
   final int defaultMins;
   final bool canReassign;
   final bool saving;
@@ -2770,6 +2797,7 @@ class _ReassignPanel extends StatelessWidget {
   final VoidCallback onPickDate;
   final VoidCallback onPickStarts;
   final VoidCallback onPickEnds;
+  final VoidCallback onPickDuration;
   final VoidCallback onPickStatus;
   final VoidCallback onSoap;
   final VoidCallback onSave;
@@ -2893,6 +2921,13 @@ class _ReassignPanel extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          const _FieldLabel('Duration'),
+          const SizedBox(height: 7),
+          _FieldBox(
+            value: '$durationMins min',
+            onTap: onPickDuration,
           ),
           const SizedBox(height: 16),
           const _FieldLabel('Practitioner'),

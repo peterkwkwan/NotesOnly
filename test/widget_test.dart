@@ -1773,6 +1773,15 @@ void main() {
     expect(AppDatabase.normalizeAppointmentMinutes(75), 60);
     expect(AppDatabase.normalizeAppointmentMinutes(0), 45);
 
+    expect(AppDatabase.snapAppointmentDuration(30), 30);
+    expect(AppDatabase.snapAppointmentDuration(45), 45);
+    expect(AppDatabase.snapAppointmentDuration(60), 60);
+    expect(AppDatabase.snapAppointmentDuration(90), 90);
+    expect(AppDatabase.snapAppointmentDuration(120), 120);
+    expect(AppDatabase.snapAppointmentDuration(75), 60);
+    expect(AppDatabase.snapAppointmentDuration(100), 90);
+    expect(AppDatabase.snapAppointmentDuration(0), 30);
+
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
     await db.setSetting(AppDatabase.defaultAppointmentMinutesKey, '30');
