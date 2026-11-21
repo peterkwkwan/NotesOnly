@@ -8,7 +8,7 @@
 //   node tool/reassign_import_practitioner.js --live
 //
 // Defaults: notesonly-e4829, Amber (3zQ3VVBA2ZssRYltwpwR),
-// from peterkwkwan@gmail.com → to shummh19@gmail.com.
+// from peterkwkwan@gmail.com → to pelvirun@gmail.com.
 // shortcut: one clinic + one import cutover, upgrade if multi-clinic reassign
 
 const assert = require('assert');
@@ -19,7 +19,7 @@ const path = require('path');
 const PROJECT = 'notesonly-e4829';
 const DEFAULT_ORG = '3zQ3VVBA2ZssRYltwpwR';
 const DEFAULT_FROM_EMAIL = 'peterkwkwan@gmail.com';
-const DEFAULT_TO_EMAIL = 'shummh19@gmail.com';
+const DEFAULT_TO_EMAIL = 'pelvirun@gmail.com';
 // 2026-11-14 00:00 Asia/Hong_Kong
 const DEFAULT_BEFORE = '2026-11-13T16:00:00.000Z';
 const ROLE_ORDER = ['owner', 'admin', 'practitioner'];
@@ -456,11 +456,11 @@ function selfCheck() {
   const args = parseArgs([
     '--dry-run',
     '--to-email',
-    'Shummh19@Gmail.com',
+    'PelviRun@Gmail.com',
     '--before',
     '2026-11-13T16:00:00.000Z',
   ]);
-  assert.strictEqual(args.toEmail, 'shummh19@gmail.com');
+  assert.strictEqual(args.toEmail, 'pelvirun@gmail.com');
   assert.strictEqual(args.beforeIso, DEFAULT_BEFORE);
   assert.strictEqual(args.dryRun, true);
 
@@ -619,7 +619,7 @@ async function main() {
   console.log(`before: ${opts.beforeIso} (exclusive)`);
 
   const toMember = toMembers.length === 1 ? membershipSummary(toMembers[0]) : null;
-  console.log(`shummh19_in_db: ${toMembers.length > 0 ? 'yes' : 'no'}`);
+  console.log(`to_in_db: ${toMembers.length > 0 ? 'yes' : 'no'}`);
   if (toMembers.length > 1) {
     console.error(
       `Found ${toMembers.length} memberships for ${opts.toEmail} in org ${opts.orgId}; expected 1.`,
