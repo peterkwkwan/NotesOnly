@@ -112,6 +112,12 @@ void main() {
     expect(remoteWinsLww(newer, newer), isTrue);
   });
 
+  test('defer remote while local appointment write is pending/error', () {
+    expect(deferRemoteWhileLocalPending(RowSyncStatus.synced.index), isFalse);
+    expect(deferRemoteWhileLocalPending(RowSyncStatus.pending.index), isTrue);
+    expect(deferRemoteWhileLocalPending(RowSyncStatus.error.index), isTrue);
+  });
+
   test('legacy pull cursor includes equal updatedAt; document id resumes after it', () {
     final t = DateTime.utc(2026, 11, 11);
     final legacy = syncPullBound(SyncPullCursor.decode(t.toIso8601String()));

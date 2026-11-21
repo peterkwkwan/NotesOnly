@@ -28,6 +28,8 @@ class FirestoreSyncEngine implements SyncEngine {
   bool _started = false;
   int _syncGen = 0;
   StreamSubscription<User?>? _authSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _appointmentsSub;
+  String? _appointmentsListenKey;
 
   static const _collections = [
     'clients',
@@ -68,6 +70,7 @@ class FirestoreSyncEngine implements SyncEngine {
       if (user != null) {
         unawaited(syncNow());
       } else {
+        _stopAppointmentsListen();
         _setStatus(SyncStatus.idle);
       }
     });
@@ -81,6 +84,7 @@ class FirestoreSyncEngine implements SyncEngine {
     _started = false;
     db.onLocalChange = null;
     _debounce?.cancel();
+    _stopAppointmentsListen();
     _authSub?.cancel();
     _authSub = null;
   }
@@ -104,6 +108,7 @@ class FirestoreSyncEngine implements SyncEngine {
   Future<SyncStatus> syncNow() async {
     final user = NotesAuth.currentUser;
     if (user == null) {
+      _stopAppointmentsListen();
       _setStatus(SyncStatus.idle);
       return SyncStatus.idle;
     }
@@ -141,16 +146,23 @@ class FirestoreSyncEngine implements SyncEngine {
   Future<void> _runSync(User user) async {
     final bound = await db.getSetting(AppDatabase.syncBoundUidKey);
     if (bound != null && bound.isNotEmpty && bound != user.uid) {
+      _stopAppointmentsListen();
       await db.clearLocalClinicForAccountSwitch();
     }
     await db.setSetting(AppDatabase.syncBoundUidKey, user.uid);
 
     final orgId = await _ensureActiveOrg(user);
     if (orgId == null) {
+      _stopAppointmentsListen();
       // Still restore a wipe-surviving local name while waiting for a clinic.
       await db.rehydratePractitionerNameForUid(user.uid);
       _setStatus(SyncStatus.idle);
       return;
+    }
+    // Drop a previous org's listener before push/pull (invite may skip _bindOrg).
+    final listenOrg = _appointmentsListenKey?.split('|').first;
+    if (listenOrg != null && listenOrg != orgId) {
+      _stopAppointmentsListen();
     }
     // After settings pull (new bind) so a cloud practitioner_name__{uid} is local.
     await db.rehydratePractitionerNameForUid(user.uid);
@@ -159,6 +171,8 @@ class FirestoreSyncEngine implements SyncEngine {
     await _pushAll(orgId, user);
     final catchUpClients = await _resetClientsCursorOnce();
     await _pullAll(orgId, user);
+    // Live appointments after catch-up so Calendar/Today (and Drift watchers) update.
+    await _ensureAppointmentsListen(orgId, user);
     // Full pull may bring a per-uid name written on another device.
     await db.rehydratePractitionerNameForUid(user.uid);
     if (catchUpClients) {
@@ -246,8 +260,47 @@ class FirestoreSyncEngine implements SyncEngine {
     await db.setSetting(AppDatabase.activeOrgIdKey, orgId);
     await db.setSetting(AppDatabase.activeOrgRolesKey, roles);
     if (prev == orgId) return;
+    _stopAppointmentsListen();
     for (final name in _collections) {
       await db.setSetting(AppDatabase.syncCursorKey(name), '');
+    }
+  }
+
+  void _stopAppointmentsListen() {
+    _appointmentsSub?.cancel();
+    _appointmentsSub = null;
+    _appointmentsListenKey = null;
+  }
+
+  /// Engine-level live query so all Drift watchers (Calendar, Today, …) update.
+  Future<void> _ensureAppointmentsListen(String orgId, User user) async {
+    final roles = await _roleNames();
+    final filter = _seesAllAppointments(roles) ? null : user.uid;
+    final key = '$orgId|${filter ?? '*'}';
+    if (_appointmentsListenKey == key && _appointmentsSub != null) return;
+    _stopAppointmentsListen();
+    _appointmentsListenKey = key;
+    Query<Map<String, dynamic>> q = _col(orgId, 'appointments');
+    if (filter != null) {
+      q = q.where('practitionerUid', isEqualTo: filter);
+    }
+    _appointmentsSub = q.snapshots().listen(
+      (snap) => unawaited(_onAppointmentsSnapshot(snap)),
+      onError: (Object e, StackTrace st) {
+        debugPrint('Appointments snapshot failed: $e\n$st');
+      },
+    );
+  }
+
+  Future<void> _onAppointmentsSnapshot(
+    QuerySnapshot<Map<String, dynamic>> snap,
+  ) async {
+    for (final change in snap.docChanges) {
+      // Soft-deletes use deletedAt; hard removes are rare — skip (no local tombstone).
+      if (change.type == DocumentChangeType.removed) continue;
+      final data = change.doc.data();
+      if (data == null) continue;
+      await _applyAppointment(change.doc.id, data);
     }
   }
 
@@ -843,9 +896,9 @@ class FirestoreSyncEngine implements SyncEngine {
     final existing = await (db.select(db.appointments)
           ..where((t) => t.remoteId.equals(remoteId)))
         .getSingleOrNull();
-    if (existing != null &&
-        !remoteWinsLww(existing.updatedAt.toUtc(), remoteUpdated)) {
-      return;
+    if (existing != null) {
+      if (deferRemoteWhileLocalPending(existing.syncStatus.index)) return;
+      if (!remoteWinsLww(existing.updatedAt.toUtc(), remoteUpdated)) return;
     }
     final statusIdx = data['status'];
     final status = statusIdx is int &&

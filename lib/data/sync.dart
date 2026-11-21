@@ -35,6 +35,10 @@ bool remoteWinsLww(DateTime localUpdatedAt, DateTime remoteUpdatedAt) {
   return !remoteUpdatedAt.isBefore(localUpdatedAt);
 }
 
+/// Skip remote apply while local is pending (1) or error (2) — unpushed write wins.
+bool deferRemoteWhileLocalPending(int syncStatusIndex) =>
+    syncStatusIndex == 1 || syncStatusIndex == 2;
+
 /// Org pulls page this many documents, then continue while the page is full.
 const syncPullPageSize = 200;
 
