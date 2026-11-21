@@ -936,6 +936,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                         ? (
                                                             day: _selected,
                                                             starts: _starts,
+                                                            durationMins:
+                                                                _durationMins,
                                                           )
                                                         : null,
                                                     onTapAppointment: (row) =>
@@ -1738,7 +1740,7 @@ class _WeekSchedule extends StatefulWidget {
   final String Function(String uid) nameForUid;
   final GlobalKey gridKey;
   final void Function(List<DateTime> days, double colW) onGridLayout;
-  final ({DateTime day, TimeOfDay starts})? draft;
+  final ({DateTime day, TimeOfDay starts, int durationMins})? draft;
   final ValueChanged<DateTime> onSelectDay;
   final void Function(DateTime day, TimeOfDay time) onTapSlot;
   final void Function(({Appointment appointment, Client client}) row)
@@ -1916,7 +1918,7 @@ class _WeekSchedule extends StatefulWidget {
     required int startHour,
     required int endHour,
     required double hourH,
-    required ({DateTime day, TimeOfDay starts}) draft,
+    required ({DateTime day, TimeOfDay starts, int durationMins}) draft,
   }) {
     final c = PelviColors.of(context);
     final dayIndex = days.indexWhere((d) => _sameDay(d, draft.day));
@@ -1929,12 +1931,14 @@ class _WeekSchedule extends StatefulWidget {
         ((draft.starts.hour - startHour) * 60 + draft.starts.minute) /
             60.0 *
             hourH;
+    final span = draft.durationMins > 0 ? draft.durationMins : 60;
+    final height = (span / 60.0 * hourH).clamp(44.0, 400.0);
     // shortcut: solid border stands in for Figma dashed slot, upgrade if design QA cares
     return Positioned(
       left: gutter + dayIndex * colW + 4,
       top: top,
       width: colW - 8,
-      height: hourH,
+      height: height,
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
