@@ -117,6 +117,10 @@ void main() {
       AppDatabase.isCloudSyncedSetting(AppDatabase.recentClientIdsKey),
       isFalse,
     );
+    expect(
+      AppDatabase.isCloudSyncedSetting(AppDatabase.themeModeKey),
+      isFalse,
+    );
   });
 
   test('pinned pins store remoteIds and still resolve legacy local ints', () async {

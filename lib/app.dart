@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -16,6 +17,7 @@ import 'features/auth/sign_in_screen.dart';
 import 'features/first_run/first_run_screen.dart';
 import 'features/org/org_access_screen.dart';
 import 'features/shell/app_shell.dart';
+import 'features/shell/desktop_chrome.dart';
 import 'theme/theme.dart';
 import 'widgets/show_snack.dart';
 
@@ -137,6 +139,22 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
     }
   }
 
+  @override
+  void didChangeMetrics() {
+    // Rebuild so web desktop light-lock tracks window width.
+    setState(() {});
+  }
+
+  /// Web wide layout stays light; mobile (and narrow web) keep the Drift pref.
+  bool get _lockLightTheme {
+    if (!kIsWeb) return false;
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    if (views.isEmpty) return false;
+    final view = views.first;
+    final width = view.physicalSize.width / view.devicePixelRatio;
+    return width >= kDesktopShellMinWidth;
+  }
+
   Future<_HomeGate> _loadGate() async {
     final db = widget.database;
     await db.ensureDefaults();
@@ -202,7 +220,7 @@ class _PelviAppState extends State<PelviApp> with WidgetsBindingObserver {
         stream: widget.database.watchDarkModeEnabled(),
         initialData: false,
         builder: (context, snap) {
-          final dark = snap.data ?? false;
+          final dark = !_lockLightTheme && (snap.data ?? false);
           _applySystemUi(dark);
           return MaterialApp(
             navigatorKey: _navigatorKey,

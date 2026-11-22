@@ -596,6 +596,8 @@ class AppDatabase extends _$AppDatabase {
       recentClientIdsKey,
       recallMutedIdsKey,
       recallClearedIdsKey,
+      // Device chrome — not an org preference (sync was flipping other devices).
+      themeModeKey,
     };
     return !localOnly.contains(key);
   }

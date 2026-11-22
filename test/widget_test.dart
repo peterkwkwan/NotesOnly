@@ -1756,6 +1756,8 @@ void main() {
     expect(await db.watchDarkModeEnabled().first, isTrue);
     await db.setDarkModeEnabled(false);
     expect(await db.getDarkModeEnabled(), isFalse);
+    // Device-local — must not ride org settings sync onto other clients.
+    expect(AppDatabase.isCloudSyncedSetting(AppDatabase.themeModeKey), isFalse);
   });
 
   test('timezoneLabel appends standard GMT offset', () {
