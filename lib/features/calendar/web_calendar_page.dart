@@ -161,6 +161,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   ({Appointment appointment, Client client})? _reassign;
   String? _reassignUid;
   List<OrgMember> _members = const [];
+  List<OrgRole> _actorRoles = const [];
   bool _canReassign = false;
   bool _rosterStarted = false;
   String _selfUid = '';
@@ -238,6 +239,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       final self = NotesAuth.currentUser?.uid ?? '';
       if (!mounted) return;
       setState(() {
+        _actorRoles = roles;
         _canReassign = mayReassignBooking(roles);
         _selfUid = self;
         _orgId = orgId ?? '';
@@ -321,6 +323,16 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     final uid = practitionerUid.isEmpty ? _selfUid : practitionerUid;
     if (uid.isEmpty) return _filterUids.contains(_selfUid);
     return _filterUids.contains(uid);
+  }
+
+  bool _canMutateAppt(Appointment a) {
+    // Match Drift: no signed-in uid → skip role gate (tests / pre-roster).
+    if (_selfUid.isEmpty) return true;
+    return mayMutateBooking(
+      actor: _actorRoles,
+      selfUid: _selfUid,
+      practitionerUid: a.practitionerUid,
+    );
   }
 
   List<({Appointment appointment, Client client})> _filteredRows(
@@ -531,6 +543,13 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   Future<void> _saveEdit(AppDatabase db, int defaultMins) async {
     final row = _reassign;
     if (row == null || _saving) return;
+    if (!_canMutateAppt(row.appointment)) {
+      showPelviSnackBar(
+        context,
+        'Only an owner or admin can change another practitioner\'s booking',
+      );
+      return;
+    }
     final uid = _reassignUid ?? row.appointment.practitionerUid;
     final pracChanged = uid != row.appointment.practitionerUid;
     if (pracChanged) {
@@ -604,6 +623,13 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     int defaultMins,
   ) async {
     final old = row.appointment;
+    if (!_canMutateAppt(old)) {
+      showPelviSnackBar(
+        context,
+        'Only an owner or admin can change another practitioner\'s booking',
+      );
+      return;
+    }
     final oldEnd = appointmentEffectiveEnd(old.startsAt, old.endsAt, defaultMins);
     final duration = oldEnd.difference(old.startsAt);
     final newEndsAt = newStartsAt.add(duration);
@@ -697,7 +723,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
 
   Future<void> _deleteAppointment(AppDatabase db) async {
     final row = _reassign;
-    if (row == null || _saving) return;
+    if (row == null || _saving || !_canMutateAppt(row.appointment)) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1061,6 +1087,9 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                       durationMins:
                                                           _durationMins,
                                                       defaultMins: defaultMins,
+                                                      canMutate: _canMutateAppt(
+                                                        _reassign!.appointment,
+                                                      ),
                                                       canReassign:
                                                           _canReassign,
                                                       saving: _saving,
@@ -2770,6 +2799,7 @@ class _ReassignPanel extends StatelessWidget {
     required this.hasNote,
     required this.durationMins,
     required this.defaultMins,
+    required this.canMutate,
     required this.canReassign,
     required this.saving,
     required this.onClose,
@@ -2794,6 +2824,7 @@ class _ReassignPanel extends StatelessWidget {
   final bool? hasNote;
   final int durationMins;
   final int defaultMins;
+  final bool canMutate;
   final bool canReassign;
   final bool saving;
   final VoidCallback onClose;
@@ -2843,7 +2874,8 @@ class _ReassignPanel extends StatelessWidget {
         starts.minute != appt.startsAt.minute ||
         ends.hour != oldEnd.hour ||
         ends.minute != oldEnd.minute;
-    final canSave = !saving &&
+    final canSave = canMutate &&
+        !saving &&
         (fieldsDirty ||
             (pracChanged && canReassign && selected != null));
 
@@ -2885,14 +2917,14 @@ class _ReassignPanel extends StatelessWidget {
           _FieldBox(
             value: appointmentStatusLabel(status),
             valueColor: appointmentStatusColor(status),
-            onTap: onPickStatus,
+            onTap: canMutate ? onPickStatus : null,
           ),
           const SizedBox(height: 16),
           const _FieldLabel('Date'),
           const SizedBox(height: 7),
           _FieldBox(
             value: formatNoteDate(day),
-            onTap: onPickDate,
+            onTap: canMutate ? onPickDate : null,
           ),
           const SizedBox(height: 16),
           Row(
@@ -2905,7 +2937,7 @@ class _ReassignPanel extends StatelessWidget {
                     const SizedBox(height: 7),
                     _FieldBox(
                       value: _hhmm(starts),
-                      onTap: onPickStarts,
+                      onTap: canMutate ? onPickStarts : null,
                     ),
                   ],
                 ),
@@ -2919,7 +2951,7 @@ class _ReassignPanel extends StatelessWidget {
                     const SizedBox(height: 7),
                     _FieldBox(
                       value: _hhmm(ends),
-                      onTap: onPickEnds,
+                      onTap: canMutate ? onPickEnds : null,
                     ),
                   ],
                 ),
@@ -2931,7 +2963,7 @@ class _ReassignPanel extends StatelessWidget {
           const SizedBox(height: 7),
           _FieldBox(
             value: '$durationMins min',
-            onTap: onPickDuration,
+            onTap: canMutate ? onPickDuration : null,
           ),
           const SizedBox(height: 16),
           const _FieldLabel('Practitioner'),
@@ -2939,7 +2971,7 @@ class _ReassignPanel extends StatelessWidget {
           _FieldBox(
             value: _label(practitionerUid),
             muted: practitionerUid.isEmpty,
-            onTap: !canReassign || bookable.isEmpty
+            onTap: !canMutate || !canReassign || bookable.isEmpty
                 ? null
                 : () async {
                     final uid = await showPelviPickerSheet<String>(
@@ -2957,7 +2989,13 @@ class _ReassignPanel extends StatelessWidget {
                     if (uid != null) onPick(uid);
                   },
           ),
-          if (!canReassign) ...[
+          if (!canMutate) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Only an owner or admin can change another practitioner\'s booking.',
+              style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
+            ),
+          ] else if (!canReassign) ...[
             const SizedBox(height: 8),
             Text(
               'Owners and admins can move this booking.',
@@ -3002,19 +3040,21 @@ class _ReassignPanel extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: saving ? null : onDelete,
-            style: TextButton.styleFrom(
-              foregroundColor: c.danger,
-              disabledForegroundColor: c.inkMuted,
-              minimumSize: const Size(0, 38),
+          if (canMutate) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: saving ? null : onDelete,
+              style: TextButton.styleFrom(
+                foregroundColor: c.danger,
+                disabledForegroundColor: c.inkMuted,
+                minimumSize: const Size(0, 38),
+              ),
+              child: const Text(
+                'Delete',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
             ),
-            child: const Text(
-              'Delete',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-          ),
+          ],
         ],
       ),
     );

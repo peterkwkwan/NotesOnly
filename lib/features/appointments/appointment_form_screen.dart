@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../data/appointment_overlap.dart';
+import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
+import '../../data/org.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
@@ -56,6 +58,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   int? _clientId;
   bool _saving = false;
   bool? _hasNote;
+  bool _canMutate = true;
 
   bool get _editing => widget.existing != null;
 
@@ -75,7 +78,10 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       );
       _status = existing.status;
       _clientId = existing.clientId;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadHasNote());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadHasNote();
+        _loadCanMutate();
+      });
     } else {
       final seed = widget.initialDay ?? DateTime.now();
       _day = DateTime(seed.year, seed.month, seed.day);
@@ -84,6 +90,24 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _loadDefaultDuration());
     }
+  }
+
+  Future<void> _loadCanMutate() async {
+    final existing = widget.existing;
+    if (existing == null || !mounted) return;
+    final db = AppDatabaseProvider.of(context);
+    final self = NotesAuth.currentUser?.uid ?? '';
+    if (self.isEmpty) return;
+    final roles =
+        parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
+    if (!mounted) return;
+    setState(() {
+      _canMutate = mayMutateBooking(
+        actor: roles,
+        selfUid: self,
+        practitionerUid: existing.practitionerUid,
+      );
+    });
   }
 
   Future<void> _loadDefaultDuration() async {
@@ -201,7 +225,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
 
   Future<void> _confirmDelete() async {
     final existing = widget.existing;
-    if (existing == null || _saving) return;
+    if (existing == null || _saving || !_canMutate) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -238,6 +262,13 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     if (!_formKey.currentState!.validate()) return;
     final clientId = _clientId;
     if (clientId == null) return;
+    if (_editing && !_canMutate) {
+      showPelviSnackBar(
+        context,
+        'Only an owner or admin can change another practitioner\'s booking',
+      );
+      return;
+    }
     setState(() => _saving = true);
     final db = AppDatabaseProvider.of(context);
     try {
@@ -269,6 +300,9 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
           startsAt: e.appointment.startsAt,
         ),
       );
+    } on StateError catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, e.message);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -377,7 +411,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             _fieldTap(
               value: formatNoteDate(_day),
               hint: '',
-              onTap: _pickDate,
+              onTap: _editing && !_canMutate ? null : _pickDate,
               trailing: Icons.calendar_today_outlined,
             ),
             const SizedBox(height: PelviSpace.md),
@@ -388,7 +422,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                 DateTime(0, 1, 1, _time.hour, _time.minute),
               ),
               hint: '',
-              onTap: _pickTime,
+              onTap: _editing && !_canMutate ? null : _pickTime,
               trailing: Icons.schedule_outlined,
             ),
             if (!_editing) ...[
@@ -407,12 +441,16 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             _fieldTap(
               value: appointmentStatusLabel(_status),
               hint: '',
-              onTap: _pickStatus,
+              onTap: _editing && !_canMutate ? null : _pickStatus,
               valueColor: appointmentStatusColor(_status),
             ),
             const SizedBox(height: PelviSpace.lg),
             FilledButton(
-              onPressed: _saving || _clientId == null ? null : _save,
+              onPressed: _saving ||
+                      _clientId == null ||
+                      (_editing && !_canMutate)
+                  ? null
+                  : _save,
               child: _saving
                   ? SizedBox(
                       width: 20,
@@ -432,14 +470,16 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                   _hasNote == true ? 'Open SOAP note' : 'Create SOAP note',
                 ),
               ),
-              const SizedBox(height: PelviSpace.sm),
-              TextButton(
-                onPressed: _saving ? null : _confirmDelete,
-                style: TextButton.styleFrom(
-                  foregroundColor: PelviColors.of(context).danger,
+              if (_canMutate) ...[
+                const SizedBox(height: PelviSpace.sm),
+                TextButton(
+                  onPressed: _saving ? null : _confirmDelete,
+                  style: TextButton.styleFrom(
+                    foregroundColor: PelviColors.of(context).danger,
+                  ),
+                  child: const Text('Delete appointment'),
                 ),
-                child: const Text('Delete appointment'),
-              ),
+              ],
             ],
           ],
         ),

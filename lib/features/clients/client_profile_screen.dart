@@ -5,6 +5,7 @@ import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/show_snack.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../shell/desktop_chrome.dart';
 import 'client_form_screen.dart';
@@ -115,8 +116,14 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     );
     if (ok != true || !mounted) return;
     final db = AppDatabaseProvider.of(context);
-    for (final id in ids) {
-      await db.deleteAppointment(id);
+    try {
+      for (final id in ids) {
+        await db.deleteAppointment(id);
+      }
+    } on StateError catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, e.message);
+      return;
     }
     if (!mounted) return;
     _exitSelect();

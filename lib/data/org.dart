@@ -98,6 +98,18 @@ bool mayReassignBooking(Iterable<OrgRole> actor) {
   return actor.contains(OrgRole.owner) || actor.contains(OrgRole.admin);
 }
 
+/// Owner/admin: any booking. Practitioner: only own (empty uid counts as self).
+bool mayMutateBooking({
+  required Iterable<OrgRole> actor,
+  required String selfUid,
+  required String practitionerUid,
+}) {
+  if (mayReassignBooking(actor)) return true;
+  if (selfUid.isEmpty) return false;
+  final owner = practitionerUid.isEmpty ? selfUid : practitionerUid;
+  return owner == selfUid;
+}
+
 bool isBookablePractitioner(OrgMember member) {
   return member.active && member.roles.contains(OrgRole.practitioner);
 }

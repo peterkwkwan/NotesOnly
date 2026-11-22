@@ -1654,17 +1654,27 @@ class AppDatabase extends _$AppDatabase {
   }) async {
     final existing = await getAppointment(id);
     if (existing == null) return false;
+    final self = NotesAuth.currentUser?.uid ?? '';
+    final roles = self.isEmpty
+        ? const <OrgRole>[]
+        : parseOrgRoles(await getSetting(activeOrgRolesKey));
+    if (self.isNotEmpty &&
+        !mayMutateBooking(
+          actor: roles,
+          selfUid: self,
+          practitionerUid: existing.practitionerUid,
+        )) {
+      throw StateError(
+        'Only an owner or admin can change another practitioner\'s booking',
+      );
+    }
     final nextUid = (practitionerUid == null || practitionerUid.isEmpty)
         ? existing.practitionerUid
         : practitionerUid;
-    if (nextUid != existing.practitionerUid) {
-      final self = NotesAuth.currentUser?.uid ?? '';
-      if (self.isNotEmpty) {
-        final roles = parseOrgRoles(await getSetting(activeOrgRolesKey));
-        if (!mayReassignBooking(roles)) {
-          throw StateError('Only an owner or admin can reassign a booking');
-        }
-      }
+    if (nextUid != existing.practitionerUid &&
+        self.isNotEmpty &&
+        !mayReassignBooking(roles)) {
+      throw StateError('Only an owner or admin can reassign a booking');
     }
     final nextStatus = status ?? existing.status;
     if (nextStatus != AppointmentStatus.cancelled) {
@@ -1755,6 +1765,21 @@ class AppDatabase extends _$AppDatabase {
   /// Soft-deletes the appointment; unlinks any SOAP note (note kept).
   Future<void> deleteAppointment(int id) async {
     final existing = await getAppointment(id);
+    if (existing != null) {
+      final self = NotesAuth.currentUser?.uid ?? '';
+      if (self.isNotEmpty) {
+        final roles = parseOrgRoles(await getSetting(activeOrgRolesKey));
+        if (!mayMutateBooking(
+          actor: roles,
+          selfUid: self,
+          practitionerUid: existing.practitionerUid,
+        )) {
+          throw StateError(
+            'Only an owner or admin can change another practitioner\'s booking',
+          );
+        }
+      }
+    }
     final now = DateTime.now();
     await (update(notes)..where((t) => t.appointmentId.equals(id))).write(
       NotesCompanion(

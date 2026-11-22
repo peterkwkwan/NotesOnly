@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../data/appointment_overlap.dart';
+import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
+import '../../data/org.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
@@ -35,6 +37,7 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
   bool _saving = false;
   bool? _hasNote;
   String? _clientName;
+  bool _canMutate = true;
 
   @override
   void initState() {
@@ -54,6 +57,24 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadClientName();
       _loadHasNote();
+      _loadCanMutate();
+    });
+  }
+
+  Future<void> _loadCanMutate() async {
+    if (!mounted) return;
+    final db = AppDatabaseProvider.of(context);
+    final self = NotesAuth.currentUser?.uid ?? '';
+    if (self.isEmpty) return;
+    final roles =
+        parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
+    if (!mounted) return;
+    setState(() {
+      _canMutate = mayMutateBooking(
+        actor: roles,
+        selfUid: self,
+        practitionerUid: widget.appointment.practitionerUid,
+      );
     });
   }
 
@@ -132,7 +153,7 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
   }
 
   Future<void> _confirmDelete() async {
-    if (_saving) return;
+    if (_saving || !_canMutate) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -167,6 +188,13 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
   }
 
   Future<void> _save() async {
+    if (!_canMutate) {
+      showPelviSnackBar(
+        context,
+        'Only an owner or admin can change another practitioner\'s booking',
+      );
+      return;
+    }
     setState(() => _saving = true);
     final db = AppDatabaseProvider.of(context);
     try {
@@ -186,6 +214,9 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
           startsAt: e.appointment.startsAt,
         ),
       );
+    } on StateError catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, e.message);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -251,7 +282,7 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
                   const SizedBox(height: 6),
                   _FieldBox(
                     value: formatNoteDate(_day),
-                    onTap: _pickDate,
+                    onTap: _canMutate ? _pickDate : null,
                   ),
                   const SizedBox(height: 20),
                   const _FieldLabel('TIME'),
@@ -260,7 +291,7 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
                     value: formatApptTime(
                       DateTime(0, 1, 1, _time.hour, _time.minute),
                     ),
-                    onTap: _pickTime,
+                    onTap: _canMutate ? _pickTime : null,
                   ),
                   const SizedBox(height: 20),
                   const _FieldLabel('STATUS'),
@@ -268,11 +299,11 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
                   _FieldBox(
                     value: appointmentStatusLabel(_status),
                     valueColor: appointmentStatusColor(_status, c),
-                    onTap: _pickStatus,
+                    onTap: _canMutate ? _pickStatus : null,
                   ),
                   const SizedBox(height: 20),
                   FilledButton(
-                    onPressed: _saving ? null : _save,
+                    onPressed: _saving || !_canMutate ? null : _save,
                     style: FilledButton.styleFrom(
                       backgroundColor: c.pink700,
                       foregroundColor: c.inkInverse,
@@ -322,26 +353,28 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  TextButton(
-                    onPressed: _saving ? null : _confirmDelete,
-                    style: TextButton.styleFrom(
-                      foregroundColor: c.danger,
-                      disabledForegroundColor: c.inkMuted,
-                      minimumSize: const Size(0, 36),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
+                  if (_canMutate) ...[
+                    const SizedBox(height: 4),
+                    TextButton(
+                      onPressed: _saving ? null : _confirmDelete,
+                      style: TextButton.styleFrom(
+                        foregroundColor: c.danger,
+                        disabledForegroundColor: c.inkMuted,
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                      ),
+                      child: const Text(
+                        'Delete',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      'Delete',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),

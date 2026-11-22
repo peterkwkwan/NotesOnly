@@ -510,6 +510,46 @@ void main() {
     expect(mayReassignBooking(const [OrgRole.practitioner]), isFalse);
     expect(mayReassignBooking(const [OrgRole.admin]), isTrue);
     expect(
+      mayMutateBooking(
+        actor: const [OrgRole.practitioner],
+        selfUid: 'me',
+        practitionerUid: 'me',
+      ),
+      isTrue,
+    );
+    expect(
+      mayMutateBooking(
+        actor: const [OrgRole.practitioner],
+        selfUid: 'me',
+        practitionerUid: 'other',
+      ),
+      isFalse,
+    );
+    expect(
+      mayMutateBooking(
+        actor: const [OrgRole.practitioner],
+        selfUid: 'me',
+        practitionerUid: '',
+      ),
+      isTrue,
+    );
+    expect(
+      mayMutateBooking(
+        actor: const [OrgRole.admin],
+        selfUid: 'me',
+        practitionerUid: 'other',
+      ),
+      isTrue,
+    );
+    expect(
+      mayMutateBooking(
+        actor: const [OrgRole.owner],
+        selfUid: 'me',
+        practitionerUid: 'other',
+      ),
+      isTrue,
+    );
+    expect(
       isBookablePractitioner(
         _member('gone', const [OrgRole.practitioner], active: false),
       ),
