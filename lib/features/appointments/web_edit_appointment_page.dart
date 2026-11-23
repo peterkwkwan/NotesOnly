@@ -34,6 +34,7 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
   late DateTime _day;
   late TimeOfDay _time;
   late AppointmentStatus _status;
+  final _notesCtrl = TextEditingController();
   bool _saving = false;
   bool? _hasNote;
   String? _clientName;
@@ -53,12 +54,19 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
       minute: existing.startsAt.minute,
     );
     _status = existing.status;
+    _notesCtrl.text = existing.notes ?? '';
     _clientName = widget.clientName;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadClientName();
       _loadHasNote();
       _loadCanMutate();
     });
+  }
+
+  @override
+  void dispose() {
+    _notesCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCanMutate() async {
@@ -202,6 +210,7 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
         id: widget.appointment.id,
         startsAt: _startsAt,
         status: _status,
+        notes: _notesCtrl.text,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -300,6 +309,38 @@ class _WebEditAppointmentPageState extends State<WebEditAppointmentPage> {
                     value: appointmentStatusLabel(_status),
                     valueColor: appointmentStatusColor(_status, c),
                     onTap: _canMutate ? _pickStatus : null,
+                  ),
+                  const SizedBox(height: 20),
+                  const _FieldLabel('APPOINTMENT NOTES'),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _notesCtrl,
+                    maxLines: 3,
+                    enabled: _canMutate,
+                    style: TextStyle(fontSize: 13, color: c.ink),
+                    decoration: InputDecoration(
+                      hintText: 'Enter optional booking details…',
+                      hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
+                      filled: true,
+                      fillColor: c.surface,
+                      contentPadding: const EdgeInsets.all(12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                        borderSide: BorderSide(color: c.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                        borderSide: BorderSide(color: c.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                        borderSide: BorderSide(color: c.pink700),
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(PelviRadius.sm),
+                        borderSide: BorderSide(color: c.border),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   FilledButton(

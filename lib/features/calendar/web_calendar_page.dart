@@ -490,6 +490,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         span > 0 ? span : defaultMins,
       );
       _status = row.appointment.status;
+      _notesCtrl.text = row.appointment.notes ?? '';
       _hasNote = null;
       if (_view == _CalView.week) _anchor = _sundayOf(_selected);
     });
@@ -509,6 +510,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _reassign = null;
       _reassignUid = null;
       _hasNote = null;
+      _notesCtrl.clear();
     });
   }
 
@@ -599,6 +601,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         startsAt: startsAt,
         endsAt: endsAt,
         status: _status,
+        notes: _notesCtrl.text,
         practitionerUid: pracChanged ? uid : null,
       );
       if (!mounted) return;
@@ -607,6 +610,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         _reassignUid = null;
         _hasNote = null;
         _panelOpen = false;
+        _notesCtrl.clear();
       });
       showPelviSnackBar(context, 'Appointment saved');
     } on AppointmentConflictException catch (e) {
@@ -1120,6 +1124,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                       starts: _starts,
                                                       ends: _ends,
                                                       status: _status,
+                                                      notesCtrl: _notesCtrl,
                                                       hasNote: _hasNote,
                                                       durationMins:
                                                           _durationMins,
@@ -1131,6 +1136,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                           _canReassign,
                                                       saving: _saving,
                                                       onClose: _closePanel,
+                                                      onNotesChanged: () =>
+                                                          setState(() {}),
                                                       onPick: (uid) =>
                                                           setState(() =>
                                                               _reassignUid =
@@ -2884,6 +2891,7 @@ class _ReassignPanel extends StatelessWidget {
     required this.starts,
     required this.ends,
     required this.status,
+    required this.notesCtrl,
     required this.hasNote,
     required this.durationMins,
     required this.defaultMins,
@@ -2891,6 +2899,7 @@ class _ReassignPanel extends StatelessWidget {
     required this.canReassign,
     required this.saving,
     required this.onClose,
+    required this.onNotesChanged,
     required this.onPick,
     required this.onPickDate,
     required this.onPickStarts,
@@ -2909,6 +2918,7 @@ class _ReassignPanel extends StatelessWidget {
   final TimeOfDay starts;
   final TimeOfDay ends;
   final AppointmentStatus status;
+  final TextEditingController notesCtrl;
   final bool? hasNote;
   final int durationMins;
   final int defaultMins;
@@ -2916,6 +2926,7 @@ class _ReassignPanel extends StatelessWidget {
   final bool canReassign;
   final bool saving;
   final VoidCallback onClose;
+  final VoidCallback onNotesChanged;
   final ValueChanged<String> onPick;
   final VoidCallback onPickDate;
   final VoidCallback onPickStarts;
@@ -2956,7 +2967,10 @@ class _ReassignPanel extends StatelessWidget {
       appt.endsAt,
       defaultMins,
     );
+    final notesDirty =
+        notesCtrl.text.trim() != (appt.notes ?? '').trim();
     final fieldsDirty = status != appt.status ||
+        notesDirty ||
         !_sameDay(day, appt.startsAt) ||
         starts.hour != appt.startsAt.hour ||
         starts.minute != appt.startsAt.minute ||
@@ -3088,6 +3102,39 @@ class _ReassignPanel extends StatelessWidget {
               style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
             ),
           ],
+          const SizedBox(height: 16),
+          const _FieldLabel('Appointment notes'),
+          const SizedBox(height: 7),
+          TextField(
+            controller: notesCtrl,
+            maxLines: 3,
+            enabled: canMutate,
+            onChanged: (_) => onNotesChanged(),
+            style: TextStyle(fontSize: 13, color: c.ink),
+            decoration: InputDecoration(
+              hintText: 'Enter optional booking details…',
+              hintStyle: TextStyle(fontSize: 13, color: c.inkMuted),
+              filled: true,
+              fillColor: c.surface,
+              contentPadding: const EdgeInsets.all(12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.pink700),
+              ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+                borderSide: BorderSide(color: c.border),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: canSave ? onSave : null,

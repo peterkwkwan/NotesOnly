@@ -53,6 +53,7 @@ class AppointmentFormScreen extends StatefulWidget {
 
 class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _notesCtrl = TextEditingController();
   late DateTime _day;
   late TimeOfDay _time;
   int _durationMins = 60;
@@ -83,6 +84,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       );
       _status = existing.status;
       _clientId = existing.clientId;
+      _notesCtrl.text = existing.notes ?? '';
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadHasNote();
         _loadCanMutate();
@@ -98,6 +100,12 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
         _loadCreatePractitioner();
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _notesCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCreatePractitioner() async {
@@ -356,6 +364,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
           startsAt: _startsAt,
           status: _status,
           clientId: clientId,
+          notes: _notesCtrl.text,
         );
         if (!mounted) return;
         Navigator.of(context).pop();
@@ -367,6 +376,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
         startsAt: _startsAt,
         endsAt: _endsAt,
         status: _status,
+        notes: _notesCtrl.text,
         practitionerUid: _canAssignPractitioner && _practitionerUid.isNotEmpty
             ? _practitionerUid
             : null,
@@ -551,6 +561,17 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
               hint: '',
               onTap: _editing && !_canMutate ? null : _pickStatus,
               valueColor: appointmentStatusColor(_status),
+            ),
+            const SizedBox(height: PelviSpace.md),
+            Text('APPOINTMENT NOTES', style: text.labelMedium),
+            const SizedBox(height: PelviSpace.xs),
+            TextField(
+              controller: _notesCtrl,
+              maxLines: 3,
+              enabled: !_editing || _canMutate,
+              decoration: const InputDecoration(
+                hintText: 'Enter optional booking details…',
+              ),
             ),
             const SizedBox(height: PelviSpace.lg),
             FilledButton(
