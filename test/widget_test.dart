@@ -2229,11 +2229,14 @@ void main() {
     expect(find.text('New appointment'), findsOneWidget);
     expect(find.byType(PhoneField), findsOneWidget);
     expect(find.text('EMERGENCY PHONE'), findsOneWidget);
+    expect(find.text('DIAGNOSIS (CURRENT)'), findsOneWidget);
+    expect(find.text('DIAGNOSIS (PAST)'), findsOneWidget);
+    expect(find.text('REMARKS'), findsOneWidget);
     expect(find.text('Appointments'), findsOneWidget);
     expect(find.text('Notes'), findsWidgets);
     expect(find.text('All history'), findsNothing);
     expect(find.text('Appointment and Notes'), findsNothing);
-    expect(find.byType(TextField), findsNWidgets(7));
+    expect(find.byType(TextField), findsNWidgets(9));
 
     await tester.enterText(find.byType(TextField).at(0), 'Stewart');
     await tester.tap(find.text('Cancel'));

@@ -697,6 +697,160 @@ class _DetailsColumn extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+                'Client notes',
+                style: TextStyle(
+                  fontSize: 17,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                  color: c.ink,
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (editing) ...[
+                _ProfileField(
+                  label: 'DIAGNOSIS (CURRENT)',
+                  controller: draft.diagnosisCurrent,
+                  hint: 'Optional',
+                  minLines: 2,
+                  maxLines: 3,
+                  keyboardType: TextInputType.multiline,
+                  capitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 18),
+                _ProfileField(
+                  label: 'DIAGNOSIS (PAST)',
+                  controller: draft.diagnosisPast,
+                  hint: 'Optional',
+                  minLines: 2,
+                  maxLines: 3,
+                  keyboardType: TextInputType.multiline,
+                  capitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 18),
+                _ProfileField(
+                  label: 'REMARKS',
+                  controller: draft.notes,
+                  hint: 'Optional',
+                  minLines: 3,
+                  maxLines: 3,
+                  keyboardType: TextInputType.multiline,
+                  capitalization: TextCapitalization.sentences,
+                ),
+              ] else ...[
+                Text(
+                  'DIAGNOSIS (CURRENT)',
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.5,
+                    fontWeight: FontWeight.w600,
+                    color: c.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  diagnosisCurrent.isEmpty ? 'Not set' : diagnosisCurrent,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: diagnosisCurrent.isEmpty ? c.inkMuted : c.ink,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'DIAGNOSIS (PAST)',
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.5,
+                    fontWeight: FontWeight.w600,
+                    color: c.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  diagnosisPast.isEmpty ? 'Not set' : diagnosisPast,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: diagnosisPast.isEmpty ? c.inkMuted : c.ink,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'REMARKS',
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.5,
+                    fontWeight: FontWeight.w600,
+                    color: c.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  notes.isEmpty ? 'No profile notes yet.' : notes,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: notes.isEmpty ? c.inkMuted : c.ink,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              if (!editing && notes.isEmpty)
+                DesktopOutlineAction(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit details',
+                  onPressed: onEdit,
+                )
+              else
+                Text(
+                  'As recorded in the client profile.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.5,
+                    color: c.inkMuted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: c.purple50,
+            borderRadius: BorderRadius.circular(PelviRadius.md),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'CLIENT SUMMARY',
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                  color: c.purple700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'TBD — AI summary of past SOAP notes, with emphasis on the latest visit.',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.5,
+                  color: c.purple700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        _Panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 'Contact & preferences',
                 style: TextStyle(
                   fontSize: 17,
@@ -797,159 +951,6 @@ class _DetailsColumn extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 22),
-        _Panel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Client notes',
-                style: TextStyle(
-                  fontSize: 17,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(height: 18),
-              if (editing)
-                _ProfileField(
-                  controller: draft.notes,
-                  hint: 'Optional',
-                  minLines: 3,
-                  maxLines: 3,
-                  keyboardType: TextInputType.multiline,
-                  capitalization: TextCapitalization.sentences,
-                )
-              else
-                Text(
-                  notes.isEmpty ? 'No profile notes yet.' : notes,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    color: notes.isEmpty ? c.inkMuted : c.ink,
-                  ),
-                ),
-              const SizedBox(height: 18),
-              if (editing) ...[
-                _ProfileField(
-                  label: 'DIAGNOSIS (CURRENT)',
-                  controller: draft.diagnosisCurrent,
-                  hint: 'Optional',
-                  minLines: 2,
-                  maxLines: 3,
-                  keyboardType: TextInputType.multiline,
-                  capitalization: TextCapitalization.sentences,
-                ),
-                const SizedBox(height: 18),
-                _ProfileField(
-                  label: 'DIAGNOSIS (PAST)',
-                  controller: draft.diagnosisPast,
-                  hint: 'Optional',
-                  minLines: 2,
-                  maxLines: 3,
-                  keyboardType: TextInputType.multiline,
-                  capitalization: TextCapitalization.sentences,
-                ),
-              ],
-              const SizedBox(height: 10),
-              if (!editing && notes.isEmpty)
-                DesktopOutlineAction(
-                  icon: Icons.edit_outlined,
-                  label: 'Edit details',
-                  onPressed: onEdit,
-                )
-              else
-                Text(
-                  'As recorded in the client profile.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.5,
-                    color: c.inkMuted,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 22),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: c.purple50,
-            borderRadius: BorderRadius.circular(PelviRadius.md),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'CLIENT SUMMARY',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.purple700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'TBD — AI summary of past SOAP notes, with emphasis on the latest visit.',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.5,
-                  color: c.purple700,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (!editing) ...[
-          const SizedBox(height: 22),
-          _Panel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'DIAGNOSIS (CURRENT)',
-                  style: TextStyle(
-                    fontSize: 10,
-                    height: 1.5,
-                    fontWeight: FontWeight.w600,
-                    color: c.inkMuted,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  diagnosisCurrent.isEmpty ? 'Not set' : diagnosisCurrent,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    color: diagnosisCurrent.isEmpty ? c.inkMuted : c.ink,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'DIAGNOSIS (PAST)',
-                  style: TextStyle(
-                    fontSize: 10,
-                    height: 1.5,
-                    fontWeight: FontWeight.w600,
-                    color: c.inkMuted,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  diagnosisPast.isEmpty ? 'Not set' : diagnosisPast,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    color: diagnosisPast.isEmpty ? c.inkMuted : c.ink,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }

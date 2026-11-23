@@ -326,7 +326,125 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(
+                          'Client notes',
+                          style: text.titleSmall?.copyWith(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: c.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Text('DIAGNOSIS (CURRENT)', style: text.labelMedium),
+                        const SizedBox(height: PelviSpace.sm),
+                        Text(
+                          (client.diagnosisCurrent ?? '').trim().isEmpty
+                              ? 'Not set'
+                              : client.diagnosisCurrent!,
+                          style: text.bodyMedium?.copyWith(
+                            fontSize: 14,
+                            color: (client.diagnosisCurrent ?? '')
+                                    .trim()
+                                    .isEmpty
+                                ? c.inkMuted
+                                : c.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Text('DIAGNOSIS (PAST)', style: text.labelMedium),
+                        const SizedBox(height: PelviSpace.sm),
+                        Text(
+                          (client.diagnosisPast ?? '').trim().isEmpty
+                              ? 'Not set'
+                              : client.diagnosisPast!,
+                          style: text.bodyMedium?.copyWith(
+                            fontSize: 14,
+                            color:
+                                (client.diagnosisPast ?? '').trim().isEmpty
+                                    ? c.inkMuted
+                                    : c.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Text('REMARKS', style: text.labelMedium),
+                        const SizedBox(height: PelviSpace.sm),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 96),
+                          child: SingleChildScrollView(
+                            child: Text(
+                              (client.notes ?? '').trim().isEmpty
+                                  ? 'No profile notes yet.'
+                                  : client.notes!,
+                              style: text.bodyMedium?.copyWith(
+                                fontSize: 14,
+                                color: (client.notes ?? '').trim().isEmpty
+                                    ? c.inkMuted
+                                    : c.ink,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 13,
+                      color: c.purple700,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      'CLIENT SUMMARY',
+                      style: text.labelMedium?.copyWith(
+                        color: c.purple700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(PelviSpace.md),
+                  decoration: BoxDecoration(
+                    color: c.purple50,
+                    borderRadius: BorderRadius.circular(PelviRadius.md),
+                  ),
+                  child: Text(
+                    'TBD — AI summary of past SOAP notes, '
+                    'with emphasis on the latest visit.',
+                    style: text.bodyMedium?.copyWith(
+                      color: c.purple700,
+                      fontSize: 13,
+                      height: 1.65,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(PelviRadius.lg),
+                    border: Border.all(color: c.border),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(17),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Contact & preferences',
+                          style: text.titleSmall?.copyWith(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: c.ink,
+                          ),
+                        ),
                         if (hasEmergency) ...[
+                          const SizedBox(height: 15),
                           Text('EMERGENCY', style: text.labelMedium),
                           if (client.emergencyContact != null &&
                               client.emergencyContact!.isNotEmpty) ...[
@@ -353,8 +471,8 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                           ],
                           const SizedBox(height: 15),
                           Divider(height: 1, color: c.border),
-                          const SizedBox(height: 15),
                         ],
+                        const SizedBox(height: 15),
                         StreamBuilder<bool>(
                           stream: db.watchRecallMuted(client.id),
                           builder: (context, muteSnap) {
@@ -400,86 +518,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.auto_awesome,
-                      size: 13,
-                      color: c.purple700,
-                    ),
-                    const SizedBox(width: 7),
-                    Text(
-                      'CLIENT SUMMARY',
-                      style: text.labelMedium?.copyWith(
-                        color: c.purple700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(PelviSpace.md),
-                  decoration: BoxDecoration(
-                    color: c.purple50,
-                    borderRadius: BorderRadius.circular(PelviRadius.md),
-                  ),
-                  child: Text(
-                    'TBD — AI summary of past SOAP notes, '
-                    'with emphasis on the latest visit.',
-                    style: text.bodyMedium?.copyWith(
-                      color: c.purple700,
-                      fontSize: 13,
-                      height: 1.65,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text('DIAGNOSIS (CURRENT)', style: text.labelMedium),
-                const SizedBox(height: PelviSpace.sm),
-                Text(
-                  (client.diagnosisCurrent ?? '').trim().isEmpty
-                      ? 'Not set'
-                      : client.diagnosisCurrent!,
-                  style: text.bodyMedium?.copyWith(
-                    fontSize: 14,
-                    color: (client.diagnosisCurrent ?? '').trim().isEmpty
-                        ? c.inkMuted
-                        : c.ink,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text('DIAGNOSIS (PAST)', style: text.labelMedium),
-                const SizedBox(height: PelviSpace.sm),
-                Text(
-                  (client.diagnosisPast ?? '').trim().isEmpty
-                      ? 'Not set'
-                      : client.diagnosisPast!,
-                  style: text.bodyMedium?.copyWith(
-                    fontSize: 14,
-                    color: (client.diagnosisPast ?? '').trim().isEmpty
-                        ? c.inkMuted
-                        : c.ink,
-                  ),
-                ),
-                if (client.notes != null && client.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Text('NOTES', style: text.labelMedium),
-                  const SizedBox(height: PelviSpace.sm),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 96),
-                    child: SingleChildScrollView(
-                      child: Text(
-                        client.notes!,
-                        style: text.bodyMedium?.copyWith(
-                          fontSize: 14,
-                          color: c.ink,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 20),
                 StreamBuilder<List<Appointment>>(
                   stream: db.watchAppointmentsForClient(clientId),
