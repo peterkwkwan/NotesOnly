@@ -1892,8 +1892,10 @@ class _WeekSchedule extends StatefulWidget {
     );
     final top =
         ((start.hour - startHour) * 60 + start.minute) / 60.0 * hourH;
+    // True duration height (no 44px floor — that overlapped the next 30-min slot).
     final height =
-        (end.difference(start).inMinutes / 60.0 * hourH).clamp(44.0, 400.0);
+        (end.difference(start).inMinutes / 60.0 * hourH).clamp(2.0, 400.0);
+    final compact = height < hourH * 0.75; // ~45m and shorter
     final lanes = laneCount < 1 ? 1 : laneCount;
     final slotW = (colW - 8) / lanes;
     final width = slotW - (lanes > 1 ? 2 : 0);
@@ -1917,23 +1919,32 @@ class _WeekSchedule extends StatefulWidget {
                 Container(width: 3, color: colors.accent),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.all(8),
+                    padding: EdgeInsets.fromLTRB(
+                      6,
+                      compact ? 2 : 8,
+                      6,
+                      compact ? 2 : 8,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           formatApptTime(start),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: compact ? 9 : 10,
+                            height: 1.15,
                             color: colors.text,
                           ),
                         ),
                         Text(
                           clientName,
-                          maxLines: 2,
+                          maxLines: compact ? 1 : 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: compact ? 10 : 11,
+                            height: 1.15,
                             fontWeight: FontWeight.w600,
                             color: colors.text,
                           ),
@@ -1998,7 +2009,8 @@ class _WeekSchedule extends StatefulWidget {
             60.0 *
             hourH;
     final span = draft.durationMins > 0 ? draft.durationMins : 60;
-    final height = (span / 60.0 * hourH).clamp(44.0, 400.0);
+    final height = (span / 60.0 * hourH).clamp(2.0, 400.0);
+    final compact = height < hourH * 0.75;
     // shortcut: solid border stands in for Figma dashed slot, upgrade if design QA cares
     return Positioned(
       left: gutter + dayIndex * colW + 4,
@@ -2006,7 +2018,7 @@ class _WeekSchedule extends StatefulWidget {
       width: colW - 8,
       height: height,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: EdgeInsets.fromLTRB(6, compact ? 2 : 8, 6, compact ? 2 : 8),
         decoration: BoxDecoration(
           color: c.pink50,
           borderRadius: BorderRadius.circular(6),
@@ -2017,15 +2029,24 @@ class _WeekSchedule extends StatefulWidget {
           children: [
             Text(
               _hhmm(draft.starts),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: compact ? 10 : 11,
+                height: 1.15,
                 fontWeight: FontWeight.w600,
                 color: c.pink700,
               ),
             ),
             Text(
               'New booking',
-              style: TextStyle(fontSize: 10, color: c.pink700),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: compact ? 9 : 10,
+                height: 1.15,
+                color: c.pink700,
+              ),
             ),
           ],
         ),
