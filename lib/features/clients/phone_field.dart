@@ -229,6 +229,8 @@ class _PhoneFieldState extends State<PhoneField> {
           : InputDecoration(hintText: 'Optional', prefix: _affix(c)),
     );
     if (!widget.compact) return field;
+    // Match _CompactField: Align expands so the border fills the parent
+    // height (e.g. the 30px identity row beside email/name).
     return DecoratedBox(
       decoration: BoxDecoration(
         color: c.surface,
@@ -237,12 +239,15 @@ class _PhoneFieldState extends State<PhoneField> {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            _affix(c),
-            const SizedBox(width: 6),
-            Expanded(child: field),
-          ],
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Row(
+            children: [
+              _affix(c),
+              const SizedBox(width: 6),
+              Expanded(child: field),
+            ],
+          ),
         ),
       ),
     );
