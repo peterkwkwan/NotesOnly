@@ -8,8 +8,6 @@ import '../../theme/theme.dart';
 import '../appointments/web_new_appointment_page.dart';
 import '../clients/client_format.dart';
 import '../clients/client_profile_screen.dart';
-import '../notes/note_editor_screen.dart';
-import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
 
@@ -101,9 +99,6 @@ class WebTodayDashboard extends StatelessWidget {
                                               defaultMinutes: defaultMins,
                                               practitionerName: practitioner,
                                             );
-                                            final draftsPanel = _DraftsPanel(
-                                              drafts: drafts,
-                                            );
                                             final side = SizedBox(
                                               width: sideBySide
                                                   ? 340
@@ -124,8 +119,6 @@ class WebTodayDashboard extends StatelessWidget {
                                                 children: [
                                                   agenda,
                                                   const SizedBox(height: 24),
-                                                  draftsPanel,
-                                                  const SizedBox(height: 24),
                                                   side,
                                                 ],
                                               );
@@ -134,16 +127,7 @@ class WebTodayDashboard extends StatelessWidget {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                Expanded(
-                                                  child: Column(
-                                                    children: [
-                                                      agenda,
-                                                      const SizedBox(
-                                                          height: 24),
-                                                      draftsPanel,
-                                                    ],
-                                                  ),
-                                                ),
+                                                Expanded(child: agenda),
                                                 const SizedBox(width: 24),
                                                 side,
                                               ],
@@ -735,176 +719,6 @@ class _AgendaVisit extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _DraftsPanel extends StatelessWidget {
-  const _DraftsPanel({required this.drafts});
-
-  final List<({Note note, Client client})> drafts;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _PanelHeader(
-            title: 'Open SOAP drafts',
-            link: _PanelLink(
-              label: 'View notes →',
-              onTap: () => ShellNavigation.maybeOf(context)
-                  ?.goTo(DesktopDest.soapNotes),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'CLIENT / NOTE DATE',
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.5,
-                    color: c.inkMuted,
-                  ),
-                ),
-              ),
-              Text(
-                'TEMPLATE',
-                style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                'ACTION',
-                style: TextStyle(fontSize: 11, height: 1.5, color: c.inkMuted),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Divider(height: 1, color: c.border),
-          if (drafts.isEmpty) ...[
-            const SizedBox(height: 18),
-            Text(
-              'No open drafts.',
-              style: TextStyle(fontSize: 13, height: 1.5, color: c.inkMuted),
-            ),
-          ] else
-            for (final row in drafts) ...[
-              const SizedBox(height: 18),
-              _DraftRow(note: row.note, client: row.client),
-            ],
-        ],
-      ),
-    );
-  }
-}
-
-class _DraftRow extends StatelessWidget {
-  const _DraftRow({required this.note, required this.client});
-
-  final Note note;
-  final Client client;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = PelviColors.of(context);
-    final avatar = clientAvatarColors(client, c);
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: avatar.wash,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            clientInitials(client),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: avatar.ink,
-            ),
-          ),
-        ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                clientDisplayName(client),
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
-                  color: c.ink,
-                ),
-              ),
-              Text(
-                '${formatNoteDate(note.noteDate)} · No clinical text entered',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-          decoration: BoxDecoration(
-            color: c.purple50,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            'Blank',
-            style: TextStyle(
-              fontSize: 11,
-              height: 1.5,
-              fontWeight: FontWeight.w500,
-              color: c.purple700,
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        OutlinedButton(
-          onPressed: () {
-            final open = ShellNavigation.maybeOf(context)?.openSoapNote;
-            if (open != null) {
-              open(note.id);
-              return;
-            }
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => NoteEditorScreen(noteId: note.id),
-              ),
-            );
-          },
-          style: OutlinedButton.styleFrom(
-            backgroundColor: c.surface,
-            side: BorderSide(color: c.border),
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PelviRadius.sm),
-            ),
-          ),
-          child: Text(
-            'Continue',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -172,7 +172,6 @@ void main() {
     expect(find.text('NotesOnly'), findsOneWidget);
     expect(find.text('A little more room for care.'), findsOneWidget);
     expect(find.text('Your agenda'), findsOneWidget);
-    expect(find.text('Open SOAP drafts'), findsOneWidget);
     expect(find.text('Client recalls'), findsOneWidget);
     expect(find.text('Up next'), findsOneWidget);
     expect(find.text('Steve Balmer'), findsWidgets);
