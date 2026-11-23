@@ -149,7 +149,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   late DateTime _anchor; // week Sunday for week view; day for day; month for month
   late DateTime _selected;
   _CalView _view = _CalView.week;
-  bool _panelOpen = true;
+  bool _panelOpen = false;
   late TimeOfDay _starts;
   late TimeOfDay _ends;
   int _durationMins = 60;

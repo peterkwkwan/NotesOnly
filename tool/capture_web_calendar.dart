@@ -138,7 +138,7 @@ void main() {
     expect(find.text('NotesOnly'), findsOneWidget);
     expect(find.text('Calendar'), findsWidgets);
     expect(find.text('Add appointment'), findsOneWidget);
-    expect(find.text('New appointment'), findsOneWidget);
+    expect(find.text('New appointment'), findsNothing);
     expect(find.text('Week'), findsWidgets);
     expect(find.text('Steve Balmer'), findsWidgets);
 
