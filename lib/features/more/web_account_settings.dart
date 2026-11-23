@@ -81,7 +81,9 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
     final db = AppDatabaseProvider.of(context);
     final name =
         (await db.getPractitionerName(uid: NotesAuth.currentUser?.uid)) ?? '';
-    final mins = await db.getDefaultAppointmentMinutes();
+    final mins = await db.getDefaultAppointmentMinutes(
+      uid: NotesAuth.currentUser?.uid,
+    );
     final hours = await db.watchClinicHours().first;
     final tz = await db.getTimezone();
     final tmpl = await db.getSetting('default_soap_template') ?? blankId;
@@ -136,7 +138,10 @@ class _WebAccountSettingsState extends State<WebAccountSettings> {
         : _timezone.trim();
 
     await db.setPractitionerName(name, uid: NotesAuth.currentUser?.uid);
-    await db.setDefaultAppointmentMinutes(mins);
+    await db.setDefaultAppointmentMinutes(
+      mins,
+      uid: NotesAuth.currentUser?.uid,
+    );
     await db.setClinicHoursStart(opens);
     await db.setClinicHoursEnd(closes);
     await db.setTimezone(tzRaw);

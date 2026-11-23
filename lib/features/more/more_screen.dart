@@ -63,7 +63,8 @@ class MoreScreen extends StatelessWidget {
 
   Future<void> _editDuration(BuildContext context) async {
     final db = AppDatabaseProvider.of(context);
-    final current = await db.getDefaultAppointmentMinutes();
+    final uid = NotesAuth.currentUser?.uid;
+    final current = await db.getDefaultAppointmentMinutes(uid: uid);
     if (!context.mounted) return;
     final picked = await showPelviPickerSheet<int>(
       context: context,
@@ -75,7 +76,7 @@ class MoreScreen extends StatelessWidget {
       ],
     );
     if (picked == null) return;
-    await db.setDefaultAppointmentMinutes(picked);
+    await db.setDefaultAppointmentMinutes(picked, uid: uid);
   }
 
   Future<void> _editTimezone(BuildContext context) async {

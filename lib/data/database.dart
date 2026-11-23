@@ -454,6 +454,9 @@ class AppDatabase extends _$AppDatabase {
   static const recallDaysKey = 'recall_days';
   static const defaultRecallDays = '30';
   static const defaultAppointmentMinutesKey = 'default_appointment_minutes';
+  /// Per-uid default duration (cloud-synced); org key is fallback only.
+  static String defaultAppointmentMinutesKeyFor(String uid) =>
+      'default_appointment_minutes__$uid';
   static const defaultAppointmentMinutes = '60';
   /// Allowed practice-default appointment lengths (minutes).
   static const allowedAppointmentMinutes = <int>[45, 60, 90];
@@ -928,26 +931,40 @@ class AppDatabase extends _$AppDatabase {
     await super.close();
   }
 
-  Future<int> getDefaultAppointmentMinutes() async {
+  /// Prefer per-uid; fall back to org [defaultAppointmentMinutesKey], then 60.
+  Future<int> getDefaultAppointmentMinutes({String? uid}) async {
+    final id = (uid != null && uid.isNotEmpty)
+        ? uid
+        : await getSetting(syncBoundUidKey);
+    if (id != null && id.isNotEmpty) {
+      final scoped = await getSetting(defaultAppointmentMinutesKeyFor(id));
+      if (scoped != null) {
+        final parsed = int.tryParse(scoped) ?? 60;
+        return normalizeAppointmentMinutes(parsed);
+      }
+    }
     final raw = await getSetting(defaultAppointmentMinutesKey);
     final parsed = int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
     return normalizeAppointmentMinutes(parsed);
   }
 
-  Future<void> setDefaultAppointmentMinutes(int minutes) async {
+  /// Writes the per-uid key when a uid is known; otherwise the legacy org key.
+  Future<void> setDefaultAppointmentMinutes(int minutes, {String? uid}) async {
     final normalized = normalizeAppointmentMinutes(minutes);
+    final id = (uid != null && uid.isNotEmpty)
+        ? uid
+        : await getSetting(syncBoundUidKey);
+    if (id != null && id.isNotEmpty) {
+      await setSetting(defaultAppointmentMinutesKeyFor(id), '$normalized');
+      return;
+    }
     await setSetting(defaultAppointmentMinutesKey, '$normalized');
   }
 
-  Stream<int> watchDefaultAppointmentMinutes() {
-    return (select(settings)
-          ..where((t) => t.key.equals(defaultAppointmentMinutesKey)))
+  Stream<int> watchDefaultAppointmentMinutes({String? uid}) {
+    return select(settings)
         .watch()
-        .map((rows) {
-          final raw = rows.isEmpty ? null : rows.first.value;
-          final parsed = int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
-          return normalizeAppointmentMinutes(parsed);
-        });
+        .asyncMap((_) => getDefaultAppointmentMinutes(uid: uid));
   }
 
   Future<String> getClinicHoursStart() async =>
@@ -1103,7 +1120,8 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Wipe clinic rows and settings so another Google account starts clean.
-  /// Keeps [themeModeKey] and per-uid [practitionerNameKeyFor] keys.
+  /// Keeps [themeModeKey], per-uid [practitionerNameKeyFor], and per-uid
+  /// [defaultAppointmentMinutesKeyFor] keys.
   ///
   /// Skips [templates] when the table was never migrated (e.g. web Incognito
   /// half-applied schema) so sign-out still succeeds.
@@ -1121,6 +1139,8 @@ class AppDatabase extends _$AppDatabase {
         // Keep personal display names so the same Google account skips
         // “What should we call you?” after sign-out / re-sign-in.
         if (row.key.startsWith('practitioner_name__')) continue;
+        // Keep personal default duration across sign-out / re-sign-in.
+        if (row.key.startsWith('default_appointment_minutes__')) continue;
         await (delete(settings)..where((t) => t.key.equals(row.key))).go();
       }
     });

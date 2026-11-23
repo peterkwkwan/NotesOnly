@@ -69,6 +69,43 @@ void main() {
     expect(await db.getPractitionerName(uid: 'uid-other'), isNull);
   });
 
+  test('default duration is per-uid with org key as fallback', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    // Org-wide legacy value seeds anyone without a per-uid row.
+    await db.setSetting(AppDatabase.defaultAppointmentMinutesKey, '45');
+    expect(await db.getDefaultAppointmentMinutes(uid: 'uid-peter'), 45);
+    expect(await db.getDefaultAppointmentMinutes(uid: 'uid-other'), 45);
+
+    await db.setDefaultAppointmentMinutes(90, uid: 'uid-peter');
+    expect(
+      await db.getSetting(
+        AppDatabase.defaultAppointmentMinutesKeyFor('uid-peter'),
+      ),
+      '90',
+    );
+    // Org key unchanged — other members keep the shared fallback.
+    expect(await db.getSetting(AppDatabase.defaultAppointmentMinutesKey), '45');
+    expect(await db.getDefaultAppointmentMinutes(uid: 'uid-peter'), 90);
+    expect(await db.getDefaultAppointmentMinutes(uid: 'uid-other'), 45);
+
+    await db.setSetting(AppDatabase.syncBoundUidKey, 'uid-peter');
+    await db.clearLocalClinicForAccountSwitch();
+    expect(
+      await db.getDefaultAppointmentMinutes(uid: 'uid-peter'),
+      90,
+    );
+    // Wipe re-seeds org default; other uid falls back to that.
+    expect(await db.getDefaultAppointmentMinutes(uid: 'uid-other'), 60);
+    expect(
+      AppDatabase.isCloudSyncedSetting(
+        AppDatabase.defaultAppointmentMinutesKeyFor('uid-peter'),
+      ),
+      isTrue,
+    );
+  });
+
   test('clearLocalClinicForAccountSwitch skips missing templates table',
       () async {
     final db = AppDatabase(NativeDatabase.memory());
