@@ -123,7 +123,6 @@ class AppointmentAgendaRow extends StatelessWidget {
                               decorationColor: PelviColors.of(context).inkMuted,
                             ),
                           ),
-                          const TextSpan(text: ' · Note'),
                         ],
                       ),
                     ),

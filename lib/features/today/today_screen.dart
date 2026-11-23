@@ -447,7 +447,7 @@ class _TodayAppointmentCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: 56,
+            width: 49,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -463,7 +463,17 @@ class _TodayAppointmentCard extends StatelessWidget {
                     decorationColor: ink,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      width: 1,
+                      color: PelviColors.of(context).border,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Text(
                   formatApptTime(endsAt),
                   style: text.labelMedium?.copyWith(
@@ -474,26 +484,7 @@ class _TodayAppointmentCard extends StatelessWidget {
                     decorationColor: c.inkMuted,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '$durationMins min',
-                  style: text.labelMedium?.copyWith(
-                    fontSize: 11,
-                    height: 1.2,
-                    color: c.inkMuted,
-                    decoration: decoration,
-                    decorationColor: c.inkMuted,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: Center(
-                    child: Container(
-                      width: 1,
-                      color: PelviColors.of(context).border,
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -528,25 +519,41 @@ class _TodayAppointmentCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: pillBg,
-                          borderRadius: BorderRadius.circular(PelviRadius.sm),
-                        ),
-                        child: Text(
-                          appointmentStatusLabel(status),
-                          style: text.labelMedium?.copyWith(
-                            fontSize: 11,
-                            height: 1.2,
-                            letterSpacing: 0,
-                            fontWeight: FontWeight.w500,
-                            color: pillFg,
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: pillBg,
+                              borderRadius:
+                                  BorderRadius.circular(PelviRadius.sm),
+                            ),
+                            child: Text(
+                              appointmentStatusLabel(status),
+                              style: text.labelMedium?.copyWith(
+                                fontSize: 11,
+                                height: 1.2,
+                                letterSpacing: 0,
+                                fontWeight: FontWeight.w500,
+                                color: pillFg,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$durationMins min',
+                            style: text.labelMedium?.copyWith(
+                              fontSize: 11,
+                              height: 1.2,
+                              color: c.inkMuted,
+                              decoration: decoration,
+                              decorationColor: c.inkMuted,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 17),
                       const Divider(height: 1),
