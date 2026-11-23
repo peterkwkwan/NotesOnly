@@ -1828,15 +1828,17 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
-  /// Most recent note for [clientId], excluding [exceptNoteId] when set.
+  /// Most recent note with clinical text for [clientId], excluding
+  /// [exceptNoteId] when set. Skips empty S/O/A/P drafts (opened but never
+  /// written) so "Copy last note" does not paste blanks then toast success.
   Future<Note?> getLastNoteForClient(int clientId, {int? exceptNoteId}) async {
     final query = select(notes)
       ..where((t) => t.clientId.equals(clientId) & t.deletedAt.isNull())
-      ..orderBy([(t) => OrderingTerm.desc(t.noteDate)])
-      ..limit(5);
+      ..orderBy([(t) => OrderingTerm.desc(t.noteDate)]);
     final rows = await query.get();
     for (final n in rows) {
       if (exceptNoteId != null && n.id == exceptNoteId) continue;
+      if (_noteIsEmptyDraft(n)) continue;
       return n;
     }
     return null;

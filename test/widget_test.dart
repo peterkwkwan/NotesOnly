@@ -1421,6 +1421,16 @@ void main() {
       clientId: clientId,
       noteDate: DateTime(2026, 10, 28, 10),
     );
+    // Empty draft between visits must not win "copy last".
+    final emptyAppt = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 20, 10),
+    );
+    await db.getOrCreateNoteForAppointment(
+      appointmentId: emptyAppt,
+      clientId: clientId,
+      noteDate: DateTime(2026, 10, 20, 10),
+    );
     final last = await db.getLastNoteForClient(
       clientId,
       exceptNoteId: second.id,
@@ -1443,7 +1453,7 @@ void main() {
     expect(again.id, second.id);
 
     final history = await db.watchNotesForClient(clientId).first;
-    expect(history, hasLength(2));
+    expect(history, hasLength(3));
   });
 
   test('recall due uses window; cancelled ignored; notes count as visit', () async {
