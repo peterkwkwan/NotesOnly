@@ -1607,9 +1607,7 @@ class AppDatabase extends _$AppDatabase {
         : practitionerUid;
     if (self.isNotEmpty && uid != self) {
       final roles = parseOrgRoles(await getSetting(activeOrgRolesKey));
-      final canBookOthers = roles.contains(OrgRole.owner) ||
-          roles.contains(OrgRole.admin);
-      if (!canBookOthers) {
+      if (!mayReassignBooking(roles)) {
         throw StateError('Bookings are on your own calendar');
       }
     }

@@ -160,6 +160,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
   bool? _hasNote;
   ({Appointment appointment, Client client})? _reassign;
   String? _reassignUid;
+  /// Create-panel practitioner; Owner/Admin may change via picker.
+  String _createPractitionerUid = '';
   List<OrgMember> _members = const [];
   List<OrgRole> _actorRoles = const [];
   bool _canReassign = false;
@@ -296,12 +298,18 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         _members = members;
         _memberNames = names;
         _filterUids = selected;
+        if (_createPractitionerUid.isEmpty && self.isNotEmpty) {
+          _createPractitionerUid = self;
+        }
       });
     } catch (_) {
       // Offline or signed out: the panel still shows the booked uid.
       final self = NotesAuth.currentUser?.uid ?? '';
       if (!mounted || self.isEmpty) return;
-      if (_filterUids.isEmpty) setState(() => _filterUids = {self});
+      setState(() {
+        if (_filterUids.isEmpty) _filterUids = {self};
+        if (_createPractitionerUid.isEmpty) _createPractitionerUid = self;
+      });
     }
   }
 
@@ -449,6 +457,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       _panelOpen = true;
       _reassign = null;
       _reassignUid = null;
+      _createPractitionerUid = _selfUid;
       _hasNote = null;
       _status = AppointmentStatus.scheduled;
       _selected = _dateOnly(d);
@@ -784,12 +793,16 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     }
     setState(() => _saving = true);
     try {
+      final uid = _canReassign && _createPractitionerUid.isNotEmpty
+          ? _createPractitionerUid
+          : _selfUid;
       await db.insertAppointment(
         clientId: clientId,
         startsAt: startsAt,
         endsAt: endsAt,
         status: _status,
         notes: _notesCtrl.text,
+        practitionerUid: uid.isEmpty ? null : uid,
       );
       if (!mounted) return;
       setState(() {
@@ -797,6 +810,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
         _clientId = null;
         _notesCtrl.clear();
         _status = AppointmentStatus.scheduled;
+        _createPractitionerUid = _selfUid;
       });
     } on AppointmentConflictException catch (e) {
       if (!mounted) return;
@@ -807,6 +821,9 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
           startsAt: e.appointment.startsAt,
         ),
       );
+    } on StateError catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, e.message);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -997,8 +1014,23 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                       clientId: _clientId,
                                                       status: _status,
                                                       notesCtrl: _notesCtrl,
-                                                      practitioner:
-                                                          practitioner,
+                                                      members: _members,
+                                                      practitionerUid:
+                                                          _createPractitionerUid
+                                                                  .isEmpty
+                                                              ? _selfUid
+                                                              : _createPractitionerUid,
+                                                      practitionerLabel:
+                                                          _createPractitionerUid
+                                                                  .isEmpty
+                                                              ? (practitioner
+                                                                      .isEmpty
+                                                                  ? '—'
+                                                                  : practitioner)
+                                                              : _nameForUid(
+                                                                  _createPractitionerUid),
+                                                      canReassign:
+                                                          _canReassign,
                                                       durationMins:
                                                           _durationMins,
                                                       timezone: tz,
@@ -1008,6 +1040,11 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                       onPickClient: (id) =>
                                                           setState(() =>
                                                               _clientId = id),
+                                                      onPickPractitioner:
+                                                          (uid) => setState(
+                                                              () =>
+                                                                  _createPractitionerUid =
+                                                                      uid),
                                                       onPickDate: () async {
                                                         final picked =
                                                             await showDatePicker(
@@ -2512,13 +2549,17 @@ class _NewAppointmentPanel extends StatelessWidget {
     required this.clientId,
     required this.status,
     required this.notesCtrl,
-    required this.practitioner,
+    required this.members,
+    required this.practitionerUid,
+    required this.practitionerLabel,
+    required this.canReassign,
     required this.durationMins,
     required this.timezone,
     required this.saving,
     required this.onClose,
     required this.onCancel,
     required this.onPickClient,
+    required this.onPickPractitioner,
     required this.onPickDate,
     required this.onPickStarts,
     required this.onPickEnds,
@@ -2533,19 +2574,28 @@ class _NewAppointmentPanel extends StatelessWidget {
   final int? clientId;
   final AppointmentStatus status;
   final TextEditingController notesCtrl;
-  final String practitioner;
+  final List<OrgMember> members;
+  final String practitionerUid;
+  final String practitionerLabel;
+  final bool canReassign;
   final int durationMins;
   final String timezone;
   final bool saving;
   final VoidCallback onClose;
   final VoidCallback onCancel;
   final ValueChanged<int> onPickClient;
+  final ValueChanged<String> onPickPractitioner;
   final VoidCallback onPickDate;
   final VoidCallback onPickStarts;
   final VoidCallback onPickEnds;
   final VoidCallback onPickDuration;
   final VoidCallback onPickStatus;
   final VoidCallback onSave;
+
+  List<OrgMember> get _bookable => [
+        for (final member in members)
+          if (isBookablePractitioner(member)) member,
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -2692,8 +2742,25 @@ class _NewAppointmentPanel extends StatelessWidget {
               const _FieldLabel('Practitioner'),
               const SizedBox(height: 7),
               _FieldBox(
-                value: practitioner.isEmpty ? '—' : practitioner,
-                onTap: null,
+                value: practitionerLabel.isEmpty ? '—' : practitionerLabel,
+                muted: practitionerLabel.isEmpty || practitionerLabel == '—',
+                onTap: !canReassign || _bookable.isEmpty
+                    ? null
+                    : () async {
+                        final uid = await showPelviPickerSheet<String>(
+                          context: context,
+                          title: 'Practitioner',
+                          selected: practitionerUid,
+                          options: [
+                            for (final member in _bookable)
+                              PelviPickerOption(
+                                value: member.uid,
+                                label: memberLabel(member),
+                              ),
+                          ],
+                        );
+                        if (uid != null) onPickPractitioner(uid);
+                      },
               ),
               const SizedBox(height: 16),
               const _FieldLabel('Appointment notes'),

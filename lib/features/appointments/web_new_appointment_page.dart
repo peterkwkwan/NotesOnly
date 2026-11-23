@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../data/appointment_overlap.dart';
+import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
+import '../../data/org.dart';
+import '../../data/org_directory.dart';
 import '../../theme/theme.dart';
 import '../../widgets/desktop_settings_controls.dart';
 import '../../widgets/picker_sheet.dart';
@@ -46,6 +49,9 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
   int? _clientId;
   bool _saving = false;
   String? _clientError;
+  bool _canAssignPractitioner = false;
+  String _practitionerUid = '';
+  List<OrgMember> _bookable = const [];
 
   bool get _clientLocked => widget.clientId != null;
 
@@ -56,8 +62,11 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
     _day = DateTime(seed.year, seed.month, seed.day);
     _time = widget.initialTime ?? nextWholeHour();
     _clientId = widget.clientId;
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _loadDefaultDuration());
+    _practitionerUid = NotesAuth.currentUser?.uid ?? '';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDefaultDuration();
+      _loadCreatePractitioner();
+    });
   }
 
   Future<void> _loadDefaultDuration() async {
@@ -67,6 +76,66 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
     setState(() {
       _durationMins = AppDatabase.snapAppointmentDuration(mins);
     });
+  }
+
+  Future<void> _loadCreatePractitioner() async {
+    if (!mounted) return;
+    final db = AppDatabaseProvider.of(context);
+    final roles =
+        parseOrgRoles(await db.getSetting(AppDatabase.activeOrgRolesKey));
+    final canAssign = mayReassignBooking(roles);
+    if (!canAssign) {
+      if (!mounted) return;
+      setState(() => _canAssignPractitioner = false);
+      return;
+    }
+    final orgId = await db.getSetting(AppDatabase.activeOrgIdKey);
+    if (orgId == null || orgId.isEmpty || !mounted) {
+      setState(() => _canAssignPractitioner = true);
+      return;
+    }
+    try {
+      final members = await OrgDirectory().listMembers(orgId);
+      final bookable = [
+        for (final m in members)
+          if (isBookablePractitioner(m)) m,
+      ];
+      if (!mounted) return;
+      setState(() {
+        _canAssignPractitioner = true;
+        _bookable = bookable;
+        if (_practitionerUid.isEmpty) {
+          _practitionerUid = NotesAuth.currentUser?.uid ?? '';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _canAssignPractitioner = true);
+    }
+  }
+
+  Future<void> _pickPractitioner() async {
+    if (!_canAssignPractitioner || _bookable.isEmpty) return;
+    final uid = await showPelviPickerSheet<String>(
+      context: context,
+      title: 'Practitioner',
+      selected: _practitionerUid,
+      options: [
+        for (final member in _bookable)
+          PelviPickerOption(
+            value: member.uid,
+            label: memberLabel(member),
+          ),
+      ],
+    );
+    if (uid != null) setState(() => _practitionerUid = uid);
+  }
+
+  String _practitionerLabel() {
+    for (final member in _bookable) {
+      if (member.uid == _practitionerUid) return memberLabel(member);
+    }
+    return _practitionerUid.isEmpty ? 'Select practitioner' : _practitionerUid;
   }
 
   DateTime get _startsAt => DateTime(
@@ -156,6 +225,9 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
         startsAt: _startsAt,
         endsAt: _endsAt,
         status: _status,
+        practitionerUid: _canAssignPractitioner && _practitionerUid.isNotEmpty
+            ? _practitionerUid
+            : null,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -168,6 +240,9 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
           startsAt: e.appointment.startsAt,
         ),
       );
+    } on StateError catch (e) {
+      if (!mounted) return;
+      showPelviSnackBar(context, e.message);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -326,6 +401,16 @@ class _WebNewAppointmentPageState extends State<WebNewAppointmentPage> {
                     valueColor: appointmentStatusColor(_status, c),
                     onTap: _pickStatus,
                   ),
+                  if (_canAssignPractitioner) ...[
+                    const SizedBox(height: 20),
+                    const _FieldLabel('PRACTITIONER'),
+                    const SizedBox(height: 6),
+                    _FieldBox(
+                      value: _practitionerLabel(),
+                      muted: _practitionerUid.isEmpty,
+                      onTap: _bookable.isEmpty ? null : _pickPractitioner,
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   FilledButton(
                     onPressed: _saving || (!_clientLocked && _clientId == null)
