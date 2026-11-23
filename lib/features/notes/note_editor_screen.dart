@@ -651,12 +651,39 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: text.titleLarge,
-              ),
+              if (_client != null)
+                Tooltip(
+                  message: 'Client profile',
+                  child: InkWell(
+                    onTap: _goToClientProfile,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.titleMedium,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.person_outline,
+                          size: 20,
+                          color: text.titleMedium?.color,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.titleMedium,
+                ),
               const SizedBox(height: PelviSpace.xs),
               Text(
                 when,
@@ -720,12 +747,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 ),
               ],
             ),
-            if (_client != null)
-              IconButton(
-                tooltip: 'Client profile',
-                onPressed: _goToClientProfile,
-                icon: const Icon(Icons.person_outline),
-              ),
           ],
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
