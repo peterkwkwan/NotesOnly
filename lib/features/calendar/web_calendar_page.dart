@@ -2980,13 +2980,11 @@ class _ReassignPanel extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  clientDisplayName(row.client),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: c.ink,
-                  ),
+                child: _ClientProfileLink(
+                  name: clientDisplayName(row.client),
+                  onTap: () => ShellNavigation.maybeOf(context)
+                      ?.openClientProfile
+                      ?.call(row.client.id),
                 ),
               ),
               IconButton(
@@ -3161,6 +3159,61 @@ class _FieldLabel extends StatelessWidget {
         fontSize: 12,
         fontWeight: FontWeight.w500,
         color: PelviColors.of(context).ink,
+      ),
+    );
+  }
+}
+
+class _ClientProfileLink extends StatefulWidget {
+  const _ClientProfileLink({required this.name, required this.onTap});
+
+  final String name;
+  final VoidCallback onTap;
+
+  @override
+  State<_ClientProfileLink> createState() => _ClientProfileLinkState();
+}
+
+class _ClientProfileLinkState extends State<_ClientProfileLink> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final color = _hover ? c.pink700 : c.ink;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Tooltip(
+          message: 'Client profile',
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Icon(Icons.person_outline, size: 20, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                      decoration: _hover
+                          ? TextDecoration.underline
+                          : TextDecoration.none,
+                      decorationColor: color,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
