@@ -364,6 +364,8 @@ function clientFields(firstName, lastName, now) {
     emergencyContact: nil(),
     emergencyContactPhone: nil(),
     notes: nil(),
+    diagnosisCurrent: nil(),
+    diagnosisPast: nil(),
     createdAt: stamp(now),
     updatedAt: stamp(now),
     deletedAt: nil(),

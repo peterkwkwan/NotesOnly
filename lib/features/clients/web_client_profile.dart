@@ -23,6 +23,8 @@ class _ClientDraft {
   final emergency = TextEditingController();
   final emergencyPhone = TextEditingController();
   final notes = TextEditingController();
+  final diagnosisCurrent = TextEditingController();
+  final diagnosisPast = TextEditingController();
 
   void load(Client client) {
     first.text = client.firstName;
@@ -32,6 +34,8 @@ class _ClientDraft {
     emergency.text = client.emergencyContact ?? '';
     emergencyPhone.text = client.emergencyContactPhone ?? '';
     notes.text = client.notes ?? '';
+    diagnosisCurrent.text = client.diagnosisCurrent ?? '';
+    diagnosisPast.text = client.diagnosisPast ?? '';
   }
 
   void dispose() {
@@ -42,6 +46,8 @@ class _ClientDraft {
     emergency.dispose();
     emergencyPhone.dispose();
     notes.dispose();
+    diagnosisCurrent.dispose();
+    diagnosisPast.dispose();
   }
 }
 
@@ -104,6 +110,8 @@ class _WebClientProfileState extends State<WebClientProfile> {
         emergencyContact: _draft.emergency.text,
         emergencyContactPhone: _draft.emergencyPhone.text,
         notes: _draft.notes.text,
+        diagnosisCurrent: _draft.diagnosisCurrent.text,
+        diagnosisPast: _draft.diagnosisPast.text,
       );
       if (!mounted || !ok) return;
       setState(() {
@@ -678,6 +686,8 @@ class _DetailsColumn extends StatelessWidget {
         (client.emergencyContactPhone != null &&
             client.emergencyContactPhone!.isNotEmpty);
     final notes = (client.notes ?? '').trim();
+    final diagnosisCurrent = (client.diagnosisCurrent ?? '').trim();
+    final diagnosisPast = (client.diagnosisPast ?? '').trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -820,6 +830,28 @@ class _DetailsColumn extends StatelessWidget {
                     color: notes.isEmpty ? c.inkMuted : c.ink,
                   ),
                 ),
+              const SizedBox(height: 18),
+              if (editing) ...[
+                _ProfileField(
+                  label: 'DIAGNOSIS (CURRENT)',
+                  controller: draft.diagnosisCurrent,
+                  hint: 'Optional',
+                  minLines: 2,
+                  maxLines: 3,
+                  keyboardType: TextInputType.multiline,
+                  capitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 18),
+                _ProfileField(
+                  label: 'DIAGNOSIS (PAST)',
+                  controller: draft.diagnosisPast,
+                  hint: 'Optional',
+                  minLines: 2,
+                  maxLines: 3,
+                  keyboardType: TextInputType.multiline,
+                  capitalization: TextCapitalization.sentences,
+                ),
+              ],
               const SizedBox(height: 10),
               if (!editing && notes.isEmpty)
                 DesktopOutlineAction(
@@ -871,6 +903,53 @@ class _DetailsColumn extends StatelessWidget {
             ],
           ),
         ),
+        if (!editing) ...[
+          const SizedBox(height: 22),
+          _Panel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'DIAGNOSIS (CURRENT)',
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.5,
+                    fontWeight: FontWeight.w600,
+                    color: c.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  diagnosisCurrent.isEmpty ? 'Not set' : diagnosisCurrent,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: diagnosisCurrent.isEmpty ? c.inkMuted : c.ink,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'DIAGNOSIS (PAST)',
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.5,
+                    fontWeight: FontWeight.w600,
+                    color: c.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  diagnosisPast.isEmpty ? 'Not set' : diagnosisPast,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: diagnosisPast.isEmpty ? c.inkMuted : c.ink,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

@@ -25,6 +25,8 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
   late final TextEditingController _emergency;
   late final TextEditingController _emergencyPhone;
   late final TextEditingController _notes;
+  late final TextEditingController _diagnosisCurrent;
+  late final TextEditingController _diagnosisPast;
   bool _saving = false;
 
   bool get _isEdit => widget.existing != null;
@@ -41,6 +43,8 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
     _emergencyPhone =
         TextEditingController(text: c?.emergencyContactPhone ?? '');
     _notes = TextEditingController(text: c?.notes ?? '');
+    _diagnosisCurrent = TextEditingController(text: c?.diagnosisCurrent ?? '');
+    _diagnosisPast = TextEditingController(text: c?.diagnosisPast ?? '');
   }
 
   @override
@@ -52,6 +56,8 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
     _emergency.dispose();
     _emergencyPhone.dispose();
     _notes.dispose();
+    _diagnosisCurrent.dispose();
+    _diagnosisPast.dispose();
     super.dispose();
   }
 
@@ -70,6 +76,8 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
           emergencyContact: _emergency.text,
           emergencyContactPhone: _emergencyPhone.text,
           notes: _notes.text,
+          diagnosisCurrent: _diagnosisCurrent.text,
+          diagnosisPast: _diagnosisPast.text,
         );
       } else {
         final existing = await db.findDuplicateClient(
@@ -111,6 +119,8 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
           emergencyContact: _emergency.text,
           emergencyContactPhone: _emergencyPhone.text,
           notes: _notes.text,
+          diagnosisCurrent: _diagnosisCurrent.text,
+          diagnosisPast: _diagnosisPast.text,
         );
       }
       if (!mounted) return;
@@ -220,6 +230,28 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
             TextFormField(
               controller: _notes,
               minLines: 3,
+              maxLines: 3,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(hintText: 'Optional'),
+            ),
+            const SizedBox(height: PelviSpace.md),
+            Text('DIAGNOSIS (CURRENT)', style: text.labelMedium),
+            const SizedBox(height: PelviSpace.xs),
+            TextFormField(
+              controller: _diagnosisCurrent,
+              minLines: 2,
+              maxLines: 3,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(hintText: 'Optional'),
+            ),
+            const SizedBox(height: PelviSpace.md),
+            Text('DIAGNOSIS (PAST)', style: text.labelMedium),
+            const SizedBox(height: PelviSpace.xs),
+            TextFormField(
+              controller: _diagnosisPast,
+              minLines: 2,
               maxLines: 3,
               keyboardType: TextInputType.multiline,
               textCapitalization: TextCapitalization.sentences,

@@ -435,6 +435,34 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 20),
+                Text('DIAGNOSIS (CURRENT)', style: text.labelMedium),
+                const SizedBox(height: PelviSpace.sm),
+                Text(
+                  (client.diagnosisCurrent ?? '').trim().isEmpty
+                      ? 'Not set'
+                      : client.diagnosisCurrent!,
+                  style: text.bodyMedium?.copyWith(
+                    fontSize: 14,
+                    color: (client.diagnosisCurrent ?? '').trim().isEmpty
+                        ? c.inkMuted
+                        : c.ink,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text('DIAGNOSIS (PAST)', style: text.labelMedium),
+                const SizedBox(height: PelviSpace.sm),
+                Text(
+                  (client.diagnosisPast ?? '').trim().isEmpty
+                      ? 'Not set'
+                      : client.diagnosisPast!,
+                  style: text.bodyMedium?.copyWith(
+                    fontSize: 14,
+                    color: (client.diagnosisPast ?? '').trim().isEmpty
+                        ? c.inkMuted
+                        : c.ink,
+                  ),
+                ),
                 if (client.notes != null && client.notes!.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   Text('NOTES', style: text.labelMedium),

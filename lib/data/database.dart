@@ -127,6 +127,8 @@ class Clients extends Table {
   TextColumn get emergencyContact => text().nullable()();
   TextColumn get emergencyContactPhone => text().nullable()();
   TextColumn get notes => text().nullable()();
+  TextColumn get diagnosisCurrent => text().nullable()();
+  TextColumn get diagnosisPast => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   IntColumn get syncStatus => intEnum<RowSyncStatus>()
@@ -267,7 +269,7 @@ class AppDatabase extends _$AppDatabase {
       onAppointmentChanged?.call(id, deleteGoogleEventId: deleteGoogleEventId);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   /// True if [table] exists (half-applied migrate / never-created templates).
   Future<bool> hasSqliteTable(String table) async {
@@ -438,6 +440,10 @@ class AppDatabase extends _$AppDatabase {
               templates,
               templates.draftOverlayJson,
             );
+          }
+          if (from < 13) {
+            await _addColumnIfMissing(m, clients, clients.diagnosisCurrent);
+            await _addColumnIfMissing(m, clients, clients.diagnosisPast);
           }
         },
       );
@@ -1447,6 +1453,8 @@ class AppDatabase extends _$AppDatabase {
     String? emergencyContact,
     String? emergencyContactPhone,
     String? notes,
+    String? diagnosisCurrent,
+    String? diagnosisPast,
   }) async {
     final id = await into(clients).insert(
       ClientsCompanion.insert(
@@ -1458,6 +1466,8 @@ class AppDatabase extends _$AppDatabase {
         emergencyContact: Value(_blankToNull(emergencyContact)),
         emergencyContactPhone: Value(_blankToNull(emergencyContactPhone)),
         notes: Value(_blankToNull(notes)),
+        diagnosisCurrent: Value(_blankToNull(diagnosisCurrent)),
+        diagnosisPast: Value(_blankToNull(diagnosisPast)),
         syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
@@ -1474,6 +1484,8 @@ class AppDatabase extends _$AppDatabase {
     String? emergencyContact,
     String? emergencyContactPhone,
     String? notes,
+    String? diagnosisCurrent,
+    String? diagnosisPast,
   }) async {
     final n = await (update(clients)..where((t) => t.id.equals(id))).write(
       ClientsCompanion(
@@ -1484,6 +1496,8 @@ class AppDatabase extends _$AppDatabase {
         emergencyContact: Value(_blankToNull(emergencyContact)),
         emergencyContactPhone: Value(_blankToNull(emergencyContactPhone)),
         notes: Value(_blankToNull(notes)),
+        diagnosisCurrent: Value(_blankToNull(diagnosisCurrent)),
+        diagnosisPast: Value(_blankToNull(diagnosisPast)),
         updatedAt: Value(DateTime.now()),
         syncStatus: const Value(RowSyncStatus.pending),
       ),
@@ -1733,7 +1747,8 @@ class AppDatabase extends _$AppDatabase {
       ),
     );
     if (n > 0 && clientChanged) {
-      await (update(notes)
+      // `notes` param shadows the table getter.
+      await (update(this.notes)
             ..where(
               (t) => t.appointmentId.equals(id) & t.deletedAt.isNull(),
             ))

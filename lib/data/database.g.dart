@@ -134,6 +134,28 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _diagnosisCurrentMeta = const VerificationMeta(
+    'diagnosisCurrent',
+  );
+  @override
+  late final GeneratedColumn<String> diagnosisCurrent = GeneratedColumn<String>(
+    'diagnosis_current',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _diagnosisPastMeta = const VerificationMeta(
+    'diagnosisPast',
+  );
+  @override
+  late final GeneratedColumn<String> diagnosisPast = GeneratedColumn<String>(
+    'diagnosis_past',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -192,6 +214,8 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
     emergencyContact,
     emergencyContactPhone,
     notes,
+    diagnosisCurrent,
+    diagnosisPast,
     createdAt,
     updatedAt,
     syncStatus,
@@ -282,6 +306,24 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('diagnosis_current')) {
+      context.handle(
+        _diagnosisCurrentMeta,
+        diagnosisCurrent.isAcceptableOrUnknown(
+          data['diagnosis_current']!,
+          _diagnosisCurrentMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diagnosis_past')) {
+      context.handle(
+        _diagnosisPastMeta,
+        diagnosisPast.isAcceptableOrUnknown(
+          data['diagnosis_past']!,
+          _diagnosisPastMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -353,6 +395,14 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      diagnosisCurrent: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}diagnosis_current'],
+      ),
+      diagnosisPast: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}diagnosis_past'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -395,6 +445,8 @@ class Client extends DataClass implements Insertable<Client> {
   final String? emergencyContact;
   final String? emergencyContactPhone;
   final String? notes;
+  final String? diagnosisCurrent;
+  final String? diagnosisPast;
   final DateTime createdAt;
   final DateTime updatedAt;
   final RowSyncStatus syncStatus;
@@ -411,6 +463,8 @@ class Client extends DataClass implements Insertable<Client> {
     this.emergencyContact,
     this.emergencyContactPhone,
     this.notes,
+    this.diagnosisCurrent,
+    this.diagnosisPast,
     required this.createdAt,
     required this.updatedAt,
     required this.syncStatus,
@@ -443,6 +497,12 @@ class Client extends DataClass implements Insertable<Client> {
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || diagnosisCurrent != null) {
+      map['diagnosis_current'] = Variable<String>(diagnosisCurrent);
+    }
+    if (!nullToAbsent || diagnosisPast != null) {
+      map['diagnosis_past'] = Variable<String>(diagnosisPast);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -484,6 +544,12 @@ class Client extends DataClass implements Insertable<Client> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      diagnosisCurrent: diagnosisCurrent == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diagnosisCurrent),
+      diagnosisPast: diagnosisPast == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diagnosisPast),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       syncStatus: Value(syncStatus),
@@ -512,6 +578,8 @@ class Client extends DataClass implements Insertable<Client> {
         json['emergencyContactPhone'],
       ),
       notes: serializer.fromJson<String?>(json['notes']),
+      diagnosisCurrent: serializer.fromJson<String?>(json['diagnosisCurrent']),
+      diagnosisPast: serializer.fromJson<String?>(json['diagnosisPast']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       syncStatus: $ClientsTable.$convertersyncStatus.fromJson(
@@ -537,6 +605,8 @@ class Client extends DataClass implements Insertable<Client> {
         emergencyContactPhone,
       ),
       'notes': serializer.toJson<String?>(notes),
+      'diagnosisCurrent': serializer.toJson<String?>(diagnosisCurrent),
+      'diagnosisPast': serializer.toJson<String?>(diagnosisPast),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'syncStatus': serializer.toJson<int>(
@@ -558,6 +628,8 @@ class Client extends DataClass implements Insertable<Client> {
     Value<String?> emergencyContact = const Value.absent(),
     Value<String?> emergencyContactPhone = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> diagnosisCurrent = const Value.absent(),
+    Value<String?> diagnosisPast = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
     RowSyncStatus? syncStatus,
@@ -578,6 +650,12 @@ class Client extends DataClass implements Insertable<Client> {
         ? emergencyContactPhone.value
         : this.emergencyContactPhone,
     notes: notes.present ? notes.value : this.notes,
+    diagnosisCurrent: diagnosisCurrent.present
+        ? diagnosisCurrent.value
+        : this.diagnosisCurrent,
+    diagnosisPast: diagnosisPast.present
+        ? diagnosisPast.value
+        : this.diagnosisPast,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     syncStatus: syncStatus ?? this.syncStatus,
@@ -600,6 +678,12 @@ class Client extends DataClass implements Insertable<Client> {
           ? data.emergencyContactPhone.value
           : this.emergencyContactPhone,
       notes: data.notes.present ? data.notes.value : this.notes,
+      diagnosisCurrent: data.diagnosisCurrent.present
+          ? data.diagnosisCurrent.value
+          : this.diagnosisCurrent,
+      diagnosisPast: data.diagnosisPast.present
+          ? data.diagnosisPast.value
+          : this.diagnosisPast,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       syncStatus: data.syncStatus.present
@@ -623,6 +707,8 @@ class Client extends DataClass implements Insertable<Client> {
           ..write('emergencyContact: $emergencyContact, ')
           ..write('emergencyContactPhone: $emergencyContactPhone, ')
           ..write('notes: $notes, ')
+          ..write('diagnosisCurrent: $diagnosisCurrent, ')
+          ..write('diagnosisPast: $diagnosisPast, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus, ')
@@ -644,6 +730,8 @@ class Client extends DataClass implements Insertable<Client> {
     emergencyContact,
     emergencyContactPhone,
     notes,
+    diagnosisCurrent,
+    diagnosisPast,
     createdAt,
     updatedAt,
     syncStatus,
@@ -664,6 +752,8 @@ class Client extends DataClass implements Insertable<Client> {
           other.emergencyContact == this.emergencyContact &&
           other.emergencyContactPhone == this.emergencyContactPhone &&
           other.notes == this.notes &&
+          other.diagnosisCurrent == this.diagnosisCurrent &&
+          other.diagnosisPast == this.diagnosisPast &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.syncStatus == this.syncStatus &&
@@ -682,6 +772,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
   final Value<String?> emergencyContact;
   final Value<String?> emergencyContactPhone;
   final Value<String?> notes;
+  final Value<String?> diagnosisCurrent;
+  final Value<String?> diagnosisPast;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<RowSyncStatus> syncStatus;
@@ -698,6 +790,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     this.emergencyContact = const Value.absent(),
     this.emergencyContactPhone = const Value.absent(),
     this.notes = const Value.absent(),
+    this.diagnosisCurrent = const Value.absent(),
+    this.diagnosisPast = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
@@ -715,6 +809,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     this.emergencyContact = const Value.absent(),
     this.emergencyContactPhone = const Value.absent(),
     this.notes = const Value.absent(),
+    this.diagnosisCurrent = const Value.absent(),
+    this.diagnosisPast = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
@@ -733,6 +829,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     Expression<String>? emergencyContact,
     Expression<String>? emergencyContactPhone,
     Expression<String>? notes,
+    Expression<String>? diagnosisCurrent,
+    Expression<String>? diagnosisPast,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? syncStatus,
@@ -751,6 +849,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
       if (emergencyContactPhone != null)
         'emergency_contact_phone': emergencyContactPhone,
       if (notes != null) 'notes': notes,
+      if (diagnosisCurrent != null) 'diagnosis_current': diagnosisCurrent,
+      if (diagnosisPast != null) 'diagnosis_past': diagnosisPast,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (syncStatus != null) 'sync_status': syncStatus,
@@ -770,6 +870,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     Value<String?>? emergencyContact,
     Value<String?>? emergencyContactPhone,
     Value<String?>? notes,
+    Value<String?>? diagnosisCurrent,
+    Value<String?>? diagnosisPast,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<RowSyncStatus>? syncStatus,
@@ -788,6 +890,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
       emergencyContactPhone:
           emergencyContactPhone ?? this.emergencyContactPhone,
       notes: notes ?? this.notes,
+      diagnosisCurrent: diagnosisCurrent ?? this.diagnosisCurrent,
+      diagnosisPast: diagnosisPast ?? this.diagnosisPast,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       syncStatus: syncStatus ?? this.syncStatus,
@@ -833,6 +937,12 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (diagnosisCurrent.present) {
+      map['diagnosis_current'] = Variable<String>(diagnosisCurrent.value);
+    }
+    if (diagnosisPast.present) {
+      map['diagnosis_past'] = Variable<String>(diagnosisPast.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -864,6 +974,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
           ..write('emergencyContact: $emergencyContact, ')
           ..write('emergencyContactPhone: $emergencyContactPhone, ')
           ..write('notes: $notes, ')
+          ..write('diagnosisCurrent: $diagnosisCurrent, ')
+          ..write('diagnosisPast: $diagnosisPast, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus, ')
@@ -2083,7 +2195,7 @@ class Note extends DataClass implements Insertable<Note> {
   final String assessment;
   final String plan;
 
-  /// Legacy column; unused (notes stay editable).
+  /// Typed template answers envelope JSON (fields + answers). Empty for free-text notes.
   final String addendum;
 
   /// Draft vs published (live note badge).
@@ -3919,6 +4031,9 @@ class $TemplatesTable extends Templates
     false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("published" IN (0, 1))',
+    ),
     defaultValue: const Constant(false),
   );
   static const VerificationMeta _draftOverlayJsonMeta = const VerificationMeta(
@@ -4177,7 +4292,7 @@ class Template extends DataClass implements Insertable<Template> {
   /// Teammates only see published templates; creator keeps drafts in own tabs.
   final bool published;
 
-  /// Unpublished draft overlay on a published template. Empty = none.
+  /// Unpublished draft overlay on a published row. Empty = none.
   /// JSON: `{name, description, fieldsJson}`. Never-published drafts use the
   /// main columns instead; Save draft of published updates this in place.
   final String draftOverlayJson;
@@ -4614,6 +4729,8 @@ typedef $$ClientsTableCreateCompanionBuilder =
       Value<String?> emergencyContact,
       Value<String?> emergencyContactPhone,
       Value<String?> notes,
+      Value<String?> diagnosisCurrent,
+      Value<String?> diagnosisPast,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<RowSyncStatus> syncStatus,
@@ -4632,6 +4749,8 @@ typedef $$ClientsTableUpdateCompanionBuilder =
       Value<String?> emergencyContact,
       Value<String?> emergencyContactPhone,
       Value<String?> notes,
+      Value<String?> diagnosisCurrent,
+      Value<String?> diagnosisPast,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<RowSyncStatus> syncStatus,
@@ -4741,6 +4860,16 @@ class $$ClientsTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get diagnosisCurrent => $composableBuilder(
+    column: $table.diagnosisCurrent,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get diagnosisPast => $composableBuilder(
+    column: $table.diagnosisPast,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4880,6 +5009,16 @@ class $$ClientsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get diagnosisCurrent => $composableBuilder(
+    column: $table.diagnosisCurrent,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get diagnosisPast => $composableBuilder(
+    column: $table.diagnosisPast,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -4946,6 +5085,16 @@ class $$ClientsTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get diagnosisCurrent => $composableBuilder(
+    column: $table.diagnosisCurrent,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get diagnosisPast => $composableBuilder(
+    column: $table.diagnosisPast,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -5052,6 +5201,8 @@ class $$ClientsTableTableManager
                 Value<String?> emergencyContact = const Value.absent(),
                 Value<String?> emergencyContactPhone = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> diagnosisCurrent = const Value.absent(),
+                Value<String?> diagnosisPast = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<RowSyncStatus> syncStatus = const Value.absent(),
@@ -5068,6 +5219,8 @@ class $$ClientsTableTableManager
                 emergencyContact: emergencyContact,
                 emergencyContactPhone: emergencyContactPhone,
                 notes: notes,
+                diagnosisCurrent: diagnosisCurrent,
+                diagnosisPast: diagnosisPast,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 syncStatus: syncStatus,
@@ -5086,6 +5239,8 @@ class $$ClientsTableTableManager
                 Value<String?> emergencyContact = const Value.absent(),
                 Value<String?> emergencyContactPhone = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> diagnosisCurrent = const Value.absent(),
+                Value<String?> diagnosisPast = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<RowSyncStatus> syncStatus = const Value.absent(),
@@ -5102,6 +5257,8 @@ class $$ClientsTableTableManager
                 emergencyContact: emergencyContact,
                 emergencyContactPhone: emergencyContactPhone,
                 notes: notes,
+                diagnosisCurrent: diagnosisCurrent,
+                diagnosisPast: diagnosisPast,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 syncStatus: syncStatus,

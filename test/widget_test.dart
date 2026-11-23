@@ -1255,6 +1255,8 @@ void main() {
       emergencyContact: 'Lord Byron',
       emergencyContactPhone: '555',
       notes: 'prefers mornings',
+      diagnosisCurrent: 'stress UI',
+      diagnosisPast: 'pregnancy-related PGP',
     );
     final client = await db.getClient(clientId);
     expect(client?.firstName, 'Ada');
@@ -1262,6 +1264,8 @@ void main() {
     expect(client?.emergencyContact, 'Lord Byron');
     expect(client?.emergencyContactPhone, '555');
     expect(client?.notes, 'prefers mornings');
+    expect(client?.diagnosisCurrent, 'stress UI');
+    expect(client?.diagnosisPast, 'pregnancy-related PGP');
 
     await db.updateClient(
       id: clientId,
@@ -1272,10 +1276,14 @@ void main() {
       emergencyContact: 'Lord Byron',
       emergencyContactPhone: '556',
       notes: 'updated note',
+      diagnosisCurrent: 'overactive pelvic floor',
+      diagnosisPast: 'pregnancy-related PGP',
     );
     final updated = await db.getClient(clientId);
     expect(updated?.notes, 'updated note');
     expect(updated?.emergencyContactPhone, '556');
+    expect(updated?.diagnosisCurrent, 'overactive pelvic floor');
+    expect(updated?.diagnosisPast, 'pregnancy-related PGP');
 
     final starts = DateTime(2026, 10, 28, 9, 30);
     await db.insertAppointment(clientId: clientId, startsAt: starts);
