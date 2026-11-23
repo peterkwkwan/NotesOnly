@@ -80,178 +80,192 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Calendar')),
       body: StreamBuilder(
-        stream: db.watchAppointmentsWithClientOnDay(_selected),
-        builder: (context, daySnap) {
-          final rows = daySnap.data;
-          final now = DateTime.now();
-          final isToday = _sameDay(_selected, today);
+        stream: db.watchDefaultAppointmentMinutes(),
+        builder: (context, minsSnap) {
+          final defaultMinutes = minsSnap.data ?? 60;
+          return StreamBuilder(
+            stream: db.watchAppointmentsWithClientOnDay(_selected),
+            builder: (context, daySnap) {
+              final rows = daySnap.data;
+              final now = DateTime.now();
+              final isToday = _sameDay(_selected, today);
 
-          return CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.sm,
-                    PelviSpace.md,
-                    PelviSpace.sm,
-                    PelviSpace.sm,
+              return CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        PelviSpace.sm,
+                        PelviSpace.md,
+                        PelviSpace.sm,
+                        PelviSpace.sm,
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Previous month',
+                            onPressed: () => _shiftMonth(-1),
+                            icon: Icon(
+                              Icons.chevron_left,
+                              color: PelviColors.of(context).ink,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${_monthNames[_month.month - 1]} ${_month.year}',
+                              textAlign: TextAlign.center,
+                              style: text.titleLarge?.copyWith(fontSize: 18),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Next month',
+                            onPressed: () => _shiftMonth(1),
+                            icon: Icon(
+                              Icons.chevron_right,
+                              color: PelviColors.of(context).ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Previous month',
-                        onPressed: () => _shiftMonth(-1),
-                        icon: Icon(
-                          Icons.chevron_left,
-                          color: PelviColors.of(context).ink,
-                        ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: PelviSpace.page,
                       ),
-                      Expanded(
-                        child: Text(
-                          '${_monthNames[_month.month - 1]} ${_month.year}',
-                          textAlign: TextAlign.center,
-                          style: text.titleLarge?.copyWith(fontSize: 18),
-                        ),
+                      child: Row(
+                        children: [
+                          for (final letter in _weekdayLetters)
+                            Expanded(
+                              child: Center(
+                                child: Text(letter, style: text.labelMedium),
+                              ),
+                            ),
+                        ],
                       ),
-                      IconButton(
-                        tooltip: 'Next month',
-                        onPressed: () => _shiftMonth(1),
-                        icon: Icon(
-                          Icons.chevron_right,
-                          color: PelviColors.of(context).ink,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: PelviSpace.page),
-                  child: Row(
-                    children: [
-                      for (final letter in _weekdayLetters)
-                        Expanded(
-                          child: Center(
-                            child: Text(letter, style: text.labelMedium),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: PelviSpace.xs),
+                  ),
+                  SliverToBoxAdapter(
+                    child: StreamBuilder<Map<DateTime, int>>(
+                      stream: db.watchAppointmentCountsForMonth(_month),
+                      builder: (context, snap) {
+                        final counts = snap.data ?? const <DateTime, int>{};
+                        return _MonthGrid(
+                          month: _month,
+                          selected: _selected,
+                          today: today,
+                          counts: counts,
+                          onSelect: (day) => setState(() => _selected = day),
+                        );
+                      },
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        PelviSpace.page,
+                        PelviSpace.sm,
+                        PelviSpace.page,
+                        PelviSpace.md,
+                      ),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: PelviSpace.md,
+                          vertical: PelviSpace.sm + 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: PelviColors.of(context).surfaceMuted,
+                          borderRadius:
+                              BorderRadius.circular(PelviRadius.md),
+                          border: Border.all(
+                            color: PelviColors.of(context).border,
                           ),
                         ),
-                    ],
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: PelviSpace.xs)),
-              SliverToBoxAdapter(
-                child: StreamBuilder<Map<DateTime, int>>(
-                  stream: db.watchAppointmentCountsForMonth(_month),
-                  builder: (context, snap) {
-                    final counts = snap.data ?? const <DateTime, int>{};
-                    return _MonthGrid(
-                      month: _month,
-                      selected: _selected,
-                      today: today,
-                      counts: counts,
-                      onSelect: (day) => setState(() => _selected = day),
-                    );
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.page,
-                    PelviSpace.sm,
-                    PelviSpace.page,
-                    PelviSpace.md,
-                  ),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: PelviSpace.md,
-                      vertical: PelviSpace.sm + 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: PelviColors.of(context).surfaceMuted,
-                      borderRadius: BorderRadius.circular(PelviRadius.md),
-                      border: Border.all(color: PelviColors.of(context).border),
-                    ),
-                    child: Text(
-                      'Tap a day to see appointments',
-                      style: text.labelMedium,
-                    ),
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: Divider(height: 1)),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.page,
-                    PelviSpace.md,
-                    PelviSpace.page,
-                    PelviSpace.sm,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
                         child: Text(
-                          formatNoteDate(_selected),
-                          style: text.labelLarge,
+                          'Tap a day to see appointments',
+                          style: text.labelMedium,
                         ),
                       ),
-                      TextButton(
-                        onPressed: _openNewAppointment,
-                        style: TextButton.styleFrom(
-                          foregroundColor: PelviColors.of(context).pink700,
-                        ),
-                        child: const Text('Add'),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: Divider(height: 1)),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        PelviSpace.page,
+                        PelviSpace.md,
+                        PelviSpace.page,
+                        PelviSpace.sm,
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              if (rows == null)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: PelviColors.of(context).pink700,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              formatNoteDate(_selected),
+                              style: text.labelLarge,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _openNewAppointment,
+                            style: TextButton.styleFrom(
+                              foregroundColor:
+                                  PelviColors.of(context).pink700,
+                            ),
+                            child: const Text('Add'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                )
-              else if (rows.isEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.page,
-                    PelviSpace.sm,
-                    PelviSpace.page,
-                    PelviSpace.lg,
-                  ),
-                    child: DashedEmptyWell(
-                      message: 'No appointments this day.',
-                      ctaLabel: 'Add appointment',
-                      onCta: _openNewAppointment,
+                  if (rows == null)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: PelviColors.of(context).pink700,
+                        ),
+                      ),
+                    )
+                  else if (rows.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          PelviSpace.page,
+                          PelviSpace.sm,
+                          PelviSpace.page,
+                          PelviSpace.lg,
+                        ),
+                        child: DashedEmptyWell(
+                          message: 'No appointments this day.',
+                          ctaLabel: 'Add appointment',
+                          onCta: _openNewAppointment,
+                        ),
+                      ),
+                    )
+                  else
+                    SliverList.separated(
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        final past =
+                            isToday && row.appointment.startsAt.isBefore(now);
+                        return AppointmentAgendaRow(
+                          appointment: row.appointment,
+                          client: row.client,
+                          past: past,
+                          defaultMinutes: defaultMinutes,
+                        );
+                      },
                     ),
-                  ),
-                )
-              else
-                SliverList.separated(
-                  itemCount: rows.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final row = rows[index];
-                    final past =
-                        isToday && row.appointment.startsAt.isBefore(now);
-                    return AppointmentAgendaRow(
-                      appointment: row.appointment,
-                      client: row.client,
-                      past: past,
-                    );
-                  },
-                ),
-            ],
+                ],
+              );
+            },
           );
         },
       ),

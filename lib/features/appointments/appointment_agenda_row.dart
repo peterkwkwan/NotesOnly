@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/appointment_overlap.dart';
 import '../../data/database.dart';
 import '../../theme/theme.dart';
 import '../clients/client_format.dart';
@@ -13,11 +14,13 @@ class AppointmentAgendaRow extends StatelessWidget {
     required this.appointment,
     required this.client,
     this.past = false,
+    this.defaultMinutes = 60,
   });
 
   final Appointment appointment;
   final Client client;
   final bool past;
+  final int defaultMinutes;
 
   void _openEdit(BuildContext context) {
     Navigator.of(context).push(
@@ -41,6 +44,13 @@ class AppointmentAgendaRow extends StatelessWidget {
     final ink = past ? PelviColors.of(context).inkMuted : PelviColors.of(context).ink;
     final decoration = past ? TextDecoration.lineThrough : TextDecoration.none;
     final text = Theme.of(context).textTheme;
+    final endsAt = appointmentEffectiveEnd(
+      appointment.startsAt,
+      appointment.endsAt,
+      defaultMinutes,
+    );
+    final durationMins =
+        endsAt.difference(appointment.startsAt).inMinutes;
 
     return InkWell(
       onTap: () => _openEdit(context),
@@ -57,14 +67,28 @@ class AppointmentAgendaRow extends StatelessWidget {
             children: [
               SizedBox(
                 width: 56,
-                child: Text(
-                  formatApptTime(appointment.startsAt),
-                  style: text.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: ink,
-                    decoration: decoration,
-                    decorationColor: ink,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      formatApptTime(appointment.startsAt),
+                      style: text.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: ink,
+                        decoration: decoration,
+                        decorationColor: ink,
+                      ),
+                    ),
+                    Text(
+                      formatApptTime(endsAt),
+                      style: text.labelMedium?.copyWith(
+                        color: PelviColors.of(context).inkMuted,
+                        decoration: decoration,
+                        decorationColor: PelviColors.of(context).inkMuted,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Expanded(
@@ -88,6 +112,7 @@ class AppointmentAgendaRow extends StatelessWidget {
                           decorationColor: PelviColors.of(context).inkMuted,
                         ),
                         children: [
+                          TextSpan(text: '$durationMins min · '),
                           TextSpan(
                             text: appointmentStatusLabel(appointment.status),
                             style: TextStyle(

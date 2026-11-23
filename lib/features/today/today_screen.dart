@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/appointment_overlap.dart';
 import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
@@ -50,20 +51,29 @@ class TodayScreen extends StatelessWidget {
         ],
       ),
       body: StreamBuilder(
-        stream: db.watchAppointmentsWithClientOnDay(
-          today,
-          practitionerUid: selfUid,
-        ),
-        builder: (context, snap) {
-          final rows = snap.data;
-          if (rows == null) {
-            return Center(
-              child: CircularProgressIndicator(color: PelviColors.of(context).pink700),
-            );
-          }
-          return _TodayBody(
-            rows: rows,
-            onAdd: () => _openNewAppointment(context),
+        stream: db.watchDefaultAppointmentMinutes(),
+        builder: (context, minsSnap) {
+          final defaultMinutes = minsSnap.data ?? 60;
+          return StreamBuilder(
+            stream: db.watchAppointmentsWithClientOnDay(
+              today,
+              practitionerUid: selfUid,
+            ),
+            builder: (context, snap) {
+              final rows = snap.data;
+              if (rows == null) {
+                return Center(
+                  child: CircularProgressIndicator(
+                    color: PelviColors.of(context).pink700,
+                  ),
+                );
+              }
+              return _TodayBody(
+                rows: rows,
+                defaultMinutes: defaultMinutes,
+                onAdd: () => _openNewAppointment(context),
+              );
+            },
           );
         },
       ),
@@ -72,9 +82,14 @@ class TodayScreen extends StatelessWidget {
 }
 
 class _TodayBody extends StatelessWidget {
-  const _TodayBody({required this.rows, required this.onAdd});
+  const _TodayBody({
+    required this.rows,
+    required this.defaultMinutes,
+    required this.onAdd,
+  });
 
   final List<({Appointment appointment, Client client})> rows;
+  final int defaultMinutes;
   final VoidCallback onAdd;
 
   @override
@@ -115,7 +130,11 @@ class _TodayBody extends StatelessWidget {
         Expanded(
           child: count == 0
               ? _TodayEmpty(onAdd: onAdd)
-              : _TodayAgendaList(rows: rows, onAdd: onAdd),
+              : _TodayAgendaList(
+                  rows: rows,
+                  defaultMinutes: defaultMinutes,
+                  onAdd: onAdd,
+                ),
         ),
       ],
     );
@@ -241,9 +260,14 @@ class _EmptyAddPanel extends StatelessWidget {
 }
 
 class _TodayAgendaList extends StatefulWidget {
-  const _TodayAgendaList({required this.rows, required this.onAdd});
+  const _TodayAgendaList({
+    required this.rows,
+    required this.defaultMinutes,
+    required this.onAdd,
+  });
 
   final List<({Appointment appointment, Client client})> rows;
+  final int defaultMinutes;
   final VoidCallback onAdd;
 
   @override
@@ -332,6 +356,7 @@ class _TodayAgendaListState extends State<_TodayAgendaList> {
                 appointment: row.appointment,
                 client: row.client,
                 past: past,
+                defaultMinutes: widget.defaultMinutes,
               );
               if (index == upcomingIndex) {
                 child = KeyedSubtree(key: _upcomingKey, child: child);
@@ -375,11 +400,13 @@ class _TodayAppointmentCard extends StatelessWidget {
     required this.appointment,
     required this.client,
     required this.past,
+    required this.defaultMinutes,
   });
 
   final Appointment appointment;
   final Client client;
   final bool past;
+  final int defaultMinutes;
 
   void _openEdit(BuildContext context) {
     Navigator.of(context).push(
@@ -407,14 +434,22 @@ class _TodayAppointmentCard extends StatelessWidget {
     final status = appointment.status;
     final pillFg = past ? c.inkMuted : _statusPillForeground(status, c);
     final pillBg = past ? c.surfaceMuted : _statusPillBackground(status, c);
+    final endsAt = appointmentEffectiveEnd(
+      appointment.startsAt,
+      appointment.endsAt,
+      defaultMinutes,
+    );
+    final durationMins =
+        endsAt.difference(appointment.startsAt).inMinutes;
 
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: 49,
+            width: 56,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
                 Text(
@@ -428,7 +463,29 @@ class _TodayAppointmentCard extends StatelessWidget {
                     decorationColor: ink,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 2),
+                Text(
+                  formatApptTime(endsAt),
+                  style: text.labelMedium?.copyWith(
+                    fontSize: 11,
+                    height: 1.2,
+                    color: c.inkMuted,
+                    decoration: decoration,
+                    decorationColor: c.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$durationMins min',
+                  style: text.labelMedium?.copyWith(
+                    fontSize: 11,
+                    height: 1.2,
+                    color: c.inkMuted,
+                    decoration: decoration,
+                    decorationColor: c.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Expanded(
                   child: Center(
                     child: Container(
