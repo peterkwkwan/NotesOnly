@@ -10,6 +10,7 @@ import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
+import '../clients/client_profile_screen.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 
@@ -246,6 +247,16 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     if (id != null) setState(() => _clientId = id);
   }
 
+  void _openClientProfile() {
+    final id = _clientId;
+    if (id == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ClientProfileScreen(clientId: id),
+      ),
+    );
+  }
+
   Future<void> _pickStatus() async {
     final status = await showPelviPickerSheet<AppointmentStatus>(
       context: context,
@@ -344,6 +355,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
           id: widget.existing!.id,
           startsAt: _startsAt,
           status: _status,
+          clientId: clientId,
         );
         if (!mounted) return;
         Navigator.of(context).pop();
@@ -410,8 +422,8 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.of(context);
     final text = Theme.of(context).textTheme;
-    final lockedClient = _editing || widget.clientId != null;
-    final lockedClientId = widget.existing?.clientId ?? widget.clientId;
+    // Locked only when booking from a client profile (create path).
+    final lockedClient = !_editing && widget.clientId != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -426,7 +438,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             const SizedBox(height: PelviSpace.xs),
             if (lockedClient)
               FutureBuilder<Client?>(
-                future: db.getClient(lockedClientId!),
+                future: db.getClient(widget.clientId!),
                 builder: (context, snap) {
                   final name = snap.data == null
                       ? '…'
@@ -461,17 +473,33 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                     key: ValueKey(_clientId),
                     initialValue: _clientId,
                     validator: (v) => v == null ? 'Pick a client' : null,
-                    builder: (state) => _fieldTap(
-                      value: selected == null
-                          ? ''
-                          : clientDisplayName(selected),
-                      hint: 'Select client',
-                      errorText: state.errorText,
-                      onTap: () async {
-                        await _pickClient(clients);
-                        state.didChange(_clientId);
-                      },
-                    ),
+                    builder: (state) {
+                      final field = _fieldTap(
+                        value: selected == null
+                            ? ''
+                            : clientDisplayName(selected),
+                        hint: 'Select client',
+                        errorText: state.errorText,
+                        onTap: _editing && !_canMutate
+                            ? null
+                            : () async {
+                                await _pickClient(clients);
+                                state.didChange(_clientId);
+                              },
+                      );
+                      if (!_editing || _clientId == null) return field;
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: field),
+                          IconButton(
+                            tooltip: 'Client profile',
+                            onPressed: _openClientProfile,
+                            icon: const Icon(Icons.person_outline),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
               ),

@@ -780,6 +780,36 @@ void main() {
     );
   });
 
+  test('updateAppointment can change client and moves SOAP', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+
+    final a = await db.insertClient(firstName: 'Ada', lastName: 'Lovelace');
+    final b = await db.insertClient(firstName: 'Grace', lastName: 'Hopper');
+    final apptId = await db.insertAppointment(
+      clientId: a,
+      startsAt: DateTime(2026, 10, 28, 9),
+    );
+    final note = await db.getOrCreateNoteForAppointment(
+      appointmentId: apptId,
+      clientId: a,
+      noteDate: DateTime(2026, 10, 28, 9),
+    );
+    expect(note.clientId, a);
+
+    expect(
+      await db.updateAppointment(
+        id: apptId,
+        startsAt: DateTime(2026, 10, 28, 9),
+        clientId: b,
+      ),
+      isTrue,
+    );
+    expect((await db.getAppointment(apptId))!.clientId, b);
+    expect((await db.getNote(note.id))!.clientId, b);
+  });
+
   test('insertAppointment blocks overlapping slot', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);

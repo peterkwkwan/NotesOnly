@@ -1669,6 +1669,7 @@ class AppDatabase extends _$AppDatabase {
     AppointmentStatus? status,
     String? notes,
     String? practitionerUid,
+    int? clientId,
   }) async {
     final existing = await getAppointment(id);
     if (existing == null) return false;
@@ -1694,12 +1695,14 @@ class AppDatabase extends _$AppDatabase {
         !mayReassignBooking(roles)) {
       throw StateError('Only an owner or admin can reassign a booking');
     }
+    final nextClientId = clientId ?? existing.clientId;
+    final clientChanged = nextClientId != existing.clientId;
     final nextStatus = status ?? existing.status;
     if (nextStatus != AppointmentStatus.cancelled) {
       final conflict = await findOverlappingAppointment(
         startsAt: startsAt,
         endsAt: endsAt ?? existing.endsAt,
-        clientId: existing.clientId,
+        clientId: nextClientId,
         practitionerUid: nextUid,
         excludeId: id,
       );
@@ -1721,6 +1724,7 @@ class AppDatabase extends _$AppDatabase {
         notes: notes == null
             ? const Value.absent()
             : Value(_blankToNull(notes)),
+        clientId: clientChanged ? Value(nextClientId) : const Value.absent(),
         practitionerUid: reassigned ? Value(nextUid) : const Value.absent(),
         // Reassign: clear id so new owner does not patch old owner's event.
         googleEventId: reassigned ? const Value(null) : const Value.absent(),
@@ -1728,6 +1732,19 @@ class AppDatabase extends _$AppDatabase {
         syncStatus: const Value(RowSyncStatus.pending),
       ),
     );
+    if (n > 0 && clientChanged) {
+      await (update(notes)
+            ..where(
+              (t) => t.appointmentId.equals(id) & t.deletedAt.isNull(),
+            ))
+          .write(
+        NotesCompanion(
+          clientId: Value(nextClientId),
+          updatedAt: Value(DateTime.now()),
+          syncStatus: const Value(RowSyncStatus.pending),
+        ),
+      );
+    }
     if (n > 0) {
       _notifyDirty();
       final self = NotesAuth.currentUser?.uid ?? '';
