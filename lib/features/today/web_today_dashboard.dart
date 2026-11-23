@@ -548,15 +548,6 @@ class _AgendaVisit extends StatelessWidget {
   final int defaultMinutes;
   final String practitionerName;
 
-  int get _durationMins {
-    final end = appointmentEffectiveEnd(
-      appointment.startsAt,
-      appointment.endsAt,
-      defaultMinutes,
-    );
-    return end.difference(appointment.startsAt).inMinutes;
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
@@ -566,165 +557,184 @@ class _AgendaVisit extends StatelessWidget {
       if (phone.isNotEmpty) phone,
       if (practitionerName.isNotEmpty) practitionerName,
     ];
+    final endsAt = appointmentEffectiveEnd(
+      appointment.startsAt,
+      appointment.endsAt,
+      defaultMinutes,
+    );
+    final durationMins = endsAt.difference(appointment.startsAt).inMinutes;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 62,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                formatApptTime(appointment.startsAt),
-                style: TextStyle(
-                  fontSize: 18,
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
-                  color: c.ink,
-                ),
-              ),
-              Text(
-                '$_durationMins min',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  color: c.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: c.canvas,
-              borderRadius: BorderRadius.circular(PelviRadius.md),
-              border: Border.all(color: c.border),
-            ),
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 62,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: avatar.wash,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        clientInitials(client),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: avatar.ink,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            clientDisplayName(client),
-                            style: TextStyle(
-                              fontSize: 17,
-                              height: 1.5,
-                              fontWeight: FontWeight.w500,
-                              color: c.ink,
-                            ),
-                          ),
-                          if (metaParts.isNotEmpty)
-                            Text(
-                              metaParts.join(' · '),
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 1.5,
-                                color: c.inkMuted,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: c.pink50,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        appointmentStatusLabel(appointment.status),
-                        style: TextStyle(
-                          fontSize: 11,
-                          height: 1.5,
-                          fontWeight: FontWeight.w500,
-                          color: c.pink700,
-                        ),
-                      ),
-                    ),
-                  ],
+                Text(
+                  formatApptTime(appointment.startsAt),
+                  style: TextStyle(
+                    fontSize: 18,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                    color: c.ink,
+                  ),
                 ),
-                const SizedBox(height: 18),
-                Divider(height: 1, color: c.border),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Text(
-                      'Prepare for this visit',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
-                        color: c.inkMuted,
-                      ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      width: 1,
+                      color: c.border,
                     ),
-                    const Spacer(),
-                    FilledButton.icon(
-                      onPressed: () => openNoteForAppointment(
-                        context,
-                        appointmentId: appointment.id,
-                        clientId: client.id,
-                        noteDate: appointment.startsAt,
-                      ),
-                      icon: Icon(
-                        Icons.edit_note_outlined,
-                        size: 16,
-                        color: c.pink700,
-                      ),
-                      label: Text(
-                        'Start SOAP note',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: c.pink700,
-                        ),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: c.pink50,
-                        foregroundColor: c.pink700,
-                        elevation: 0,
-                        minimumSize: const Size(0, 38),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(PelviRadius.sm),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  formatApptTime(endsAt),
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.5,
+                    color: c.inkMuted,
+                  ),
                 ),
               ],
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 20),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: c.canvas,
+                borderRadius: BorderRadius.circular(PelviRadius.md),
+                border: Border.all(color: c.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: avatar.wash,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          clientInitials(client),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: avatar.ink,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              clientDisplayName(client),
+                              style: TextStyle(
+                                fontSize: 17,
+                                height: 1.5,
+                                fontWeight: FontWeight.w500,
+                                color: c.ink,
+                              ),
+                            ),
+                            if (metaParts.isNotEmpty)
+                              Text(
+                                metaParts.join(' · '),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.5,
+                                  color: c.inkMuted,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.pink50,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          appointmentStatusLabel(appointment.status),
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.5,
+                            fontWeight: FontWeight.w500,
+                            color: c.pink700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Divider(height: 1, color: c.border),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Text(
+                        '$durationMins min',
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: c.inkMuted,
+                        ),
+                      ),
+                      const Spacer(),
+                      FilledButton.icon(
+                        onPressed: () => openNoteForAppointment(
+                          context,
+                          appointmentId: appointment.id,
+                          clientId: client.id,
+                          noteDate: appointment.startsAt,
+                        ),
+                        icon: Icon(
+                          Icons.edit_note_outlined,
+                          size: 16,
+                          color: c.pink700,
+                        ),
+                        label: Text(
+                          'Start SOAP note',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: c.pink700,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: c.pink50,
+                          foregroundColor: c.pink700,
+                          elevation: 0,
+                          minimumSize: const Size(0, 38),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(PelviRadius.sm),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
