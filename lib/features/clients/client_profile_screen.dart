@@ -196,17 +196,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     ),
                     child: const Text('Delete'),
                   ),
-                ] else
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => ClientFormScreen(existing: client),
-                        ),
-                      );
-                    },
-                    child: const Text('Edit'),
-                  ),
+                ],
               ],
             ),
             bottomNavigationBar: _selecting
@@ -353,7 +343,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                                 : c.ink,
                           ),
                         ),
-                        const SizedBox(height: 15),
+                        const SizedBox(height: PelviSpace.sm),
                         Text('DIAGNOSIS (PAST)', style: text.labelMedium),
                         const SizedBox(height: PelviSpace.sm),
                         Text(
@@ -377,13 +367,37 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                           child: SingleChildScrollView(
                             child: Text(
                               (client.notes ?? '').trim().isEmpty
-                                  ? 'No profile notes yet.'
+                                  ? '-'
                                   : client.notes!,
                               style: text.bodyMedium?.copyWith(
                                 fontSize: 14,
                                 color: (client.notes ?? '').trim().isEmpty
                                     ? c.inkMuted
                                     : c.ink,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      ClientFormScreen(existing: client),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: const Text('Edit details'),
+                            style: FilledButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  PelviRadius.md,
+                                ),
                               ),
                             ),
                           ),

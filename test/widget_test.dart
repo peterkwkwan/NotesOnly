@@ -2118,7 +2118,7 @@ void main() {
     expect((await db.getAppointment(a1))?.deletedAt, isNotNull);
     expect((await db.getAppointment(a2))?.deletedAt, isNotNull);
     expect(find.textContaining('selected'), findsNothing);
-    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Edit details'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));

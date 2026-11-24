@@ -114,6 +114,11 @@ class _DiagnosisSuggestButtonState extends State<DiagnosisSuggestButton> {
 
     return TextButton.icon(
       onPressed: _busy ? null : () => unawaited(_onPressed()),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
       icon: _busy
           ? SizedBox(
               width: 16,

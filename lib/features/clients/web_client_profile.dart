@@ -240,7 +240,6 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                   clientName: name,
                                   editing: _editing,
                                   saving: _saving,
-                                  onEdit: () => _beginEdit(client),
                                   onCancel: _cancelEdit,
                                   onSave: () => _save(client),
                                   onNewAppt: () {
@@ -352,7 +351,6 @@ class _PageHeading extends StatelessWidget {
     required this.clientName,
     required this.editing,
     required this.saving,
-    required this.onEdit,
     required this.onCancel,
     required this.onSave,
     required this.onNewAppt,
@@ -361,7 +359,6 @@ class _PageHeading extends StatelessWidget {
   final String clientName;
   final bool editing;
   final bool saving;
-  final VoidCallback onEdit;
   final VoidCallback onCancel;
   final VoidCallback onSave;
   final VoidCallback onNewAppt;
@@ -387,12 +384,7 @@ class _PageHeading extends StatelessWidget {
               label: 'Save',
               onPressed: saving ? null : onSave,
             ),
-          ] else
-            DesktopOutlineAction(
-              icon: Icons.edit_outlined,
-              label: 'Edit details',
-              onPressed: onEdit,
-            ),
+          ],
           DesktopFilledAction(
             icon: Icons.add,
             label: 'New appointment',
@@ -716,7 +708,7 @@ class _DetailsColumn extends StatelessWidget {
                   keyboardType: TextInputType.multiline,
                   capitalization: TextCapitalization.sentences,
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 8),
                 _ProfileField(
                   label: 'DIAGNOSIS (PAST)',
                   controller: draft.diagnosisPast,
@@ -755,7 +747,7 @@ class _DetailsColumn extends StatelessWidget {
                     color: diagnosisCurrent.isEmpty ? c.inkMuted : c.ink,
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 8),
                 Text(
                   'DIAGNOSIS (PAST)',
                   style: TextStyle(
@@ -787,7 +779,7 @@ class _DetailsColumn extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  notes.isEmpty ? 'No profile notes yet.' : notes,
+                  notes.isEmpty ? '-' : notes,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
@@ -801,20 +793,11 @@ class _DetailsColumn extends StatelessWidget {
                   label: 'Save',
                   onPressed: saving ? null : onSave,
                 )
-              else if (notes.isEmpty)
-                DesktopOutlineAction(
+              else
+                DesktopFilledAction(
                   icon: Icons.edit_outlined,
                   label: 'Edit details',
                   onPressed: onEdit,
-                )
-              else
-                Text(
-                  'As recorded in the client profile.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.5,
-                    color: c.inkMuted,
-                  ),
                 ),
             ],
           ),

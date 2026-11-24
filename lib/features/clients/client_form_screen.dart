@@ -250,7 +250,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(hintText: 'Optional'),
             ),
-            const SizedBox(height: PelviSpace.md),
+            const SizedBox(height: PelviSpace.sm),
             Text('DIAGNOSIS (PAST)', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),
             TextFormField(
@@ -261,7 +261,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(hintText: 'Optional'),
             ),
-            if (_isEdit) ...[
+            if (_isEdit)
               Align(
                 alignment: Alignment.centerLeft,
                 child: DiagnosisSuggestButton(
@@ -272,7 +272,6 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
                   },
                 ),
               ),
-            ],
             const SizedBox(height: PelviSpace.md),
             Text('REMARKS', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),
