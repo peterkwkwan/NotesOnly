@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import 'client_format.dart';
+import 'diagnosis_suggest_button.dart';
 import 'phone_field.dart';
 
 /// Create or edit a client (name, phone, email; optional emergency name/phone).
@@ -59,6 +62,18 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
     _diagnosisCurrent.dispose();
     _diagnosisPast.dispose();
     super.dispose();
+  }
+
+  Future<void> _reloadDiagnosisFromDb() async {
+    final existing = widget.existing;
+    if (existing == null) return;
+    final db = AppDatabaseProvider.of(context);
+    final row = await db.getClient(existing.id);
+    if (!mounted || row == null) return;
+    setState(() {
+      _diagnosisCurrent.text = row.diagnosisCurrent ?? '';
+      _diagnosisPast.text = row.diagnosisPast ?? '';
+    });
   }
 
   Future<void> _save() async {
@@ -246,6 +261,18 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(hintText: 'Optional'),
             ),
+            if (_isEdit) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: DiagnosisSuggestButton(
+                  client: widget.existing!,
+                  onApplied: () {
+                    // Controllers stay stale until pop; re-seed from DB after write.
+                    unawaited(_reloadDiagnosisFromDb());
+                  },
+                ),
+              ),
+            ],
             const SizedBox(height: PelviSpace.md),
             Text('REMARKS', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),

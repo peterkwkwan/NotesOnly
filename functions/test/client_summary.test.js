@@ -7,8 +7,10 @@ const {
   normalizePayload,
   inputHashFor,
   truncate,
+  parseDiagnosisProposal,
   MAX_NOTES,
   SYSTEM_PROMPT,
+  DIAGNOSIS_SYSTEM_PROMPT,
   DEFAULT_MODEL,
   DEFAULT_VERTEX_LOCATION,
   vertexGenerateUrl,
@@ -95,6 +97,25 @@ describe('client_summary prompt', () => {
     assert.equal(
       vertexGenerateUrl('notesonly-e4829', 'us-central1', 'gemini-2.5-flash'),
       'https://us-central1-aiplatform.googleapis.com/v1/projects/notesonly-e4829/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent',
+    );
+  });
+});
+
+describe('proposeDiagnosis parse', () => {
+  it('parses JSON and strips markdown fences', () => {
+    const parsed = parseDiagnosisProposal(
+      '```json\n{"diagnosisCurrent":"stress UI","diagnosisPast":"PGP","caveats":"Based on latest A"}\n```',
+    );
+    assert.equal(parsed.diagnosisCurrent, 'stress UI');
+    assert.equal(parsed.diagnosisPast, 'PGP');
+    assert.equal(parsed.caveats, 'Based on latest A');
+    assert.ok(DIAGNOSIS_SYSTEM_PROMPT.includes('diagnosisCurrent'));
+  });
+
+  it('rejects non-JSON model output', () => {
+    assert.throws(
+      () => parseDiagnosisProposal('not json'),
+      (err) => err.code === 'internal',
     );
   });
 });

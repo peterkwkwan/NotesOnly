@@ -9,6 +9,7 @@ const MAX_NOTES = 5;
 const MAX_APPTS = 5;
 const MAX_SECTION_CHARS = 1500;
 const MAX_OUTPUT_TOKENS = 256;
+const MAX_DIAGNOSIS_OUTPUT_TOKENS = 512;
 const RATE_MAX = 5;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 // gemini-2.0-flash retired 2026-06-01; new projects get NOT_FOUND on that id.
@@ -27,6 +28,16 @@ const SYSTEM_PROMPT = [
   'Do not include patient name or identifiers; refer to “the client”.',
   'If notes are empty, say there is not enough charted information.',
   'Return only the summary sentences — no title, bullets, or chain-of-thought.',
+].join(' ');
+
+const DIAGNOSIS_SYSTEM_PROMPT = [
+  'You are a clinical assistant for pelvic / physio SOAP notes.',
+  'Propose diagnosisCurrent and diagnosisPast for the client chart from the notes and existing diagnosis fields provided.',
+  'Prefer concise clinical phrases suitable for a chart field.',
+  'Do not invent diagnoses unsupported by the charted notes or existing fields.',
+  'If there is not enough charted information, return empty strings and explain in caveats.',
+  'Do not include patient name or identifiers; refer to “the client”.',
+  'Return ONLY compact JSON with keys diagnosisCurrent, diagnosisPast, caveats — no markdown fences or chain-of-thought.',
 ].join(' ');
 
 function truncate(text, max) {
@@ -171,7 +182,7 @@ async function assertCanSummarize(db, auth, orgId, notes) {
   if (adminOnly || (!owner && !practitioner)) {
     throw new HttpsError(
       'permission-denied',
-      'Admins cannot generate SOAP-based summaries',
+      'Admins cannot use SOAP-derived AI features',
     );
   }
   if (!owner && practitioner) {
@@ -179,7 +190,7 @@ async function assertCanSummarize(db, auth, orgId, notes) {
       if (n.practitionerUid && n.practitionerUid !== auth.uid) {
         throw new HttpsError(
           'permission-denied',
-          'Cannot summarize another practitioner’s notes',
+          'Cannot use another practitioner’s notes',
         );
       }
     }
@@ -187,8 +198,8 @@ async function assertCanSummarize(db, auth, orgId, notes) {
   return member;
 }
 
-async function assertSummaryRateLimit(db, uid, clientId) {
-  const id = `summary_${uid}_${clientId}`;
+async function assertAiRateLimit(db, uid, clientId, kind) {
+  const id = `${kind}_${uid}_${clientId}`;
   const ref = db.collection('summaryRateLimits').doc(id);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -200,6 +211,7 @@ async function assertSummaryRateLimit(db, uid, clientId) {
       tx.set(ref, {
         uid,
         clientId,
+        kind,
         count: 1,
         windowStart: Timestamp.fromMillis(now),
         updatedAt: FieldValue.serverTimestamp(),
@@ -209,7 +221,7 @@ async function assertSummaryRateLimit(db, uid, clientId) {
     if (count >= RATE_MAX) {
       throw new HttpsError(
         'resource-exhausted',
-        'Too many regenerations; try again later',
+        'Too many AI requests; try again later',
       );
     }
     tx.update(ref, {
@@ -217,6 +229,14 @@ async function assertSummaryRateLimit(db, uid, clientId) {
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
+}
+
+function assertSummaryRateLimit(db, uid, clientId) {
+  return assertAiRateLimit(db, uid, clientId, 'summary');
+}
+
+function assertDiagnosisRateLimit(db, uid, clientId) {
+  return assertAiRateLimit(db, uid, clientId, 'diagnosis');
 }
 
 function gcpProjectId() {
@@ -262,7 +282,12 @@ async function getAdcAccessToken() {
   return body.access_token;
 }
 
-async function callVertexGemini(userPrompt, model) {
+async function callVertexGemini(userPrompt, model, opts = {}) {
+  const systemPrompt = opts.systemPrompt || SYSTEM_PROMPT;
+  const maxOutputTokens = opts.maxOutputTokens || MAX_OUTPUT_TOKENS;
+  const temperature = opts.temperature ?? 0.3;
+  const httpError = opts.httpError || 'Summary generation failed';
+  const emptyError = opts.emptyError || 'Empty summary from model';
   const projectId = gcpProjectId();
   if (!projectId) {
     throw new HttpsError('failed-precondition', 'GCP project id not set');
@@ -270,6 +295,13 @@ async function callVertexGemini(userPrompt, model) {
   const location = vertexLocation();
   const token = await getAdcAccessToken();
   const url = vertexGenerateUrl(projectId, location, model);
+  const generationConfig = {
+    temperature,
+    maxOutputTokens,
+  };
+  if (opts.responseMimeType) {
+    generationConfig.responseMimeType = opts.responseMimeType;
+  }
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -277,28 +309,46 @@ async function callVertexGemini(userPrompt, model) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-      },
+      generationConfig,
     }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = body?.error?.message || `Vertex Gemini HTTP ${res.status}`;
     console.error('vertex gemini error', res.status, msg);
-    throw new HttpsError('internal', 'Summary generation failed');
+    throw new HttpsError('internal', httpError);
   }
   const text = body?.candidates?.[0]?.content?.parts
     ?.map((p) => p.text || '')
     .join('')
     .trim();
   if (!text) {
-    throw new HttpsError('internal', 'Empty summary from model');
+    throw new HttpsError('internal', emptyError);
   }
   return text;
+}
+
+/** Parse model JSON for diagnosis propose; strips optional markdown fences. */
+function parseDiagnosisProposal(text) {
+  let raw = String(text ?? '').trim();
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) raw = fence[1].trim();
+  let obj;
+  try {
+    obj = JSON.parse(raw);
+  } catch {
+    throw new HttpsError('internal', 'Invalid diagnosis proposal from model');
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    throw new HttpsError('internal', 'Invalid diagnosis proposal from model');
+  }
+  return {
+    diagnosisCurrent: truncate(obj.diagnosisCurrent, MAX_SECTION_CHARS),
+    diagnosisPast: truncate(obj.diagnosisPast, MAX_SECTION_CHARS),
+    caveats: truncate(obj.caveats, 500),
+  };
 }
 
 /**
@@ -336,17 +386,83 @@ async function generateClientSummary(db, auth, data) {
   };
 }
 
+/**
+ * Propose diagnosisCurrent / diagnosisPast from SOAP history (confirm-before-write in app).
+ */
+async function proposeDiagnosis(db, auth, data) {
+  if (!auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required');
+  }
+  const payload = normalizePayload(data);
+  await assertCanSummarize(db, auth, payload.orgId, payload.notes);
+  await assertDiagnosisRateLimit(db, auth.uid, payload.clientId);
+
+  if (
+    payload.notes.length === 0 &&
+    !payload.diagnosisCurrent &&
+    !payload.diagnosisPast
+  ) {
+    return {
+      diagnosisCurrent: '',
+      diagnosisPast: '',
+      caveats: 'Not enough published notes to propose a diagnosis yet.',
+      model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
+      generatedAt: new Date().toISOString(),
+      inputHash: inputHashFor(payload),
+    };
+  }
+
+  const userPrompt = [
+    'Propose chart diagnosis fields from this clinical bundle.',
+    'Keep phrasing suitable for diagnosisCurrent / diagnosisPast text fields.',
+    '',
+    buildUserPrompt(payload),
+  ].join('\n');
+  const hash = inputHashFor(payload);
+  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const raw = await callVertexGemini(userPrompt, model, {
+    systemPrompt: DIAGNOSIS_SYSTEM_PROMPT,
+    maxOutputTokens: MAX_DIAGNOSIS_OUTPUT_TOKENS,
+    temperature: 0.2,
+    responseMimeType: 'application/json',
+    httpError: 'Diagnosis proposal failed',
+    emptyError: 'Empty diagnosis proposal from model',
+  });
+  const proposal = parseDiagnosisProposal(raw);
+  const generatedAt = new Date().toISOString();
+  console.log(
+    JSON.stringify({
+      event: 'propose_diagnosis',
+      orgId: payload.orgId,
+      clientId: payload.clientId,
+      noteCount: payload.notes.length,
+      model,
+      location: vertexLocation(),
+      inputHash: hash,
+    }),
+  );
+  return {
+    ...proposal,
+    model,
+    generatedAt,
+    inputHash: hash,
+  };
+}
+
 module.exports = {
   MAX_NOTES,
   MAX_APPTS,
   DEFAULT_MODEL,
   DEFAULT_VERTEX_LOCATION,
   SYSTEM_PROMPT,
+  DIAGNOSIS_SYSTEM_PROMPT,
   truncate,
   normalizePayload,
   buildUserPrompt,
   inputHashFor,
+  parseDiagnosisProposal,
   vertexGenerateUrl,
   assertCanSummarize,
   generateClientSummary,
+  proposeDiagnosis,
 };

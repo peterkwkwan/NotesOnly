@@ -1,6 +1,6 @@
 {
   "name": "notesonly-functions",
-  "description": "NotesOnly Cloud Functions — invites, Google Calendar OAuth, client summary",
+  "description": "NotesOnly Cloud Functions — invites, Google Calendar OAuth, client summary, diagnosis propose",
   "engines": {
     "node": "22"
   },

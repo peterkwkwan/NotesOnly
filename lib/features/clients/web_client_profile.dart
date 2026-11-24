@@ -11,6 +11,7 @@ import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
 import 'client_format.dart';
 import 'client_summary_box.dart';
+import 'diagnosis_suggest_button.dart';
 import 'phone_field.dart';
 
 enum _HistoryTab { appointments, notes }
@@ -761,6 +762,7 @@ class _DetailsColumn extends StatelessWidget {
                     color: diagnosisPast.isEmpty ? c.inkMuted : c.ink,
                   ),
                 ),
+                DiagnosisSuggestButton(client: client, compact: true),
                 const SizedBox(height: 18),
                 Text(
                   'REMARKS',

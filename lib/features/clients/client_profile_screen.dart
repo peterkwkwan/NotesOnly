@@ -12,6 +12,7 @@ import '../shell/desktop_chrome.dart';
 import 'client_form_screen.dart';
 import 'client_format.dart';
 import 'client_summary_box.dart';
+import 'diagnosis_suggest_button.dart';
 import 'web_client_profile.dart';
 
 Future<void> _launchExternal(Uri uri) async {
@@ -367,6 +368,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                                     : c.ink,
                           ),
                         ),
+                        DiagnosisSuggestButton(client: client),
                         const SizedBox(height: 15),
                         Text('REMARKS', style: text.labelMedium),
                         const SizedBox(height: PelviSpace.sm),

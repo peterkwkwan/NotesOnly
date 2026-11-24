@@ -363,6 +363,22 @@ exports.generateClientSummary = onCall(
   },
 );
 
+exports.proposeDiagnosis = onCall(
+  { region: 'us-central1' },
+  async (request) => {
+    try {
+      const auth = requireAuth(request);
+      return await clientSummary.proposeDiagnosis(
+        db,
+        auth,
+        request.data || {},
+      );
+    } catch (err) {
+      throw httpsError(err);
+    }
+  },
+);
+
 exports.acceptInvite = onCall({ region: 'us-central1' }, async (request) => {
   try {
     const auth = requireAuth(request);
