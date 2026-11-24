@@ -5,6 +5,7 @@ import '../../data/auth.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../appointments/web_edit_appointment_page.dart';
 import '../appointments/web_new_appointment_page.dart';
 import '../clients/client_format.dart';
 import '../clients/client_profile_screen.dart';
@@ -532,6 +533,30 @@ class _AgendaVisit extends StatelessWidget {
   final int defaultMinutes;
   final String practitionerName;
 
+  void _openClientProfile(BuildContext context) {
+    final open = ShellNavigation.maybeOf(context)?.openClientProfile;
+    if (open != null) {
+      open(client.id);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ClientProfileScreen(clientId: client.id),
+      ),
+    );
+  }
+
+  void _openEdit(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => WebEditAppointmentPage(
+          appointment: appointment,
+          clientName: clientDisplayName(client),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
@@ -547,6 +572,8 @@ class _AgendaVisit extends StatelessWidget {
       defaultMinutes,
     );
     final durationMins = endsAt.difference(appointment.startsAt).inMinutes;
+    final statusDuration =
+        '${appointmentStatusLabel(appointment.status)} - $durationMins min';
 
     return IntrinsicHeight(
       child: Row(
@@ -601,6 +628,7 @@ class _AgendaVisit extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
                         width: 36,
@@ -624,14 +652,9 @@ class _AgendaVisit extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              clientDisplayName(client),
-                              style: TextStyle(
-                                fontSize: 17,
-                                height: 1.5,
-                                fontWeight: FontWeight.w500,
-                                color: c.ink,
-                              ),
+                            _ClientNameLink(
+                              name: clientDisplayName(client),
+                              onTap: () => _openClientProfile(context),
                             ),
                             if (metaParts.isNotEmpty)
                               Text(
@@ -645,22 +668,27 @@ class _AgendaVisit extends StatelessWidget {
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: () => _openEdit(context),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: c.surface,
+                          foregroundColor: c.ink,
+                          side: BorderSide(color: c.border),
+                          minimumSize: const Size(0, 32),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          visualDensity: VisualDensity.compact,
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(PelviRadius.sm),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: c.pink50,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          appointmentStatusLabel(appointment.status),
+                        child: const Text(
+                          'Edit appointment',
                           style: TextStyle(
-                            fontSize: 11,
-                            height: 1.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.pink700,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -672,7 +700,7 @@ class _AgendaVisit extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        '$durationMins min',
+                        statusDuration,
                         style: TextStyle(
                           fontSize: 12,
                           height: 1.5,
@@ -718,6 +746,51 @@ class _AgendaVisit extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Same hover as calendar edit-panel `_ClientProfileLink` (pink + underline).
+class _ClientNameLink extends StatefulWidget {
+  const _ClientNameLink({required this.name, required this.onTap});
+
+  final String name;
+  final VoidCallback onTap;
+
+  @override
+  State<_ClientNameLink> createState() => _ClientNameLinkState();
+}
+
+class _ClientNameLinkState extends State<_ClientNameLink> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final color = _hover ? c.pink700 : c.ink;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Tooltip(
+          message: 'Client profile',
+          child: Text(
+            widget.name,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 17,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+              color: color,
+              decoration:
+                  _hover ? TextDecoration.underline : TextDecoration.none,
+              decorationColor: color,
+            ),
+          ),
+        ),
       ),
     );
   }
