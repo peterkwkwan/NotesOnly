@@ -167,7 +167,13 @@ class _WebSoapNoteWorkspaceState extends State<WebSoapNoteWorkspace> {
     final appt = note.appointmentId == null
         ? null
         : await db.getAppointment(note.appointmentId!);
-    final name = await db.watchPractitionerName().first;
+    // Appointment owner, not the signed-in viewer (same as history / calendar).
+    final apptUid = appt?.practitionerUid.trim() ?? '';
+    final noteUid = note.practitionerUid.trim();
+    final practUid = apptUid.isNotEmpty ? apptUid : noteUid;
+    final name = await db.watchPractitionerName(
+      uid: practUid.isEmpty ? null : practUid,
+    ).first;
     if (!mounted) return;
     final crumbClient = client == null ? 'Note' : clientDisplayName(client);
     final when = appt?.startsAt ?? note.noteDate;
@@ -898,15 +904,18 @@ class _VisitColumn extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              Text(
-                display,
-                style: TextStyle(
-                  fontSize: 18,
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
-                  color: c.ink,
-                ),
-              ),
+              if (client == null)
+                Text(
+                  display,
+                  style: TextStyle(
+                    fontSize: 18,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                    color: c.ink,
+                  ),
+                )
+              else
+                _ClientNameLink(name: display, onTap: onOpenClient),
               const SizedBox(height: 18),
               Text(
                 formatNoteDate(when),
@@ -945,19 +954,6 @@ class _VisitColumn extends StatelessWidget {
                   color: c.ink,
                 ),
               ),
-              const SizedBox(height: 18),
-              InkWell(
-                onTap: client == null ? null : onOpenClient,
-                child: Text(
-                  'Open client →',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.5,
-                    fontWeight: FontWeight.w500,
-                    color: c.pink700,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -990,6 +986,51 @@ class _VisitColumn extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Same hover as Today / edit-appointment client name (pink + underline).
+class _ClientNameLink extends StatefulWidget {
+  const _ClientNameLink({required this.name, required this.onTap});
+
+  final String name;
+  final VoidCallback onTap;
+
+  @override
+  State<_ClientNameLink> createState() => _ClientNameLinkState();
+}
+
+class _ClientNameLinkState extends State<_ClientNameLink> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    final color = _hover ? c.pink700 : c.ink;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Tooltip(
+          message: 'Client profile',
+          child: Text(
+            widget.name,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 18,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+              color: color,
+              decoration:
+                  _hover ? TextDecoration.underline : TextDecoration.none,
+              decorationColor: color,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
