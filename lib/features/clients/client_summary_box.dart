@@ -193,7 +193,7 @@ class _ClientSummaryBoxState extends State<ClientSummaryBox> {
             const SizedBox(width: 7),
             Expanded(
               child: Text(
-                'CLIENT SUMMARY',
+                'AI CLIENT SUMMARY',
                 style: (titleSize != null
                         ? TextStyle(
                             fontSize: titleSize,

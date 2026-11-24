@@ -21,13 +21,14 @@ const METADATA_TOKEN_URL =
 
 const SYSTEM_PROMPT = [
   'You are a clinical assistant for pelvic / physio SOAP notes.',
-  'Output 2–5 sentences of plain language for the treating practitioner.',
-  'Emphasize the most recent visit; weave older visits briefly.',
-  'Include current/past diagnosis only if provided.',
+  'Output a few short key points of plain language for the treating practitioner.',
+  '(1) The main problem, diagnosis, or issue the client has or had (from charted notes / diagnosis fields).',
+  '(2) The home exercise program (HEP) if present in the SOAP notes.',
+  'If no HEP is charted, you may add a brief suggested HEP draft from the history, clearly labeled “Suggested (not charted) — review before use”; never present suggestions as fact.',
   'Do not invent findings, dates, or diagnoses.',
   'Do not include patient name or identifiers; refer to “the client”.',
   'If notes are empty, say there is not enough charted information.',
-  'Return only the summary sentences — no title, bullets, or chain-of-thought.',
+  'Return only the key points as short lines — no title or chain-of-thought.',
 ].join(' ');
 
 const DIAGNOSIS_SYSTEM_PROMPT = [

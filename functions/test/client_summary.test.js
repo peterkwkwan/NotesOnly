@@ -43,7 +43,9 @@ describe('client_summary prompt', () => {
     assert.match(prompt, /\[2026-11-20\]/);
     assert.match(prompt, /S: Less pain/);
     assert.equal(prompt.includes('Ada'), false);
-    assert.ok(SYSTEM_PROMPT.includes('2–5 sentences'));
+    assert.ok(SYSTEM_PROMPT.includes('key points'));
+    assert.ok(SYSTEM_PROMPT.includes('Suggested (not charted)'));
+    assert.ok(SYSTEM_PROMPT.includes('HEP'));
   });
 
   it('rejects more than MAX_NOTES', () => {

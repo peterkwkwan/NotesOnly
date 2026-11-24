@@ -1031,7 +1031,7 @@ void main() {
 
     expect(find.text('Open note'), findsNothing);
     expect(find.text('Client profile'), findsOneWidget);
-    expect(find.text('CLIENT SUMMARY'), findsOneWidget);
+    expect(find.text('AI CLIENT SUMMARY'), findsOneWidget);
     await tester.tap(find.text(formatNoteDate(DateTime(2026, 10, 28, 9, 30))));
     await tester.pumpAndSettle();
 
