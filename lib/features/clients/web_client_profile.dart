@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -5,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
-import '../../widgets/show_snack.dart';
 import '../appointments/web_edit_appointment_page.dart';
 import '../appointments/web_new_appointment_page.dart';
 import '../notes/note_format.dart';
@@ -1254,6 +1255,77 @@ class _NoteHistoryCard extends StatelessWidget {
   }
 }
 
+class _CopySoapButton extends StatefulWidget {
+  const _CopySoapButton({required this.enabled, required this.text});
+
+  final bool enabled;
+  final String text;
+
+  @override
+  State<_CopySoapButton> createState() => _CopySoapButtonState();
+}
+
+class _CopySoapButtonState extends State<_CopySoapButton> {
+  bool _copied = false;
+  Timer? _revert;
+
+  @override
+  void dispose() {
+    _revert?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _onCopy() async {
+    await Clipboard.setData(ClipboardData(text: widget.text));
+    if (!mounted) return;
+    _revert?.cancel();
+    setState(() => _copied = true);
+    _revert = Timer(const Duration(milliseconds: 1800), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return OutlinedButton.icon(
+      onPressed: widget.enabled ? _onCopy : null,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: c.surface,
+        foregroundColor: c.ink,
+        side: BorderSide(color: c.border),
+        minimumSize: const Size(0, 32),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(PelviRadius.sm),
+        ),
+      ),
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        transitionBuilder: (child, anim) => ScaleTransition(
+          scale: anim,
+          child: FadeTransition(opacity: anim, child: child),
+        ),
+        child: Icon(
+          _copied ? Icons.check : Icons.copy_outlined,
+          key: ValueKey(_copied),
+          size: 16,
+          color: _copied ? c.success : null,
+        ),
+      ),
+      label: const Text(
+        'Copy',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _VisitDetailPanel extends StatelessWidget {
   const _VisitDetailPanel({
     required this.name,
@@ -1308,42 +1380,13 @@ class _VisitDetailPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: emptySoap
-                    ? null
-                    : () async {
-                        await Clipboard.setData(
-                          ClipboardData(
-                            text: formatSoapPlainText(
-                              subjective: s,
-                              objective: o,
-                              assessment: asmt,
-                              plan: p,
-                            ),
-                          ),
-                        );
-                        if (!context.mounted) return;
-                        showPelviSnackBar(context, 'Note copied.');
-                      },
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: c.surface,
-                  foregroundColor: c.ink,
-                  side: BorderSide(color: c.border),
-                  minimumSize: const Size(0, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  visualDensity: VisualDensity.compact,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(PelviRadius.sm),
-                  ),
-                ),
-                icon: const Icon(Icons.copy_outlined, size: 16),
-                label: const Text(
-                  'Copy',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+              _CopySoapButton(
+                enabled: !emptySoap,
+                text: formatSoapPlainText(
+                  subjective: s,
+                  objective: o,
+                  assessment: asmt,
+                  plan: p,
                 ),
               ),
             ],
