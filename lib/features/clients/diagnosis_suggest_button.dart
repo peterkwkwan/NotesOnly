@@ -9,7 +9,7 @@ import '../../data/diagnosis_propose.dart';
 import '../../data/org.dart';
 import '../../theme/theme.dart';
 
-/// "Suggest from notes" — proposes diagnosis via Vertex, then confirm before write.
+/// "Suggest from notes" — ranked major diagnoses as pills; pick one before write.
 class DiagnosisSuggestButton extends StatefulWidget {
   const DiagnosisSuggestButton({
     super.key,
@@ -80,18 +80,19 @@ class _DiagnosisSuggestButtonState extends State<DiagnosisSuggestButton> {
     }
 
     final proposal = result.proposal!;
-    final confirmed = await showDialog<bool>(
+    final selected = await showDialog<String>(
       context: context,
-      builder: (ctx) => _DiagnosisConfirmDialog(proposal: proposal),
+      builder: (ctx) => _DiagnosisPickDialog(proposal: proposal),
     );
 
     if (!mounted) return;
-    if (confirmed != true) {
+    final pick = selected?.trim() ?? '';
+    if (pick.isEmpty) {
       setState(() => _busy = false);
       return;
     }
 
-    final ok = await applyDiagnosisProposal(db, widget.client, proposal);
+    final ok = await applySelectedDiagnosis(db, widget.client, pick);
     if (!mounted) return;
     setState(() => _busy = false);
     if (!ok) {
@@ -141,20 +142,22 @@ class _DiagnosisSuggestButtonState extends State<DiagnosisSuggestButton> {
   }
 }
 
-class _DiagnosisConfirmDialog extends StatelessWidget {
-  const _DiagnosisConfirmDialog({required this.proposal});
+class _DiagnosisPickDialog extends StatefulWidget {
+  const _DiagnosisPickDialog({required this.proposal});
 
   final DiagnosisProposal proposal;
 
   @override
+  State<_DiagnosisPickDialog> createState() => _DiagnosisPickDialogState();
+}
+
+class _DiagnosisPickDialogState extends State<_DiagnosisPickDialog> {
+  String? _selected;
+
+  @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
-    final current = proposal.diagnosisCurrent.trim().isEmpty
-        ? '(none)'
-        : proposal.diagnosisCurrent;
-    final past = proposal.diagnosisPast.trim().isEmpty
-        ? '(none)'
-        : proposal.diagnosisPast;
+    final labels = widget.proposal.majorDiagnoses;
 
     return AlertDialog(
       title: const Text('Suggested diagnosis'),
@@ -164,35 +167,30 @@ class _DiagnosisConfirmDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Review before saving to the chart.',
+              labels.isEmpty
+                  ? 'No major diagnoses to pick from.'
+                  : 'Pick one major diagnosis for Diagnosis (current).',
               style: TextStyle(fontSize: 13, color: c.inkMuted),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'CURRENT',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: c.inkMuted,
+            if (labels.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: PelviSpace.sm,
+                runSpacing: PelviSpace.sm,
+                children: [
+                  for (final label in labels)
+                    _DiagnosisPill(
+                      label: label,
+                      selected: _selected == label,
+                      onTap: () => setState(() => _selected = label),
+                    ),
+                ],
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(current, style: TextStyle(fontSize: 14, color: c.ink)),
-            const SizedBox(height: 14),
-            Text(
-              'PAST',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: c.inkMuted,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(past, style: TextStyle(fontSize: 14, color: c.ink)),
-            if (proposal.caveats.trim().isNotEmpty) ...[
+            ],
+            if (widget.proposal.caveats.trim().isNotEmpty) ...[
               const SizedBox(height: 14),
               Text(
-                proposal.caveats,
+                widget.proposal.caveats,
                 style: TextStyle(
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
@@ -214,16 +212,54 @@ class _DiagnosisConfirmDialog extends StatelessWidget {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context, false),
+          onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: proposal.isEmpty
+          onPressed: _selected == null
               ? null
-              : () => Navigator.pop(context, true),
+              : () => Navigator.pop(context, _selected),
           child: const Text('Save to chart'),
         ),
       ],
+    );
+  }
+}
+
+class _DiagnosisPill extends StatelessWidget {
+  const _DiagnosisPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PelviColors.of(context);
+    return Material(
+      color: selected ? c.pink50 : c.surface,
+      shape: StadiumBorder(
+        side: BorderSide(color: selected ? c.pink700 : c.border),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? c.pink700 : c.ink,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

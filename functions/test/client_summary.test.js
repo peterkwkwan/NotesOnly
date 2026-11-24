@@ -102,14 +102,26 @@ describe('client_summary prompt', () => {
 });
 
 describe('proposeDiagnosis parse', () => {
-  it('parses JSON and strips markdown fences', () => {
+  it('parses ranked majorDiagnoses and strips markdown fences', () => {
     const parsed = parseDiagnosisProposal(
-      '```json\n{"diagnosisCurrent":"stress UI","diagnosisPast":"PGP","caveats":"Based on latest A"}\n```',
+      '```json\n{"majorDiagnoses":["stress UI","overactive PF","PGP","prolapse","voiding dysfunction","extra"],"caveats":"Based on latest A"}\n```',
     );
-    assert.equal(parsed.diagnosisCurrent, 'stress UI');
-    assert.equal(parsed.diagnosisPast, 'PGP');
+    assert.deepEqual(parsed.majorDiagnoses, [
+      'stress UI',
+      'overactive PF',
+      'PGP',
+      'prolapse',
+      'voiding dysfunction',
+    ]);
     assert.equal(parsed.caveats, 'Based on latest A');
-    assert.ok(DIAGNOSIS_SYSTEM_PROMPT.includes('diagnosisCurrent'));
+    assert.ok(DIAGNOSIS_SYSTEM_PROMPT.includes('majorDiagnoses'));
+  });
+
+  it('dedupes labels and ignores blanks', () => {
+    const parsed = parseDiagnosisProposal(
+      '{"majorDiagnoses":["Stress UI","","stress ui","PGP"],"caveats":""}',
+    );
+    assert.deepEqual(parsed.majorDiagnoses, ['Stress UI', 'PGP']);
   });
 
   it('rejects non-JSON model output', () => {

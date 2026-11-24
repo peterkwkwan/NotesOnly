@@ -8,21 +8,19 @@ import 'org.dart';
 
 class DiagnosisProposal {
   const DiagnosisProposal({
-    required this.diagnosisCurrent,
-    required this.diagnosisPast,
+    required this.majorDiagnoses,
     required this.caveats,
     required this.generatedAt,
     required this.inputHash,
   });
 
-  final String diagnosisCurrent;
-  final String diagnosisPast;
+  /// Ranked major diagnosis labels (typically 3–5) for single-select pills.
+  final List<String> majorDiagnoses;
   final String caveats;
   final String generatedAt;
   final String inputHash;
 
-  bool get isEmpty =>
-      diagnosisCurrent.trim().isEmpty && diagnosisPast.trim().isEmpty;
+  bool get isEmpty => majorDiagnoses.isEmpty;
 }
 
 class DiagnosisProposeApi {
@@ -40,9 +38,18 @@ class DiagnosisProposeApi {
     final callable = _fn.httpsCallable('proposeDiagnosis');
     final result = await callable.call(payload.toCallableMap());
     final map = Map<String, dynamic>.from(result.data as Map);
+    final rawList = map['majorDiagnoses'];
+    final majorDiagnoses = <String>[];
+    if (rawList is List) {
+      for (final item in rawList) {
+        final label = '$item'.trim();
+        if (label.isEmpty) continue;
+        majorDiagnoses.add(label);
+        if (majorDiagnoses.length >= 5) break;
+      }
+    }
     return DiagnosisProposal(
-      diagnosisCurrent: '${map['diagnosisCurrent'] ?? ''}'.trim(),
-      diagnosisPast: '${map['diagnosisPast'] ?? ''}'.trim(),
+      majorDiagnoses: majorDiagnoses,
       caveats: '${map['caveats'] ?? ''}'.trim(),
       generatedAt:
           '${map['generatedAt'] ?? DateTime.now().toUtc().toIso8601String()}',
@@ -95,11 +102,11 @@ Future<({DiagnosisProposal? proposal, String? error, bool offline})>
   }
 }
 
-/// Persist confirmed diagnosis onto the client row (Drift → sync).
-Future<bool> applyDiagnosisProposal(
+/// Persist one selected major diagnosis onto diagnosisCurrent (past unchanged).
+Future<bool> applySelectedDiagnosis(
   AppDatabase db,
   Client client,
-  DiagnosisProposal proposal,
+  String diagnosisCurrent,
 ) {
   return db.updateClient(
     id: client.id,
@@ -110,7 +117,7 @@ Future<bool> applyDiagnosisProposal(
     emergencyContact: client.emergencyContact,
     emergencyContactPhone: client.emergencyContactPhone,
     notes: client.notes,
-    diagnosisCurrent: proposal.diagnosisCurrent,
-    diagnosisPast: proposal.diagnosisPast,
+    diagnosisCurrent: diagnosisCurrent,
+    diagnosisPast: client.diagnosisPast,
   );
 }

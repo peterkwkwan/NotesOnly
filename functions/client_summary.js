@@ -32,13 +32,16 @@ const SYSTEM_PROMPT = [
 
 const DIAGNOSIS_SYSTEM_PROMPT = [
   'You are a clinical assistant for pelvic / physio SOAP notes.',
-  'Propose diagnosisCurrent and diagnosisPast for the client chart from the notes and existing diagnosis fields provided.',
-  'Prefer concise clinical phrases suitable for a chart field.',
+  'Propose a short ranked list of major diagnoses for the client chart from the notes and existing diagnosis fields provided.',
+  'Return 3–5 concise clinical label strings (fewer if fewer are supported by the chart). Rank most likely / primary first.',
+  'Each label should be a short phrase suitable for a single diagnosisCurrent chart field — not a paragraph or comma-joined dump.',
   'Do not invent diagnoses unsupported by the charted notes or existing fields.',
-  'If there is not enough charted information, return empty strings and explain in caveats.',
+  'If there is not enough charted information, return an empty majorDiagnoses array and explain in caveats.',
   'Do not include patient name or identifiers; refer to “the client”.',
-  'Return ONLY compact JSON with keys diagnosisCurrent, diagnosisPast, caveats — no markdown fences or chain-of-thought.',
+  'Return ONLY compact JSON with keys majorDiagnoses (string array), caveats — no markdown fences or chain-of-thought.',
 ].join(' ');
+const MAX_MAJOR_DIAGNOSES = 5;
+const MAX_DIAGNOSIS_LABEL_CHARS = 200;
 
 function truncate(text, max) {
   const s = String(text ?? '').trim();
@@ -344,9 +347,20 @@ function parseDiagnosisProposal(text) {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
     throw new HttpsError('internal', 'Invalid diagnosis proposal from model');
   }
+  const rawList = Array.isArray(obj.majorDiagnoses) ? obj.majorDiagnoses : [];
+  const seen = new Set();
+  const majorDiagnoses = [];
+  for (const item of rawList) {
+    const label = truncate(item, MAX_DIAGNOSIS_LABEL_CHARS);
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    majorDiagnoses.push(label);
+    if (majorDiagnoses.length >= MAX_MAJOR_DIAGNOSES) break;
+  }
   return {
-    diagnosisCurrent: truncate(obj.diagnosisCurrent, MAX_SECTION_CHARS),
-    diagnosisPast: truncate(obj.diagnosisPast, MAX_SECTION_CHARS),
+    majorDiagnoses,
     caveats: truncate(obj.caveats, 500),
   };
 }
@@ -387,7 +401,7 @@ async function generateClientSummary(db, auth, data) {
 }
 
 /**
- * Propose diagnosisCurrent / diagnosisPast from SOAP history (confirm-before-write in app).
+ * Propose ranked majorDiagnoses from SOAP history (pill pick → write diagnosisCurrent in app).
  */
 async function proposeDiagnosis(db, auth, data) {
   if (!auth?.uid) {
@@ -403,8 +417,7 @@ async function proposeDiagnosis(db, auth, data) {
     !payload.diagnosisPast
   ) {
     return {
-      diagnosisCurrent: '',
-      diagnosisPast: '',
+      majorDiagnoses: [],
       caveats: 'Not enough published notes to propose a diagnosis yet.',
       model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
       generatedAt: new Date().toISOString(),
@@ -413,8 +426,8 @@ async function proposeDiagnosis(db, auth, data) {
   }
 
   const userPrompt = [
-    'Propose chart diagnosis fields from this clinical bundle.',
-    'Keep phrasing suitable for diagnosisCurrent / diagnosisPast text fields.',
+    'Propose 3–5 ranked major diagnosis labels from this clinical bundle.',
+    'Each label is a short phrase for a single diagnosisCurrent field pick.',
     '',
     buildUserPrompt(payload),
   ].join('\n');
@@ -436,6 +449,7 @@ async function proposeDiagnosis(db, auth, data) {
       orgId: payload.orgId,
       clientId: payload.clientId,
       noteCount: payload.notes.length,
+      majorCount: proposal.majorDiagnoses.length,
       model,
       location: vertexLocation(),
       inputHash: hash,
@@ -452,6 +466,7 @@ async function proposeDiagnosis(db, auth, data) {
 module.exports = {
   MAX_NOTES,
   MAX_APPTS,
+  MAX_MAJOR_DIAGNOSES,
   DEFAULT_MODEL,
   DEFAULT_VERTEX_LOCATION,
   SYSTEM_PROMPT,
