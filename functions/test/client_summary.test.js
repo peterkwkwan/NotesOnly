@@ -9,6 +9,9 @@ const {
   truncate,
   MAX_NOTES,
   SYSTEM_PROMPT,
+  DEFAULT_MODEL,
+  DEFAULT_VERTEX_LOCATION,
+  vertexGenerateUrl,
 } = require('../client_summary');
 
 describe('client_summary prompt', () => {
@@ -80,5 +83,18 @@ describe('client_summary prompt', () => {
     const b = inputHashFor(normalizePayload(data));
     assert.equal(a, b);
     assert.match(a, /^[a-f0-9]{32}$/);
+  });
+
+  it('defaults to a current Vertex Flash-Lite on the global host', () => {
+    assert.equal(DEFAULT_MODEL, 'gemini-3.5-flash-lite');
+    assert.equal(DEFAULT_VERTEX_LOCATION, 'global');
+    assert.equal(
+      vertexGenerateUrl('notesonly-e4829', 'global', DEFAULT_MODEL),
+      'https://aiplatform.googleapis.com/v1/projects/notesonly-e4829/locations/global/publishers/google/models/gemini-3.5-flash-lite:generateContent',
+    );
+    assert.equal(
+      vertexGenerateUrl('notesonly-e4829', 'us-central1', 'gemini-2.5-flash'),
+      'https://us-central1-aiplatform.googleapis.com/v1/projects/notesonly-e4829/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent',
+    );
   });
 });

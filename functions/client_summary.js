@@ -11,8 +11,10 @@ const MAX_SECTION_CHARS = 1500;
 const MAX_OUTPUT_TOKENS = 256;
 const RATE_MAX = 5;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
-const DEFAULT_MODEL = 'gemini-2.0-flash';
-const DEFAULT_VERTEX_LOCATION = 'us-central1';
+// gemini-2.0-flash retired 2026-06-01; new projects get NOT_FOUND on that id.
+// 3.5 Flash-Lite PayGo is on the global endpoint (not us-central1).
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+const DEFAULT_VERTEX_LOCATION = 'global';
 const METADATA_TOKEN_URL =
   'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';
 
@@ -232,6 +234,18 @@ function vertexLocation() {
   return process.env.VERTEX_LOCATION || DEFAULT_VERTEX_LOCATION;
 }
 
+/** Regional host is `{loc}-aiplatform…`; global must use bare `aiplatform.googleapis.com`. */
+function vertexGenerateUrl(projectId, location, model) {
+  const host =
+    location === 'global'
+      ? 'https://aiplatform.googleapis.com'
+      : `https://${location}-aiplatform.googleapis.com`;
+  return (
+    `${host}/v1/projects/${projectId}/locations/${location}` +
+    `/publishers/google/models/${model}:generateContent`
+  );
+}
+
 /** ADC via Cloud Functions / Cloud Run metadata server (default runtime SA). */
 async function getAdcAccessToken() {
   const res = await fetch(METADATA_TOKEN_URL, {
@@ -255,9 +269,7 @@ async function callVertexGemini(userPrompt, model) {
   }
   const location = vertexLocation();
   const token = await getAdcAccessToken();
-  const url =
-    `https://${location}-aiplatform.googleapis.com/v1/` +
-    `projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
+  const url = vertexGenerateUrl(projectId, location, model);
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -327,11 +339,14 @@ async function generateClientSummary(db, auth, data) {
 module.exports = {
   MAX_NOTES,
   MAX_APPTS,
+  DEFAULT_MODEL,
+  DEFAULT_VERTEX_LOCATION,
   SYSTEM_PROMPT,
   truncate,
   normalizePayload,
   buildUserPrompt,
   inputHashFor,
+  vertexGenerateUrl,
   assertCanSummarize,
   generateClientSummary,
 };
