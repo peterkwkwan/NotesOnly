@@ -1,7 +1,7 @@
 name: pelvi_crm
 description: SOAP-first CRM for solo physiotherapists. Local-first Flutter app.
 publish_to: 'none'
-version: 0.3.0+7
+version: 0.4.0+8
 
 environment:
   sdk: ^3.9.2
