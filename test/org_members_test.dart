@@ -53,6 +53,8 @@ void main() {
       await db.getSetting(AppDatabase.practitionerNameKeyFor('uid-peter')),
       'Peter Kwan',
     );
+    // Another uid must not inherit the signed-in session name.
+    expect(await db.getPractitionerName(uid: 'uid-other'), isNull);
 
     await db.clearLocalClinicForAccountSwitch();
 

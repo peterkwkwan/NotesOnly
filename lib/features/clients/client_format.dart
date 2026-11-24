@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/appointment_overlap.dart';
 import '../../data/database.dart';
 import '../../theme/colors.dart';
 import '../notes/note_format.dart';
@@ -154,4 +155,19 @@ String formatApptTime(DateTime dt) {
   final hh = dt.hour.toString().padLeft(2, '0');
   final mm = dt.minute.toString().padLeft(2, '0');
   return '$hh:$mm';
+}
+
+/// History / list subtitle: start · duration · booked practitioner.
+String formatApptHistoryMeta({
+  required DateTime startsAt,
+  DateTime? endsAt,
+  required int defaultMinutes,
+  required String practitionerName,
+}) {
+  final end = appointmentEffectiveEnd(startsAt, endsAt, defaultMinutes);
+  final mins = end.difference(startsAt).inMinutes;
+  final name = practitionerName.trim().isEmpty
+      ? 'Practitioner'
+      : practitionerName.trim();
+  return '${formatApptTime(startsAt)} · $mins min · $name';
 }

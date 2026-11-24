@@ -223,125 +223,114 @@ class _WebClientProfileState extends State<WebClientProfile> {
                       final pinned =
                           (pinSnap.data ?? const <int>[]).contains(client.id);
 
-                      return StreamBuilder<String?>(
-                        stream: db.watchPractitionerName(),
-                        builder: (context, pracSnap) {
-                          final practitioner =
-                              (pracSnap.data ?? '').trim().isEmpty
-                                  ? 'Practitioner'
-                                  : pracSnap.data!.trim();
-
-                          return CustomScrollView(
-                            slivers: [
-                              SliverPadding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  32,
-                                  32,
-                                  32,
-                                  40,
-                                ),
-                                sliver: SliverList(
-                                  delegate: SliverChildListDelegate([
-                                    _PageHeading(
-                                      clientName: name,
-                                      editing: _editing,
-                                      saving: _saving,
-                                      onEdit: () => _beginEdit(client),
-                                      onCancel: _cancelEdit,
-                                      onSave: () => _save(client),
-                                      onNewAppt: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute<void>(
-                                            builder: (_) =>
-                                                WebNewAppointmentPage(
-                                              clientId: client.id,
-                                              breadcrumb:
-                                                  'Clients / New appointment',
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(height: 26),
-                                    _OverviewCard(
-                                      client: client,
-                                      pinned: pinned,
-                                      next: next,
-                                      editing: _editing,
-                                      draft: _draft,
-                                      showRequired: _showRequired,
-                                      onPhone: client.phone != null &&
-                                              client.phone!.isNotEmpty
-                                          ? () =>
-                                              _onPhoneTap(client.phone!)
-                                          : null,
-                                      onEmail: client.email != null &&
-                                              client.email!.isNotEmpty
-                                          ? () => _launchExternal(
-                                                Uri(
-                                                  scheme: 'mailto',
-                                                  path: client.email!,
-                                                ),
-                                              )
-                                          : null,
-                                    ),
-                                    const SizedBox(height: 26),
-                                    _WorkspaceRow(
-                                      client: client,
-                                      editing: _editing,
-                                      draft: _draft,
-                                      appts: appts,
-                                      notes: notes,
-                                      tab: _tab,
-                                      selectedApptId: selected?.id,
-                                      selectedAppt: selected,
-                                      selectedNote: selectedNote,
-                                      practitioner: practitioner,
-                                      name: name,
-                                      onTab: (t) =>
-                                          setState(() => _tab = t),
-                                      onSelectAppt: (id) => setState(
-                                        () => _selectedApptId = id,
-                                      ),
-                                      onMute: (v) => db.setRecallMuted(
-                                        client.id,
-                                        v,
-                                      ),
-                                      muteStream:
-                                          db.watchRecallMuted(client.id),
-                                      onEdit: () => _beginEdit(client),
-                                      onCreateSoap: () {
-                                        final appt = selected;
-                                        if (appt == null) return;
-                                        openNoteForAppointment(
-                                          context,
-                                          appointmentId: appt.id,
+                      return CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(
+                              32,
+                              32,
+                              32,
+                              40,
+                            ),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _PageHeading(
+                                  clientName: name,
+                                  editing: _editing,
+                                  saving: _saving,
+                                  onEdit: () => _beginEdit(client),
+                                  onCancel: _cancelEdit,
+                                  onSave: () => _save(client),
+                                  onNewAppt: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            WebNewAppointmentPage(
                                           clientId: client.id,
-                                          noteDate: appt.startsAt,
-                                        );
-                                      },
-                                      onEditAppt: selected == null
-                                          ? null
-                                          : () {
-                                              final appt = selected!;
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute<void>(
-                                                  builder: (_) =>
-                                                      WebEditAppointmentPage(
-                                                    appointment: appt,
-                                                    clientName: name,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                    ),
-                                  ]),
+                                          breadcrumb:
+                                              'Clients / New appointment',
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 26),
+                                _OverviewCard(
+                                  client: client,
+                                  pinned: pinned,
+                                  next: next,
+                                  editing: _editing,
+                                  draft: _draft,
+                                  showRequired: _showRequired,
+                                  onPhone: client.phone != null &&
+                                          client.phone!.isNotEmpty
+                                      ? () =>
+                                          _onPhoneTap(client.phone!)
+                                      : null,
+                                  onEmail: client.email != null &&
+                                          client.email!.isNotEmpty
+                                      ? () => _launchExternal(
+                                            Uri(
+                                              scheme: 'mailto',
+                                              path: client.email!,
+                                            ),
+                                          )
+                                      : null,
+                                ),
+                                const SizedBox(height: 26),
+                                _WorkspaceRow(
+                                  client: client,
+                                  editing: _editing,
+                                  draft: _draft,
+                                  appts: appts,
+                                  notes: notes,
+                                  tab: _tab,
+                                  selectedApptId: selected?.id,
+                                  selectedAppt: selected,
+                                  selectedNote: selectedNote,
+                                  name: name,
+                                  onTab: (t) =>
+                                      setState(() => _tab = t),
+                                  onSelectAppt: (id) => setState(
+                                    () => _selectedApptId = id,
+                                  ),
+                                  onMute: (v) => db.setRecallMuted(
+                                    client.id,
+                                    v,
+                                  ),
+                                  muteStream:
+                                      db.watchRecallMuted(client.id),
+                                  onEdit: () => _beginEdit(client),
+                                  onCreateSoap: () {
+                                    final appt = selected;
+                                    if (appt == null) return;
+                                    openNoteForAppointment(
+                                      context,
+                                      appointmentId: appt.id,
+                                      clientId: client.id,
+                                      noteDate: appt.startsAt,
+                                    );
+                                  },
+                                  onEditAppt: selected == null
+                                      ? null
+                                      : () {
+                                          final appt = selected!;
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) =>
+                                                  WebEditAppointmentPage(
+                                                appointment: appt,
+                                                clientName: name,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                ),
+                              ]),
+                            ),
+                          ),
+                        ],
                           );
-                        },
-                      );
                     },
                   );
                 },
@@ -573,7 +562,6 @@ class _WorkspaceRow extends StatelessWidget {
     required this.selectedApptId,
     required this.selectedAppt,
     required this.selectedNote,
-    required this.practitioner,
     required this.name,
     required this.onTab,
     required this.onSelectAppt,
@@ -593,7 +581,6 @@ class _WorkspaceRow extends StatelessWidget {
   final int? selectedApptId;
   final Appointment? selectedAppt;
   final Note? selectedNote;
-  final String practitioner;
   final String name;
   final ValueChanged<_HistoryTab> onTab;
   final ValueChanged<int> onSelectAppt;
@@ -621,7 +608,6 @@ class _WorkspaceRow extends StatelessWidget {
           appts: appts,
           notes: notes,
           selectedApptId: selectedApptId,
-          practitioner: practitioner,
           onTab: onTab,
           onSelectAppt: onSelectAppt,
         );
@@ -962,7 +948,6 @@ class _HistoryColumn extends StatelessWidget {
     required this.appts,
     required this.notes,
     required this.selectedApptId,
-    required this.practitioner,
     required this.onTab,
     required this.onSelectAppt,
   });
@@ -971,7 +956,6 @@ class _HistoryColumn extends StatelessWidget {
   final List<Appointment> appts;
   final List<Note> notes;
   final int? selectedApptId;
-  final String practitioner;
   final ValueChanged<_HistoryTab> onTab;
   final ValueChanged<int> onSelectAppt;
 
@@ -1028,7 +1012,6 @@ class _HistoryColumn extends StatelessWidget {
             for (final appt in appts) ...[
               _HistoryCard(
                 appointment: appt,
-                practitioner: practitioner,
                 selected: appt.id == selectedApptId,
                 onTap: () => onSelectAppt(appt.id),
               ),
@@ -1120,19 +1103,19 @@ class _HistTab extends StatelessWidget {
 class _HistoryCard extends StatelessWidget {
   const _HistoryCard({
     required this.appointment,
-    required this.practitioner,
     required this.selected,
     required this.onTap,
   });
 
   final Appointment appointment;
-  final String practitioner;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = PelviColors.of(context);
+    final db = AppDatabaseProvider.of(context);
+    final uid = appointment.practitionerUid.trim();
     return Material(
       color: selected ? c.pink50 : c.surface,
       borderRadius: BorderRadius.circular(PelviRadius.md),
@@ -1168,13 +1151,32 @@ class _HistoryCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              Text(
-                '${formatApptTime(appointment.startsAt)} · $practitioner',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.5,
-                  color: c.inkMuted,
+              StreamBuilder<String?>(
+                stream: db.watchPractitionerName(
+                  uid: uid.isEmpty ? null : uid,
                 ),
+                builder: (context, nameSnap) {
+                  return StreamBuilder<int>(
+                    stream: db.watchDefaultAppointmentMinutes(
+                      uid: uid.isEmpty ? null : uid,
+                    ),
+                    builder: (context, minsSnap) {
+                      return Text(
+                        formatApptHistoryMeta(
+                          startsAt: appointment.startsAt,
+                          endsAt: appointment.endsAt,
+                          defaultMinutes: minsSnap.data ?? 60,
+                          practitionerName: nameSnap.data ?? '',
+                        ),
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: c.inkMuted,
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
               const SizedBox(height: 14),
               Row(

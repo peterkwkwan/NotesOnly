@@ -7,6 +7,7 @@ import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/show_snack.dart';
 import '../appointments/appointment_form_screen.dart';
+import '../notes/note_format.dart';
 import '../shell/desktop_chrome.dart';
 import 'client_form_screen.dart';
 import 'client_format.dart';
@@ -623,9 +624,11 @@ class _AppointmentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final c = PelviColors.of(context);
+    final db = AppDatabaseProvider.of(context);
     final status = appointment.status;
     final pillFg = _statusPillForeground(status, c);
     final pillBg = _statusPillBackground(status, c);
+    final uid = appointment.practitionerUid.trim();
 
     return InkWell(
       onTap: selecting ? onToggle : onOpen,
@@ -647,12 +650,39 @@ class _AppointmentRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        formatApptWhen(appointment.startsAt),
+                        formatNoteDate(appointment.startsAt),
                         style: text.labelLarge?.copyWith(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: c.ink,
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      StreamBuilder<String?>(
+                        stream: db.watchPractitionerName(
+                          uid: uid.isEmpty ? null : uid,
+                        ),
+                        builder: (context, nameSnap) {
+                          return StreamBuilder<int>(
+                            stream: db.watchDefaultAppointmentMinutes(
+                              uid: uid.isEmpty ? null : uid,
+                            ),
+                            builder: (context, minsSnap) {
+                              return Text(
+                                formatApptHistoryMeta(
+                                  startsAt: appointment.startsAt,
+                                  endsAt: appointment.endsAt,
+                                  defaultMinutes: minsSnap.data ?? 60,
+                                  practitionerName: nameSnap.data ?? '',
+                                ),
+                                style: text.bodySmall?.copyWith(
+                                  fontSize: 12,
+                                  color: c.inkMuted,
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
                       const SizedBox(height: PelviSpace.sm),
                       Container(

@@ -312,6 +312,27 @@ void main() {
     );
   });
 
+  test('formatApptHistoryMeta is time · duration · practitioner', () {
+    expect(
+      formatApptHistoryMeta(
+        startsAt: DateTime(2026, 11, 9, 13, 0),
+        endsAt: DateTime(2026, 11, 9, 14, 0),
+        defaultMinutes: 60,
+        practitionerName: 'Mandy Shum',
+      ),
+      '13:00 · 60 min · Mandy Shum',
+    );
+    expect(
+      formatApptHistoryMeta(
+        startsAt: DateTime(2026, 11, 9, 13, 0),
+        endsAt: null,
+        defaultMinutes: 45,
+        practitionerName: '  ',
+      ),
+      '13:00 · 45 min · Practitioner',
+    );
+  });
+
   test('appendSoapTranscript joins with newline', () {
     expect(appendSoapTranscript('', '  pain on stairs  '), 'pain on stairs');
     expect(appendSoapTranscript('Sx: LBP', 'worse AM'), 'Sx: LBP\nworse AM');
@@ -964,7 +985,7 @@ void main() {
     expect(find.text('Open note'), findsNothing);
     expect(find.text('Client profile'), findsOneWidget);
     expect(find.text('CLIENT SUMMARY'), findsOneWidget);
-    await tester.tap(find.text(formatApptWhen(DateTime(2026, 10, 28, 9, 30))));
+    await tester.tap(find.text(formatNoteDate(DateTime(2026, 10, 28, 9, 30))));
     await tester.pumpAndSettle();
 
     expect(find.text('Edit appointment'), findsOneWidget);
@@ -2029,7 +2050,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     await tester.longPress(
-      find.text(formatApptWhen(DateTime(2026, 10, 28, 9, 30))),
+      find.text(formatNoteDate(DateTime(2026, 10, 28, 9, 30))),
     );
     await tester.pumpAndSettle();
 
@@ -2037,7 +2058,7 @@ void main() {
     expect(find.text('Delete'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
 
-    await tester.tap(find.text(formatApptWhen(DateTime(2026, 10, 29, 10))));
+    await tester.tap(find.text(formatNoteDate(DateTime(2026, 10, 29, 10))));
     await tester.pumpAndSettle();
     expect(find.text('2 selected'), findsOneWidget);
 

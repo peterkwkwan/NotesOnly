@@ -659,16 +659,21 @@ class AppDatabase extends _$AppDatabase {
         .map((rows) => rows.isEmpty ? null : rows.first.value);
   }
 
-  /// Prefer the per-uid copy; fall back to the session [practitionerNameKey].
+  /// Prefer the per-uid copy; fall back to the session [practitionerNameKey]
+  /// only when resolving the signed-in practitioner (or when [uid] is omitted).
   /// Pass [uid] when [syncBoundUidKey] may not be set yet (post sign-in gate).
   Future<String?> getPractitionerName({String? uid}) async {
-    final id = (uid != null && uid.isNotEmpty)
-        ? uid
-        : await getSetting(syncBoundUidKey);
+    final bound = await getSetting(syncBoundUidKey);
+    final explicit = uid != null && uid.isNotEmpty;
+    final id = explicit ? uid : bound;
     if (id != null && id.isNotEmpty) {
       final scoped = (await getSetting(practitionerNameKeyFor(id)))?.trim();
       if (scoped != null && scoped.isNotEmpty) return scoped;
     }
+    // Session key is the signed-in name only — never another practitioner's.
+    final lookingUpSelf =
+        !explicit || (bound != null && bound.isNotEmpty && uid == bound);
+    if (!lookingUpSelf) return null;
     final legacy = (await getSetting(practitionerNameKey))?.trim();
     if (legacy == null || legacy.isEmpty) return null;
     return legacy;
