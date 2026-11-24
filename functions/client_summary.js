@@ -12,6 +12,9 @@ const MAX_OUTPUT_TOKENS = 256;
 const RATE_MAX = 5;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_VERTEX_LOCATION = 'us-central1';
+const METADATA_TOKEN_URL =
+  'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';
 
 const SYSTEM_PROMPT = [
   'You are a clinical assistant for pelvic / physio SOAP notes.',
@@ -214,13 +217,53 @@ async function assertSummaryRateLimit(db, uid, clientId) {
   });
 }
 
-async function callGemini(apiKey, userPrompt, model) {
+function gcpProjectId() {
+  if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
+  if (process.env.GCP_PROJECT) return process.env.GCP_PROJECT;
+  if (process.env.GOOGLE_CLOUD_PROJECT) return process.env.GOOGLE_CLOUD_PROJECT;
+  try {
+    return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId || '';
+  } catch {
+    return '';
+  }
+}
+
+function vertexLocation() {
+  return process.env.VERTEX_LOCATION || DEFAULT_VERTEX_LOCATION;
+}
+
+/** ADC via Cloud Functions / Cloud Run metadata server (default runtime SA). */
+async function getAdcAccessToken() {
+  const res = await fetch(METADATA_TOKEN_URL, {
+    headers: { 'Metadata-Flavor': 'Google' },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.access_token) {
+    console.error('adc token error', res.status, body?.error || body);
+    throw new HttpsError(
+      'failed-precondition',
+      'Vertex AI credentials unavailable (ADC)',
+    );
+  }
+  return body.access_token;
+}
+
+async function callVertexGemini(userPrompt, model) {
+  const projectId = gcpProjectId();
+  if (!projectId) {
+    throw new HttpsError('failed-precondition', 'GCP project id not set');
+  }
+  const location = vertexLocation();
+  const token = await getAdcAccessToken();
   const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
-    `?key=${encodeURIComponent(apiKey)}`;
+    `https://${location}-aiplatform.googleapis.com/v1/` +
+    `projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
@@ -232,8 +275,8 @@ async function callGemini(apiKey, userPrompt, model) {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = body?.error?.message || `Gemini HTTP ${res.status}`;
-    console.error('gemini error', res.status, msg);
+    const msg = body?.error?.message || `Vertex Gemini HTTP ${res.status}`;
+    console.error('vertex gemini error', res.status, msg);
     throw new HttpsError('internal', 'Summary generation failed');
   }
   const text = body?.candidates?.[0]?.content?.parts
@@ -247,14 +290,11 @@ async function callGemini(apiKey, userPrompt, model) {
 }
 
 /**
- * Auth + ACL + Gemini. Callers inject apiKey from defineSecret.
+ * Auth + ACL + Vertex AI Gemini (ADC / runtime service account).
  */
-async function generateClientSummary(db, auth, data, apiKey) {
+async function generateClientSummary(db, auth, data) {
   if (!auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required');
-  }
-  if (!apiKey) {
-    throw new HttpsError('failed-precondition', 'GEMINI_API_KEY not configured');
   }
   const payload = normalizePayload(data);
   await assertCanSummarize(db, auth, payload.orgId, payload.notes);
@@ -263,7 +303,7 @@ async function generateClientSummary(db, auth, data, apiKey) {
   const userPrompt = buildUserPrompt(payload);
   const hash = inputHashFor(payload);
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  const summary = await callGemini(apiKey, userPrompt, model);
+  const summary = await callVertexGemini(userPrompt, model);
   const generatedAt = new Date().toISOString();
   console.log(
     JSON.stringify({
@@ -272,6 +312,7 @@ async function generateClientSummary(db, auth, data, apiKey) {
       clientId: payload.clientId,
       noteCount: payload.notes.length,
       model,
+      location: vertexLocation(),
       inputHash: hash,
     }),
   );

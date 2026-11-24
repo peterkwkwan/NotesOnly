@@ -30,7 +30,6 @@ const gmailAppPassword = defineSecret('GMAIL_APP_PASSWORD');
 const gcalOAuthClientId = defineSecret('GCAL_OAUTH_CLIENT_ID');
 const gcalOAuthClientSecret = defineSecret('GCAL_OAUTH_CLIENT_SECRET');
 const gcalTokenKey = defineSecret('GCAL_TOKEN_KEY');
-const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
 const gcalSecrets = [gcalOAuthClientId, gcalOAuthClientSecret, gcalTokenKey];
 
@@ -349,16 +348,14 @@ exports.disconnectGoogleCalendar = onCall(
 );
 
 exports.generateClientSummary = onCall(
-  { secrets: [geminiApiKey], region: 'us-central1' },
+  { region: 'us-central1' },
   async (request) => {
     try {
       const auth = requireAuth(request);
-      const key = geminiApiKey.value() || process.env.GEMINI_API_KEY || '';
       return await clientSummary.generateClientSummary(
         db,
         auth,
         request.data || {},
-        key,
       );
     } catch (err) {
       throw httpsError(err);
