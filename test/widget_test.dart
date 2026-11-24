@@ -838,6 +838,14 @@ void main() {
     ]);
     expect(partial.map((e) => e.lane).toSet(), {0, 1});
     expect(partial.every((e) => e.laneCount == 2), isTrue);
+
+    // Desktop "New booking" draft is packed as a peer interval (not stacked).
+    final eventPlusDraft = calendarOverlapLanes([
+      (start: t9, end: t10),
+      (start: DateTime(2026, 11, 10, 9, 45), end: DateTime(2026, 11, 10, 10, 45)),
+    ]);
+    expect(eventPlusDraft.map((e) => e.lane).toSet(), {0, 1});
+    expect(eventPlusDraft.every((e) => e.laneCount == 2), isTrue);
   });
 
   test('updateAppointment can change client and moves SOAP', () async {

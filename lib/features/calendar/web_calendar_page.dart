@@ -1838,8 +1838,9 @@ class _WeekSchedule extends StatefulWidget {
 
   static List<({int lane, int laneCount})> _lanesForDay(
     List<({Appointment appointment, Client client})> dayRows,
-    int defaultMins,
-  ) {
+    int defaultMins, {
+    ({DateTime start, DateTime end})? draftInterval,
+  }) {
     return calendarOverlapLanes([
       for (final row in dayRows)
         (
@@ -1850,6 +1851,8 @@ class _WeekSchedule extends StatefulWidget {
             defaultMins,
           ),
         ),
+      // Pink "New booking" draft packs in the same lanes as real events.
+      if (draftInterval != null) draftInterval,
     ]);
   }
 
@@ -1992,6 +1995,8 @@ class _WeekSchedule extends StatefulWidget {
     required int endHour,
     required double hourH,
     required ({DateTime day, TimeOfDay starts, int durationMins}) draft,
+    required int lane,
+    required int laneCount,
   }) {
     final c = PelviColors.of(context);
     final dayIndex = days.indexWhere((d) => _sameDay(d, draft.day));
@@ -2007,11 +2012,14 @@ class _WeekSchedule extends StatefulWidget {
     final span = draft.durationMins > 0 ? draft.durationMins : 60;
     final height = (span / 60.0 * hourH).clamp(2.0, 400.0);
     final compact = height < hourH * 0.75;
+    final lanes = laneCount < 1 ? 1 : laneCount;
+    final slotW = (colW - 8) / lanes;
+    final width = slotW - (lanes > 1 ? 2 : 0);
     // shortcut: solid border stands in for Figma dashed slot, upgrade if design QA cares
     return Positioned(
-      left: gutter + dayIndex * colW + 4,
+      left: gutter + dayIndex * colW + 4 + lane * slotW,
       top: top,
-      width: colW - 8,
+      width: width,
       height: height,
       child: Container(
         padding: EdgeInsets.fromLTRB(6, compact ? 2 : 8, 6, compact ? 2 : 8),
@@ -2076,6 +2084,7 @@ class _WeekScheduleState extends State<_WeekSchedule> {
     required List<DateTime> days,
     required List<({Appointment appointment, Client client})> rows,
     required double colW,
+    ({DateTime day, TimeOfDay starts, int durationMins})? draft,
   }) {
     final dayRows = [
       for (final row in rows)
@@ -2083,7 +2092,27 @@ class _WeekScheduleState extends State<_WeekSchedule> {
             _WeekSchedule._inDayHours(row.appointment.startsAt))
           row,
     ];
-    final lanes = _WeekSchedule._lanesForDay(dayRows, widget.defaultMins);
+    ({DateTime start, DateTime end})? draftInterval;
+    if (draft != null && _sameDay(draft.day, day)) {
+      final startMins = draft.starts.hour * 60 + draft.starts.minute;
+      if (startMins >= _WeekSchedule._dayStart * 60 &&
+          startMins < _WeekSchedule._dayEnd * 60) {
+        final start = DateTime(
+          day.year,
+          day.month,
+          day.day,
+          draft.starts.hour,
+          draft.starts.minute,
+        );
+        final span = draft.durationMins > 0 ? draft.durationMins : 60;
+        draftInterval = (start: start, end: start.add(Duration(minutes: span)));
+      }
+    }
+    final lanes = _WeekSchedule._lanesForDay(
+      dayRows,
+      widget.defaultMins,
+      draftInterval: draftInterval,
+    );
     return [
       for (var i = 0; i < dayRows.length; i++)
         _WeekSchedule._eventCard(
@@ -2106,6 +2135,19 @@ class _WeekScheduleState extends State<_WeekSchedule> {
           onTap: () => widget.onTapAppointment(dayRows[i]),
           onDragEnd: (details) =>
               widget.onDragEnd(dayRows[i], details),
+        ),
+      if (draft != null && draftInterval != null)
+        _WeekSchedule._draftCard(
+          context: context,
+          days: days,
+          gutter: _WeekSchedule._gutter,
+          colW: colW,
+          startHour: _WeekSchedule._dayStart,
+          endHour: _WeekSchedule._dayEnd,
+          hourH: _WeekSchedule._hourH,
+          draft: draft,
+          lane: lanes[dayRows.length].lane,
+          laneCount: lanes[dayRows.length].laneCount,
         ),
     ];
   }
@@ -2239,17 +2281,7 @@ class _WeekScheduleState extends State<_WeekSchedule> {
                             days: days,
                             rows: rows,
                             colW: colW,
-                          ),
-                        if (widget.draft != null)
-                          _WeekSchedule._draftCard(
-                            context: context,
-                            days: days,
-                            gutter: _WeekSchedule._gutter,
-                            colW: colW,
-                            startHour: _WeekSchedule._dayStart,
-                            endHour: _WeekSchedule._dayEnd,
-                            hourH: _WeekSchedule._hourH,
-                            draft: widget.draft!,
+                            draft: widget.draft,
                           ),
                       ],
                     );
