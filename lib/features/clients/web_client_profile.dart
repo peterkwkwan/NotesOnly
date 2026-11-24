@@ -1308,7 +1308,7 @@ class _VisitDetailPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton.icon(
+              OutlinedButton.icon(
                 onPressed: emptySoap
                     ? null
                     : () async {
@@ -1325,12 +1325,17 @@ class _VisitDetailPanel extends StatelessWidget {
                         if (!context.mounted) return;
                         showPelviSnackBar(context, 'Note copied.');
                       },
-                style: TextButton.styleFrom(
-                  foregroundColor: c.inkMuted,
-                  disabledForegroundColor: c.inkMuted.withValues(alpha: 0.4),
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  visualDensity: VisualDensity.compact,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: c.surface,
+                  foregroundColor: c.ink,
+                  side: BorderSide(color: c.border),
+                  minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(PelviRadius.sm),
+                  ),
                 ),
                 icon: const Icon(Icons.copy_outlined, size: 16),
                 label: const Text(
