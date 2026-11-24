@@ -748,7 +748,7 @@ class _DetailsColumn extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  diagnosisCurrent.isEmpty ? 'Not set' : diagnosisCurrent,
+                  diagnosisCurrent.isEmpty ? '-' : diagnosisCurrent,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
@@ -767,7 +767,7 @@ class _DetailsColumn extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  diagnosisPast.isEmpty ? 'Not set' : diagnosisPast,
+                  diagnosisPast.isEmpty ? '-' : diagnosisPast,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,

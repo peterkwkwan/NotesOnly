@@ -339,7 +339,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                         const SizedBox(height: PelviSpace.sm),
                         Text(
                           (client.diagnosisCurrent ?? '').trim().isEmpty
-                              ? 'Not set'
+                              ? '-'
                               : client.diagnosisCurrent!,
                           style: text.bodyMedium?.copyWith(
                             fontSize: 14,
@@ -355,7 +355,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                         const SizedBox(height: PelviSpace.sm),
                         Text(
                           (client.diagnosisPast ?? '').trim().isEmpty
-                              ? 'Not set'
+                              ? '-'
                               : client.diagnosisPast!,
                           style: text.bodyMedium?.copyWith(
                             fontSize: 14,
