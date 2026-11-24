@@ -319,13 +319,20 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Client notes',
-                          style: text.titleSmall?.copyWith(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: c.ink,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Notes',
+                                style: text.titleSmall?.copyWith(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                  color: c.ink,
+                                ),
+                              ),
+                            ),
+                            DiagnosisSuggestButton(client: client),
+                          ],
                         ),
                         const SizedBox(height: 15),
                         Text('DIAGNOSIS (CURRENT)', style: text.labelMedium),
@@ -358,7 +365,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                                     : c.ink,
                           ),
                         ),
-                        DiagnosisSuggestButton(client: client),
                         const SizedBox(height: 15),
                         Text('REMARKS', style: text.labelMedium),
                         const SizedBox(height: PelviSpace.sm),

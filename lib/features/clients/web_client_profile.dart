@@ -240,6 +240,7 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                   clientName: name,
                                   editing: _editing,
                                   saving: _saving,
+                                  onEdit: () => _beginEdit(client),
                                   onCancel: _cancelEdit,
                                   onSave: () => _save(client),
                                   onNewAppt: () {
@@ -351,6 +352,7 @@ class _PageHeading extends StatelessWidget {
     required this.clientName,
     required this.editing,
     required this.saving,
+    required this.onEdit,
     required this.onCancel,
     required this.onSave,
     required this.onNewAppt,
@@ -359,6 +361,7 @@ class _PageHeading extends StatelessWidget {
   final String clientName;
   final bool editing;
   final bool saving;
+  final VoidCallback onEdit;
   final VoidCallback onCancel;
   final VoidCallback onSave;
   final VoidCallback onNewAppt;
@@ -384,7 +387,12 @@ class _PageHeading extends StatelessWidget {
               label: 'Save',
               onPressed: saving ? null : onSave,
             ),
-          ],
+          ] else
+            DesktopOutlineAction(
+              icon: Icons.edit_outlined,
+              label: 'Edit Profile',
+              onPressed: onEdit,
+            ),
           DesktopFilledAction(
             icon: Icons.add,
             label: 'New appointment',
@@ -688,14 +696,22 @@ class _DetailsColumn extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Client notes',
-                style: TextStyle(
-                  fontSize: 17,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.ink,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Notes',
+                      style: TextStyle(
+                        fontSize: 17,
+                        height: 1.5,
+                        fontWeight: FontWeight.w600,
+                        color: c.ink,
+                      ),
+                    ),
+                  ),
+                  if (!editing)
+                    DiagnosisSuggestButton(client: client, compact: true),
+                ],
               ),
               const SizedBox(height: 18),
               if (editing) ...[
@@ -766,7 +782,6 @@ class _DetailsColumn extends StatelessWidget {
                     color: diagnosisPast.isEmpty ? c.inkMuted : c.ink,
                   ),
                 ),
-                DiagnosisSuggestButton(client: client, compact: true),
                 const SizedBox(height: 18),
                 Text(
                   'REMARKS',

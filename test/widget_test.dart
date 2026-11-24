@@ -2268,6 +2268,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    expect(find.text('Edit Profile'), findsOneWidget);
     expect(find.text('Edit details'), findsOneWidget);
     expect(find.text('Stewie Brown'), findsWidgets);
     expect(find.text('New appointment'), findsOneWidget);
