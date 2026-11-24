@@ -799,6 +799,45 @@ void main() {
       ),
       'Overlapping appointment: Ada Lovelace at 09:00',
     );
+    // Zero-length endsAt must not collapse layout/conflict to a point.
+    expect(
+      appointmentEffectiveEnd(aStart, aStart, 60),
+      aStart.add(const Duration(minutes: 60)),
+    );
+  });
+
+  test('calendarOverlapLanes places concurrent events side-by-side', () {
+    final t9 = DateTime(2026, 11, 10, 9);
+    final t10 = DateTime(2026, 11, 10, 10);
+    final t11 = DateTime(2026, 11, 10, 11);
+    final t14 = DateTime(2026, 11, 10, 14);
+    final t15 = DateTime(2026, 11, 10, 15);
+
+    final sameSlot = calendarOverlapLanes([
+      (start: t9, end: t10),
+      (start: t9, end: t10),
+    ]);
+    expect(sameSlot.map((e) => e.lane).toSet(), {0, 1});
+    expect(sameSlot.every((e) => e.laneCount == 2), isTrue);
+
+    // Separate clusters keep their own width (solo stays full width).
+    final split = calendarOverlapLanes([
+      (start: t9, end: t10),
+      (start: t9, end: t10),
+      (start: t14, end: t15),
+    ]);
+    expect(split[0].laneCount, 2);
+    expect(split[1].laneCount, 2);
+    expect(split[2].lane, 0);
+    expect(split[2].laneCount, 1);
+
+    // Partial overlap still gets two columns.
+    final partial = calendarOverlapLanes([
+      (start: t9, end: t11),
+      (start: t10, end: t11),
+    ]);
+    expect(partial.map((e) => e.lane).toSet(), {0, 1});
+    expect(partial.every((e) => e.laneCount == 2), isTrue);
   });
 
   test('updateAppointment can change client and moves SOAP', () async {

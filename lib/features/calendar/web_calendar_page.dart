@@ -1840,36 +1840,17 @@ class _WeekSchedule extends StatefulWidget {
     List<({Appointment appointment, Client client})> dayRows,
     int defaultMins,
   ) {
-    final indexed = [
-      for (var i = 0; i < dayRows.length; i++) (i: i, row: dayRows[i]),
-    ]..sort(
-        (a, b) => a.row.appointment.startsAt
-            .compareTo(b.row.appointment.startsAt),
-      );
-    final laneEnds = <DateTime>[];
-    final laneOf = List<int>.filled(dayRows.length, 0);
-    for (final item in indexed) {
-      final start = item.row.appointment.startsAt;
-      final end = appointmentEffectiveEnd(
-        start,
-        item.row.appointment.endsAt,
-        defaultMins,
-      );
-      var lane = 0;
-      while (lane < laneEnds.length && laneEnds[lane].isAfter(start)) {
-        lane++;
-      }
-      if (lane == laneEnds.length) {
-        laneEnds.add(end);
-      } else {
-        laneEnds[lane] = end;
-      }
-      laneOf[item.i] = lane;
-    }
-    final laneCount = laneEnds.isEmpty ? 1 : laneEnds.length;
-    return [
-      for (final lane in laneOf) (lane: lane, laneCount: laneCount),
-    ];
+    return calendarOverlapLanes([
+      for (final row in dayRows)
+        (
+          start: row.appointment.startsAt,
+          end: appointmentEffectiveEnd(
+            row.appointment.startsAt,
+            row.appointment.endsAt,
+            defaultMins,
+          ),
+        ),
+    ]);
   }
 
   static Widget _eventCard({
@@ -1983,12 +1964,20 @@ class _WeekSchedule extends StatefulWidget {
             child: card(dragging: false),
           ),
         ),
-        childWhenDragging: card(dragging: true),
+        childWhenDragging: SizedBox(
+          width: width,
+          height: height,
+          child: card(dragging: true),
+        ),
         onDragEnd: onDragEnd,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: card(dragging: false),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: card(dragging: false),
+          ),
         ),
       ),
     );
