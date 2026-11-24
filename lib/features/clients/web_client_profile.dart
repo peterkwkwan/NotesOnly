@@ -10,6 +10,7 @@ import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
 import 'client_format.dart';
+import 'client_summary_box.dart';
 import 'phone_field.dart';
 
 enum _HistoryTab { appointments, notes }
@@ -800,37 +801,7 @@ class _DetailsColumn extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 22),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: c.purple50,
-            borderRadius: BorderRadius.circular(PelviRadius.md),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'CLIENT SUMMARY',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.purple700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'TBD — AI summary of past SOAP notes, with emphasis on the latest visit.',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.5,
-                  color: c.purple700,
-                ),
-              ),
-            ],
-          ),
-        ),
+        ClientSummaryBox(client: client, compact: true),
         const SizedBox(height: 22),
         _Panel(
           child: Column(

@@ -11,6 +11,7 @@ import '../notes/note_format.dart';
 import '../shell/desktop_chrome.dart';
 import 'client_form_screen.dart';
 import 'client_format.dart';
+import 'client_summary_box.dart';
 import 'web_client_profile.dart';
 
 Future<void> _launchExternal(Uri uri) async {
@@ -390,40 +391,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.auto_awesome,
-                      size: 13,
-                      color: c.purple700,
-                    ),
-                    const SizedBox(width: 7),
-                    Text(
-                      'CLIENT SUMMARY',
-                      style: text.labelMedium?.copyWith(
-                        color: c.purple700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(PelviSpace.md),
-                  decoration: BoxDecoration(
-                    color: c.purple50,
-                    borderRadius: BorderRadius.circular(PelviRadius.md),
-                  ),
-                  child: Text(
-                    'TBD — AI summary of past SOAP notes, '
-                    'with emphasis on the latest visit.',
-                    style: text.bodyMedium?.copyWith(
-                      color: c.purple700,
-                      fontSize: 13,
-                      height: 1.65,
-                    ),
-                  ),
-                ),
+                ClientSummaryBox(client: client),
                 const SizedBox(height: 20),
                 DecoratedBox(
                   decoration: BoxDecoration(
