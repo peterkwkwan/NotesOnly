@@ -283,6 +283,7 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                 _WorkspaceRow(
                                   client: client,
                                   editing: _editing,
+                                  saving: _saving,
                                   draft: _draft,
                                   appts: appts,
                                   notes: notes,
@@ -303,6 +304,7 @@ class _WebClientProfileState extends State<WebClientProfile> {
                                   muteStream:
                                       db.watchRecallMuted(client.id),
                                   onEdit: () => _beginEdit(client),
+                                  onSave: () => _save(client),
                                   onCreateSoap: () {
                                     final appt = selected;
                                     if (appt == null) return;
@@ -557,6 +559,7 @@ class _WorkspaceRow extends StatelessWidget {
   const _WorkspaceRow({
     required this.client,
     required this.editing,
+    required this.saving,
     required this.draft,
     required this.appts,
     required this.notes,
@@ -570,12 +573,14 @@ class _WorkspaceRow extends StatelessWidget {
     required this.onMute,
     required this.muteStream,
     required this.onEdit,
+    required this.onSave,
     required this.onCreateSoap,
     required this.onEditAppt,
   });
 
   final Client client;
   final bool editing;
+  final bool saving;
   final _ClientDraft draft;
   final List<Appointment> appts;
   final List<Note> notes;
@@ -589,6 +594,7 @@ class _WorkspaceRow extends StatelessWidget {
   final ValueChanged<bool> onMute;
   final Stream<bool> muteStream;
   final VoidCallback onEdit;
+  final VoidCallback onSave;
   final VoidCallback? onCreateSoap;
   final VoidCallback? onEditAppt;
 
@@ -600,10 +606,12 @@ class _WorkspaceRow extends StatelessWidget {
         final details = _DetailsColumn(
           client: client,
           editing: editing,
+          saving: saving,
           draft: draft,
           muteStream: muteStream,
           onMute: onMute,
           onEdit: onEdit,
+          onSave: onSave,
         );
         final history = _HistoryColumn(
           tab: tab,
@@ -653,18 +661,22 @@ class _DetailsColumn extends StatelessWidget {
   const _DetailsColumn({
     required this.client,
     required this.editing,
+    required this.saving,
     required this.draft,
     required this.muteStream,
     required this.onMute,
     required this.onEdit,
+    required this.onSave,
   });
 
   final Client client;
   final bool editing;
+  final bool saving;
   final _ClientDraft draft;
   final Stream<bool> muteStream;
   final ValueChanged<bool> onMute;
   final VoidCallback onEdit;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -784,7 +796,12 @@ class _DetailsColumn extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 10),
-              if (!editing && notes.isEmpty)
+              if (editing)
+                DesktopFilledAction(
+                  label: 'Save',
+                  onPressed: saving ? null : onSave,
+                )
+              else if (notes.isEmpty)
                 DesktopOutlineAction(
                   icon: Icons.edit_outlined,
                   label: 'Edit details',

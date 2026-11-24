@@ -2293,7 +2293,7 @@ void main() {
 
     expect(find.text('Edit client'), findsNothing);
     expect(find.text('Cancel'), findsOneWidget);
-    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Save'), findsNWidgets(2));
     expect(find.text('New appointment'), findsOneWidget);
     expect(find.byType(PhoneField), findsOneWidget);
     expect(find.text('EMERGENCY PHONE'), findsOneWidget);
@@ -2317,7 +2317,7 @@ void main() {
     await tester.tap(find.text('Edit details'));
     await tester.pump();
     await tester.enterText(find.byType(TextField).at(0), '');
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save').first);
     await tester.pump();
 
     expect(find.text('Required'), findsOneWidget);
@@ -2326,7 +2326,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField).at(0), 'Stewart');
     await tester.enterText(find.byType(TextField).at(6), 'updated note');
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
