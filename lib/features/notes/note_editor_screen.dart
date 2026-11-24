@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
@@ -10,7 +9,6 @@ import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
 import '../clients/client_profile_screen.dart';
-import 'dictation_apply_sheet.dart';
 import 'note_format.dart';
 import '../templates/template_body.dart';
 import '../templates/template_fields.dart';
@@ -33,14 +31,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   final _objective = TextEditingController();
   final _assessment = TextEditingController();
   final _plan = TextEditingController();
-
-  // shortcut: OS STT streams text only (no local audio file to delete)
-  final SpeechToText _speech = SpeechToText();
-  bool _speechReady = false;
-  bool _listening = false;
-  bool _finishingDictation = false;
-  String _liveWords = '';
-  SoapSection _lastSection = SoapSection.subjective;
 
   Note? _note;
   Client? _client;
@@ -76,7 +66,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   void dispose() {
     _saveDebounce?.cancel();
-    if (_speechReady) unawaited(_speech.cancel());
     _subjective.dispose();
     _objective.dispose();
     _assessment.dispose();
@@ -514,91 +503,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _scheduleSave();
   }
 
-  TextEditingController _controllerFor(SoapSection section) => switch (section) {
-        SoapSection.subjective => _subjective,
-        SoapSection.objective => _objective,
-        SoapSection.assessment => _assessment,
-        SoapSection.plan => _plan,
-      };
-
-  Future<bool> _ensureSpeech() async {
-    if (_speechReady) return true;
-    final ok = await _speech.initialize(
-      onStatus: _onSpeechStatus,
-      onError: (e) {
-        if (!mounted) return;
-        showPelviSnackBar(context, 'Dictation error: ${e.errorMsg}');
-      },
-    );
-    if (!mounted) return false;
-    _speechReady = ok;
-    if (!ok) {
-      showPelviSnackBar(
-        context,
-        'Speech recognition unavailable. Check mic permission.',
-      );
-    }
-    return ok;
-  }
-
-  void _onSpeechStatus(String status) {
-    if (!mounted || !_listening) return;
-    if (status == SpeechToText.doneStatus ||
-        status == SpeechToText.notListeningStatus) {
-      unawaited(_finishDictation());
-    }
-  }
-
-  Future<void> _toggleMic() async {
-    if (_listening) {
-      await _finishDictation();
-      return;
-    }
-    if (!await _ensureSpeech()) return;
-    _liveWords = '';
-    setState(() => _listening = true);
-    await _speech.listen(
-      onResult: (r) {
-        if (!mounted) return;
-        setState(() => _liveWords = r.recognizedWords);
-      },
-      listenOptions: SpeechListenOptions(
-        listenMode: ListenMode.dictation,
-        partialResults: true,
-        cancelOnError: true,
-      ),
-    );
-  }
-
-  Future<void> _finishDictation() async {
-    if (_finishingDictation) return;
-    _finishingDictation = true;
-    try {
-      if (_speech.isListening) await _speech.stop();
-      if (!mounted) return;
-      setState(() => _listening = false);
-      final text = _liveWords.trim();
-      _liveWords = '';
-      if (text.isEmpty) {
-        showPelviSnackBar(context, 'Nothing heard. Try again.');
-        return;
-      }
-      final result = await showDictationApplySheet(
-        context: context,
-        initialText: text,
-        initialSection: _lastSection,
-      );
-      if (!mounted || result == null) return;
-      final c = _controllerFor(result.section);
-      c.text = appendSoapTranscript(c.text, result.text);
-      _lastSection = result.section;
-      _scheduleSave();
-      showPelviSnackBar(context, 'Appended to ${result.section.label}.');
-    } finally {
-      _finishingDictation = false;
-    }
-  }
-
   void _goToClientProfile() {
     final client = _client;
     if (client == null) return;
@@ -610,7 +514,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   }
 
   Future<bool> _onWillPop() async {
-    if (_listening) await _speech.cancel();
     _saveDebounce?.cancel();
     await _autosave();
     return true;
@@ -749,22 +652,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             ),
           ],
         ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-        floatingActionButton: _DictationFab(
-          listening: _listening,
-          onPressed: _toggleMic,
-        ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(
                     PelviSpace.page,
                     PelviSpace.md,
                     PelviSpace.page,
-                    PelviSpace.xxl + 72,
+                    PelviSpace.xxl,
                   ),
           children: [
             _NoteEditorHeader(
-              listening: _listening,
-              liveWords: _liveWords,
               templateLabel: _template.label,
               onCopyLast: _copyLastNote,
               onPickTemplate: _pickTemplate,
@@ -878,105 +774,49 @@ class _StatusChip extends StatelessWidget {
 
 class _NoteEditorHeader extends StatelessWidget {
   const _NoteEditorHeader({
-    required this.listening,
-    required this.liveWords,
     required this.templateLabel,
     required this.onCopyLast,
     required this.onPickTemplate,
   });
 
-  final bool listening;
-  final String liveWords;
   final String templateLabel;
   final VoidCallback onCopyLast;
   final VoidCallback onPickTemplate;
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
       children: [
-        if (listening) ...[
-          Text(
-            liveWords.isEmpty ? 'Listening… tap mic to stop' : liveWords,
-            style: text.bodyMedium?.copyWith(color: PelviColors.of(context).pink700),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: onCopyLast,
+            icon: const Icon(Icons.content_copy_outlined, size: 18),
+            label: const Text('Copy last note'),
           ),
-          const SizedBox(height: PelviSpace.md),
-        ],
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onCopyLast,
-                icon: const Icon(Icons.content_copy_outlined, size: 18),
-                label: const Text('Copy last note'),
-              ),
-            ),
-            const SizedBox(width: PelviSpace.sm),
-            Expanded(
-              child: Tooltip(
-                message: 'Choose template',
-                child: FilledButton(
-                  onPressed: onPickTemplate,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          templateLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const Icon(Icons.arrow_drop_down, size: 20),
-                    ],
+        ),
+        const SizedBox(width: PelviSpace.sm),
+        Expanded(
+          child: Tooltip(
+            message: 'Choose template',
+            child: FilledButton(
+              onPressed: onPickTemplate,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      templateLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
+                  const Icon(Icons.arrow_drop_down, size: 20),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ],
-    );
-  }
-}
-
-class _DictationFab extends StatelessWidget {
-  const _DictationFab({
-    required this.listening,
-    required this.onPressed,
-  });
-
-  final bool listening;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: listening ? 'Stop dictation' : 'Dictate',
-      child: SizedBox(
-        width: 54,
-        height: 54,
-        child: FloatingActionButton(
-          heroTag: 'soapDictationFab',
-          onPressed: onPressed,
-          elevation: 0,
-          focusElevation: 0,
-          hoverElevation: 0,
-          highlightElevation: 0,
-          backgroundColor:
-              listening ? PelviColors.of(context).pink950 : PelviColors.of(context).pink700,
-          foregroundColor: PelviColors.of(context).inkInverse,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(PelviRadius.lg),
-          ),
-          child: Icon(
-            listening ? Icons.stop_rounded : Icons.mic_none_rounded,
-            size: 24,
-          ),
-        ),
-      ),
     );
   }
 }

@@ -45,9 +45,5 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>NotesOnly uses the microphone to dictate SOAP note text.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>NotesOnly turns speech into editable SOAP note text.</string>
 </dict>
 </plist>

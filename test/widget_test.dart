@@ -2039,8 +2039,8 @@ void main() {
     expect(find.textContaining('Template:'), findsNothing);
     expect(find.text('Go to client profile'), findsNothing);
     expect(find.byTooltip('Client profile'), findsOneWidget);
-    expect(find.byTooltip('Dictate'), findsOneWidget);
-    expect(find.byType(FloatingActionButton), findsOneWidget);
+    expect(find.byTooltip('Dictate'), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byType(OutlinedButton), findsOneWidget);
     expect(find.byType(FilledButton), findsOneWidget);
 
