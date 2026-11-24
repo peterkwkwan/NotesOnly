@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/show_snack.dart';
 import '../appointments/web_edit_appointment_page.dart';
 import '../appointments/web_new_appointment_page.dart';
 import '../notes/note_format.dart';
@@ -1306,7 +1308,39 @@ class _VisitDetailPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(Icons.more_horiz, size: 18, color: c.inkMuted),
+              TextButton.icon(
+                onPressed: emptySoap
+                    ? null
+                    : () async {
+                        await Clipboard.setData(
+                          ClipboardData(
+                            text: formatSoapPlainText(
+                              subjective: s,
+                              objective: o,
+                              assessment: asmt,
+                              plan: p,
+                            ),
+                          ),
+                        );
+                        if (!context.mounted) return;
+                        showPelviSnackBar(context, 'Note copied.');
+                      },
+                style: TextButton.styleFrom(
+                  foregroundColor: c.inkMuted,
+                  disabledForegroundColor: c.inkMuted.withValues(alpha: 0.4),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.copy_outlined, size: 16),
+                label: const Text(
+                  'Copy',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 18),

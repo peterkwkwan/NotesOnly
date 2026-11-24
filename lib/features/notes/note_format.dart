@@ -54,6 +54,23 @@ String soapNotePreviewBody({
   return '';
 }
 
+/// Full SOAP note as plain text for clipboard (labeled S/O/A/P blocks).
+String formatSoapPlainText({
+  required String subjective,
+  required String objective,
+  required String assessment,
+  required String plan,
+}) {
+  String block(String label, String body) => '$label:\n${body.trim()}';
+
+  return [
+    block('Subjective', subjective),
+    block('Objective', objective),
+    block('Assessment', assessment),
+    block('Plan', plan),
+  ].join('\n\n');
+}
+
 /// One-line revision preview: prefer the latest changed SOAP chunk vs [previous*],
 /// else the first non-empty section.
 String soapRevisionPreview({

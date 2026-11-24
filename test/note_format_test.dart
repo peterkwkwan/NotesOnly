@@ -57,4 +57,19 @@ void main() {
     expect(out.endsWith('…'), isTrue);
     expect(out.length, 73);
   });
+
+  test('formatSoapPlainText labels every section', () {
+    expect(
+      formatSoapPlainText(
+        subjective: '  pain on sitting  ',
+        objective: '',
+        assessment: 'PF dysfunction',
+        plan: 'Home program\nFollow up 2w',
+      ),
+      'Subjective:\npain on sitting\n\n'
+      'Objective:\n\n\n'
+      'Assessment:\nPF dysfunction\n\n'
+      'Plan:\nHome program\nFollow up 2w',
+    );
+  });
 }
