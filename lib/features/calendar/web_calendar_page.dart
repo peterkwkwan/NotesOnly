@@ -14,14 +14,9 @@ import '../clients/client_format.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
+import 'calendar_practitioner_filter.dart';
 
 enum _CalView { day, week, month }
-
-/// Max practitioners selectable in the calendar filter.
-const _maxCalendarPractitioners = 3;
-
-String _calendarFilterUidsKey(String orgId, String uid) =>
-    'calendar_filter_uids__${orgId}__$uid';
 
 class _PracColors {
   const _PracColors({
@@ -275,13 +270,9 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       final bookableUids = {for (final m in bookable) m.uid};
       var selected = <String>{};
       final raw =
-          await db.getSetting(_calendarFilterUidsKey(orgId, self));
-      if (raw != null && raw.isNotEmpty) {
-        for (final part in raw.split(',')) {
-          final uid = part.trim();
-          if (uid.isEmpty) continue;
-          if (bookableUids.contains(uid) || uid == self) selected.add(uid);
-        }
+          await db.getSetting(calendarFilterUidsKey(orgId, self));
+      for (final uid in parseCalendarFilterUids(raw)) {
+        if (bookableUids.contains(uid) || uid == self) selected.add(uid);
       }
       if (selected.isEmpty) {
         if (self.isNotEmpty &&
@@ -291,8 +282,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
           selected = {bookable.first.uid};
         }
       }
-      if (selected.length > _maxCalendarPractitioners) {
-        selected = selected.take(_maxCalendarPractitioners).toSet();
+      if (selected.length > maxCalendarPractitioners) {
+        selected = selected.take(maxCalendarPractitioners).toSet();
       }
       setState(() {
         _members = members;
@@ -326,12 +317,11 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     return uids;
   }
 
-  bool _matchesFilter(String practitionerUid) {
-    if (_filterUids.isEmpty) return true;
-    final uid = practitionerUid.isEmpty ? _selfUid : practitionerUid;
-    if (uid.isEmpty) return _filterUids.contains(_selfUid);
-    return _filterUids.contains(uid);
-  }
+  bool _matchesFilter(String practitionerUid) => matchesCalendarFilter(
+        filterUids: _filterUids,
+        practitionerUid: practitionerUid,
+        selfUid: _selfUid,
+      );
 
   bool _canMutateAppt(Appointment a) {
     // Match Drift: no signed-in uid → skip role gate (tests / pre-roster).
@@ -367,8 +357,8 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     try {
       final db = AppDatabaseProvider.of(context);
       await db.setSetting(
-        _calendarFilterUidsKey(_orgId, _selfUid),
-        _filterUids.join(','),
+        calendarFilterUidsKey(_orgId, _selfUid),
+        encodeCalendarFilterUids(_filterUids),
       );
     } catch (_) {}
   }
@@ -379,7 +369,7 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
       if (next.length <= 1) return;
       next.remove(uid);
     } else {
-      if (next.length >= _maxCalendarPractitioners) return;
+      if (next.length >= maxCalendarPractitioners) return;
       next.add(uid);
     }
     setState(() => _filterUids = next);
@@ -1412,7 +1402,7 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
       for (final o in _options)
         if (widget.selectedUids.contains(o.uid)) o,
     ];
-    final atMax = widget.selectedUids.length >= _maxCalendarPractitioners;
+    final atMax = widget.selectedUids.length >= maxCalendarPractitioners;
 
     return CompositedTransformTarget(
       link: _link,
@@ -1451,7 +1441,7 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'PRACTITIONERS · MAX $_maxCalendarPractitioners',
+                            'PRACTITIONERS · MAX $maxCalendarPractitioners',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
@@ -1516,7 +1506,7 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
                           if (atMax) ...[
                             const SizedBox(height: 4),
                             Text(
-                              'Week view shows up to $_maxCalendarPractitioners practitioners',
+                              'Week view shows up to $maxCalendarPractitioners practitioners',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: c.inkMuted,
