@@ -8,6 +8,9 @@ import '../notes/open_note.dart';
 import 'appointment_form_screen.dart';
 
 /// Today / Calendar day-list row: tap → edit appointment; note icon → SOAP.
+///
+/// Pass [railColor] + [practitionerLabel] only when the calendar filter has
+/// more than one practitioner selected (multi-identity scan cues).
 class AppointmentAgendaRow extends StatelessWidget {
   const AppointmentAgendaRow({
     super.key,
@@ -15,12 +18,16 @@ class AppointmentAgendaRow extends StatelessWidget {
     required this.client,
     this.past = false,
     this.defaultMinutes = 60,
+    this.railColor,
+    this.practitionerLabel,
   });
 
   final Appointment appointment;
   final Client client;
   final bool past;
   final int defaultMinutes;
+  final Color? railColor;
+  final String? practitionerLabel;
 
   void _openEdit(BuildContext context) {
     Navigator.of(context).push(
@@ -51,98 +58,125 @@ class AppointmentAgendaRow extends StatelessWidget {
     );
     final durationMins =
         endsAt.difference(appointment.startsAt).inMinutes;
+    final label = practitionerLabel?.trim();
 
     return InkWell(
       onTap: () => _openEdit(context),
       splashColor: PelviColors.of(context).surfaceMuted,
       highlightColor: PelviColors.of(context).surfaceMuted,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: PelviSpace.md,
-          vertical: PelviSpace.sm + 4,
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 56,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      formatApptTime(appointment.startsAt),
-                      style: text.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: ink,
-                        decoration: decoration,
-                        decorationColor: ink,
-                      ),
-                    ),
-                    Text(
-                      formatApptTime(endsAt),
-                      style: text.labelMedium?.copyWith(
-                        color: PelviColors.of(context).inkMuted,
-                        decoration: decoration,
-                        decorationColor: PelviColors.of(context).inkMuted,
-                      ),
-                    ),
-                  ],
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (railColor != null)
+              Container(width: 3, color: railColor),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: PelviSpace.md,
+                  vertical: PelviSpace.sm + 4,
                 ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      clientDisplayName(client),
-                      style: text.labelLarge?.copyWith(
-                        color: ink,
-                        decoration: decoration,
-                        decorationColor: ink,
-                      ),
-                    ),
-                    Text.rich(
-                      TextSpan(
-                        style: text.labelMedium?.copyWith(
-                          color: PelviColors.of(context).inkMuted,
-                          decoration: decoration,
-                          decorationColor: PelviColors.of(context).inkMuted,
-                        ),
-                        children: [
-                          TextSpan(text: '$durationMins min · '),
-                          TextSpan(
-                            text: appointmentStatusLabel(appointment.status),
-                            style: TextStyle(
-                              color: past
-                                  ? PelviColors.of(context).inkMuted
-                                  : appointmentStatusColor(appointment.status),
-                              decoration: decoration,
-                              decorationColor: PelviColors.of(context).inkMuted,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 56),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 56,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              formatApptTime(appointment.startsAt),
+                              style: text.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: ink,
+                                decoration: decoration,
+                                decorationColor: ink,
+                              ),
                             ),
-                          ),
-                        ],
+                            Text(
+                              formatApptTime(endsAt),
+                              style: text.labelMedium?.copyWith(
+                                color: PelviColors.of(context).inkMuted,
+                                decoration: decoration,
+                                decorationColor:
+                                    PelviColors.of(context).inkMuted,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              clientDisplayName(client),
+                              style: text.labelLarge?.copyWith(
+                                color: ink,
+                                decoration: decoration,
+                                decorationColor: ink,
+                              ),
+                            ),
+                            Text.rich(
+                              TextSpan(
+                                style: text.labelMedium?.copyWith(
+                                  color: PelviColors.of(context).inkMuted,
+                                  decoration: decoration,
+                                  decorationColor:
+                                      PelviColors.of(context).inkMuted,
+                                ),
+                                children: [
+                                  if (label != null && label.isNotEmpty) ...[
+                                    TextSpan(text: '$label · '),
+                                  ],
+                                  TextSpan(text: '$durationMins min · '),
+                                  TextSpan(
+                                    text: appointmentStatusLabel(
+                                      appointment.status,
+                                    ),
+                                    style: TextStyle(
+                                      color: past
+                                          ? PelviColors.of(context).inkMuted
+                                          : appointmentStatusColor(
+                                              appointment.status,
+                                            ),
+                                      decoration: decoration,
+                                      decorationColor:
+                                          PelviColors.of(context).inkMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'SOAP note',
+                        onPressed: () => _openSoap(context),
+                        icon: Icon(
+                          Icons.notes_outlined,
+                          color: past
+                              ? PelviColors.of(context).inkMuted
+                              : PelviColors.of(context).purple700,
+                          size: 20,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
+                        padding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              IconButton(
-                tooltip: 'SOAP note',
-                onPressed: () => _openSoap(context),
-                icon: Icon(
-                  Icons.notes_outlined,
-                  color: past ? PelviColors.of(context).inkMuted : PelviColors.of(context).purple700,
-                  size: 20,
-                ),
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                padding: EdgeInsets.zero,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

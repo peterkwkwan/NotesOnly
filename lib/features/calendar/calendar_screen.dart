@@ -11,6 +11,7 @@ import '../appointments/appointment_agenda_row.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../notes/note_format.dart';
 import '../shell/desktop_chrome.dart';
+import 'calendar_practitioner_colors.dart';
 import 'calendar_practitioner_filter.dart';
 import 'web_calendar_page.dart';
 
@@ -495,11 +496,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         final row = rows[index];
                         final past =
                             isToday && row.appointment.startsAt.isBefore(now);
+                        final multi = _filterUids.length > 1;
+                        final uid = row.appointment.practitionerUid.isEmpty
+                            ? _selfUid
+                            : row.appointment.practitionerUid;
                         return AppointmentAgendaRow(
                           appointment: row.appointment,
                           client: row.client,
                           past: past,
                           defaultMinutes: defaultMinutes,
+                          railColor: multi
+                              ? practitionerColors(
+                                  c: PelviColors.of(context),
+                                  uid: uid,
+                                  selfUid: _selfUid,
+                                  rosterUids: [
+                                    for (final m in _bookableMembers) m.uid,
+                                  ],
+                                ).accent
+                              : null,
+                          practitionerLabel: multi
+                              ? (_memberNames[uid] ??
+                                  (uid == _selfUid ? 'Me' : null))
+                              : null,
                         );
                       },
                     ),

@@ -14,53 +14,10 @@ import '../clients/client_format.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import '../shell/desktop_chrome.dart';
+import 'calendar_practitioner_colors.dart';
 import 'calendar_practitioner_filter.dart';
 
 enum _CalView { day, week, month }
-
-class _PracColors {
-  const _PracColors({
-    required this.fill,
-    required this.accent,
-    required this.text,
-  });
-
-  final Color fill;
-  final Color accent;
-  final Color text;
-}
-
-/// Pink = me; others get purple / teal / amber by roster order.
-_PracColors _personColors({
-  required PelviPalette c,
-  required String uid,
-  required String selfUid,
-  required List<String> rosterUids,
-}) {
-  final id = uid.isEmpty ? selfUid : uid;
-  if (id.isEmpty || id == selfUid) {
-    return _PracColors(fill: c.pink50, accent: c.pink400, text: c.pink700);
-  }
-  // shortcut: teal/amber are fixed light swatches; upgrade if dark-calendar QA cares
-  final extras = <_PracColors>[
-    _PracColors(fill: c.purple50, accent: c.purple400, text: c.purple700),
-    const _PracColors(
-      fill: Color(0xFFE6F5F0),
-      accent: Color(0xFF5BA88A),
-      text: Color(0xFF1F7A5C),
-    ),
-    const _PracColors(
-      fill: Color(0xFFFBF0E6),
-      accent: Color(0xFFE0A066),
-      text: Color(0xFFB56A1E),
-    ),
-  ];
-  final others = [for (final u in rosterUids) if (u != selfUid) u];
-  final idx = others.indexOf(id);
-  final pick =
-      idx < 0 ? id.hashCode.abs() % extras.length : idx % extras.length;
-  return extras[pick];
-}
 
 String _shortPersonName(String full) {
   final t = full.trim();
@@ -1460,7 +1417,7 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
                                   widget.selectedUids.contains(o.uid),
                               disabled: atMax &&
                                   !widget.selectedUids.contains(o.uid),
-                              colors: _personColors(
+                              colors: practitionerColors(
                                 c: c,
                                 uid: o.uid,
                                 selfUid: widget.selfUid,
@@ -1557,7 +1514,7 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
                   else if (selected.length == 1 &&
                       selected.first.uid == widget.selfUid)
                     _FilterChipLabel(
-                      colors: _personColors(
+                      colors: practitionerColors(
                         c: c,
                         uid: widget.selfUid,
                         selfUid: widget.selfUid,
@@ -1569,7 +1526,7 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
                     for (final o in selected) ...[
                       if (o != selected.first) const SizedBox(width: 6),
                       _FilterChipLabel(
-                        colors: _personColors(
+                        colors: practitionerColors(
                           c: c,
                           uid: o.uid,
                           selfUid: widget.selfUid,
@@ -1599,7 +1556,7 @@ class _PractitionerFilterState extends State<_PractitionerFilter> {
 class _FilterChipLabel extends StatelessWidget {
   const _FilterChipLabel({required this.colors, required this.label});
 
-  final _PracColors colors;
+  final PracColors colors;
   final String label;
 
   @override
@@ -1643,7 +1600,7 @@ class _PractitionerOptionRow extends StatelessWidget {
   final String? subtitle;
   final bool selected;
   final bool disabled;
-  final _PracColors colors;
+  final PracColors colors;
   final VoidCallback onTap;
 
   @override
@@ -1855,7 +1812,7 @@ class _WeekSchedule extends StatefulWidget {
     required double hourH,
     required int defaultMins,
     required ({Appointment appointment, Client client}) row,
-    required _PracColors colors,
+    required PracColors colors,
     required int lane,
     required int laneCount,
     required VoidCallback onTap,
@@ -2114,7 +2071,7 @@ class _WeekScheduleState extends State<_WeekSchedule> {
           hourH: _WeekSchedule._hourH,
           defaultMins: widget.defaultMins,
           row: dayRows[i],
-          colors: _personColors(
+          colors: practitionerColors(
             c: c,
             uid: dayRows[i].appointment.practitionerUid,
             selfUid: widget.selfUid,
@@ -2312,7 +2269,7 @@ class _WeekScheduleState extends State<_WeekSchedule> {
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: _personColors(
+                            color: practitionerColors(
                               c: c,
                               uid: uid,
                               selfUid: widget.selfUid,
