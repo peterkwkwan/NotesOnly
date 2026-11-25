@@ -671,14 +671,14 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                   foregroundColor: PelviColors.of(context).pink700,
                   side: BorderSide(color: PelviColors.of(context).pink700),
                 ),
-                icon: const Icon(Icons.edit_calendar_outlined, size: 20),
+                icon: const Icon(Icons.event_repeat, size: 20),
                 label: const Text('Book again'),
               ),
               if (_canMutate && _isDirty) ...[
                 const SizedBox(height: PelviSpace.sm),
-                TextButton(
+                TextButton.icon(
                   onPressed: _saving || _clientId == null ? null : _save,
-                  child: _saving
+                  icon: _saving
                       ? SizedBox(
                           width: 20,
                           height: 20,
@@ -687,7 +687,8 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                             color: PelviColors.of(context).pink700,
                           ),
                         )
-                      : const Text('Save changes'),
+                      : const Icon(Icons.save_outlined, size: 20),
+                  label: const Text('Save changes'),
                 ),
               ],
             ] else
