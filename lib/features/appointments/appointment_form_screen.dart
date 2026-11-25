@@ -35,6 +35,8 @@ class AppointmentFormScreen extends StatefulWidget {
     super.key,
     this.clientId,
     this.initialDay,
+    this.initialDurationMins,
+    this.initialPractitionerUid,
     this.existing,
   });
 
@@ -43,6 +45,12 @@ class AppointmentFormScreen extends StatefulWidget {
 
   /// Optional day seed for create (defaults to today).
   final DateTime? initialDay;
+
+  /// Optional duration seed for create (e.g. Book again).
+  final int? initialDurationMins;
+
+  /// Optional practitioner seed for create (e.g. Book again).
+  final String? initialPractitionerUid;
 
   /// When set, form edits this appointment.
   final Appointment? existing;
@@ -94,18 +102,47 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       _day = DateTime(seed.year, seed.month, seed.day);
       _time = nextWholeHour();
       _clientId = widget.clientId;
-      _practitionerUid = NotesAuth.currentUser?.uid ?? '';
+      final seedPrac = widget.initialPractitionerUid?.trim() ?? '';
+      _practitionerUid =
+          seedPrac.isNotEmpty ? seedPrac : (NotesAuth.currentUser?.uid ?? '');
+      final seedDur = widget.initialDurationMins;
+      if (seedDur != null) {
+        _durationMins = AppDatabase.snapAppointmentDuration(seedDur);
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _loadDefaultDuration();
+        if (seedDur == null) _loadDefaultDuration();
         _loadCreatePractitioner();
       });
     }
+    if (_editing) {
+      _notesCtrl.addListener(_onNotesChanged);
+    }
+  }
+
+  void _onNotesChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    if (_editing) _notesCtrl.removeListener(_onNotesChanged);
     _notesCtrl.dispose();
     super.dispose();
+  }
+
+  bool get _isDirty {
+    final e = widget.existing;
+    if (e == null) return true;
+    final notes = _notesCtrl.text.trim();
+    final existingNotes = (e.notes ?? '').trim();
+    return _clientId != e.clientId ||
+        _status != e.status ||
+        notes != existingNotes ||
+        _startsAt.year != e.startsAt.year ||
+        _startsAt.month != e.startsAt.month ||
+        _startsAt.day != e.startsAt.day ||
+        _startsAt.hour != e.startsAt.hour ||
+        _startsAt.minute != e.startsAt.minute;
   }
 
   Future<void> _loadCreatePractitioner() async {
@@ -309,6 +346,31 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     await _loadHasNote();
   }
 
+  Future<void> _bookAgain() async {
+    final existing = widget.existing;
+    if (existing == null || _saving) return;
+    final db = AppDatabaseProvider.of(context);
+    final defaultMins = await db.getDefaultAppointmentMinutes();
+    final end = appointmentEffectiveEnd(
+      existing.startsAt,
+      existing.endsAt,
+      defaultMins,
+    );
+    final duration = AppDatabase.snapAppointmentDuration(
+      end.difference(existing.startsAt).inMinutes,
+    );
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AppointmentFormScreen(
+          clientId: existing.clientId,
+          initialDurationMins: duration,
+          initialPractitionerUid: existing.practitionerUid,
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmDelete() async {
     final existing = widget.existing;
     if (existing == null || _saving || !_canMutate) return;
@@ -438,6 +500,26 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_editing ? 'Edit appointment' : 'New appointment'),
+        actions: [
+          if (_editing && _canMutate)
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              icon: const Icon(Icons.more_horiz),
+              onSelected: (value) {
+                if (value == 'delete') _confirmDelete();
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'delete',
+                  enabled: !_saving,
+                  child: Text(
+                    'Delete',
+                    style: TextStyle(color: PelviColors.of(context).danger),
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -574,42 +656,54 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
               ),
             ),
             const SizedBox(height: PelviSpace.lg),
-            FilledButton(
-              onPressed: _saving ||
-                      _clientId == null ||
-                      (_editing && !_canMutate)
-                  ? null
-                  : _save,
-              child: _saving
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: PelviColors.of(context).inkInverse,
-                      ),
-                    )
-                  : Text(_editing ? 'Save changes' : 'Save appointment'),
-            ),
             if (_editing) ...[
-              const SizedBox(height: PelviSpace.sm),
-              OutlinedButton(
+              FilledButton.icon(
                 onPressed: _saving ? null : _openSoap,
-                child: Text(
+                icon: const Icon(Icons.description_outlined, size: 20),
+                label: Text(
                   _hasNote == true ? 'Open SOAP note' : 'Create SOAP note',
                 ),
               ),
-              if (_canMutate) ...[
+              const SizedBox(height: PelviSpace.sm),
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _bookAgain,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: PelviColors.of(context).pink700,
+                  side: BorderSide(color: PelviColors.of(context).pink700),
+                ),
+                icon: const Icon(Icons.edit_calendar_outlined, size: 20),
+                label: const Text('Book again'),
+              ),
+              if (_canMutate && _isDirty) ...[
                 const SizedBox(height: PelviSpace.sm),
                 TextButton(
-                  onPressed: _saving ? null : _confirmDelete,
-                  style: TextButton.styleFrom(
-                    foregroundColor: PelviColors.of(context).danger,
-                  ),
-                  child: const Text('Delete appointment'),
+                  onPressed: _saving || _clientId == null ? null : _save,
+                  child: _saving
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: PelviColors.of(context).pink700,
+                          ),
+                        )
+                      : const Text('Save changes'),
                 ),
               ],
-            ],
+            ] else
+              FilledButton(
+                onPressed: _saving || _clientId == null ? null : _save,
+                child: _saving
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: PelviColors.of(context).inkInverse,
+                        ),
+                      )
+                    : const Text('Save appointment'),
+              ),
           ],
         ),
       ),

@@ -1037,7 +1037,9 @@ void main() {
 
     expect(find.text('Edit appointment'), findsOneWidget);
     expect(find.text('Create SOAP note'), findsOneWidget);
-    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.text('Book again'), findsOneWidget);
+    expect(find.text('Save changes'), findsNothing);
+    expect(find.text('Delete appointment'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));
@@ -1079,8 +1081,60 @@ void main() {
 
     expect(find.text('Edit appointment'), findsOneWidget);
     expect(find.text('Create SOAP note'), findsOneWidget);
-    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.text('Book again'), findsOneWidget);
+    expect(find.text('Save changes'), findsNothing);
     expect(find.text('Subjective'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
+  testWidgets('edit appointment footer: dirty save, book again, delete overflow',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    final apptId = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 29, 10, 0),
+      endsAt: DateTime(2026, 10, 29, 11, 0),
+      practitionerUid: 'prac-1',
+      notes: 'keep',
+    );
+    final appt = (await db.getAppointment(apptId))!;
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          home: AppointmentFormScreen(existing: appt),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Create SOAP note'), findsOneWidget);
+    expect(find.text('Book again'), findsOneWidget);
+    expect(find.text('Save changes'), findsNothing);
+    expect(find.byIcon(Icons.more_horiz), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(TextField),
+      'changed notes',
+    );
+    await tester.pump();
+    expect(find.text('Save changes'), findsOneWidget);
+
+    await tester.tap(find.text('Book again'));
+    await tester.pumpAndSettle();
+    expect(find.text('New appointment'), findsOneWidget);
+    expect(find.text('60 min'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));
