@@ -1039,7 +1039,7 @@ void main() {
     expect(find.text('Create SOAP note'), findsOneWidget);
     expect(find.text('Book again'), findsOneWidget);
     expect(find.text('Save changes'), findsNothing);
-    expect(find.text('Delete appointment'), findsNothing);
+    expect(find.text('Delete appointment'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));
@@ -1089,7 +1089,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
-  testWidgets('edit appointment footer: dirty save, book again, delete overflow',
+  testWidgets('edit appointment: book again under title, delete in footer',
       (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -1121,8 +1121,17 @@ void main() {
 
     expect(find.text('Create SOAP note'), findsOneWidget);
     expect(find.text('Book again'), findsOneWidget);
+    expect(find.byIcon(Icons.event_repeat), findsOneWidget);
+    expect(find.text('Delete appointment'), findsOneWidget);
     expect(find.text('Save changes'), findsNothing);
-    expect(find.byIcon(Icons.more_horiz), findsOneWidget);
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
+
+    final bookAgainY = tester.getTopLeft(find.text('Book again')).dy;
+    final clientLabelY = tester.getTopLeft(find.text('CLIENT')).dy;
+    final soapY = tester.getTopLeft(find.text('Create SOAP note')).dy;
+    final deleteY = tester.getTopLeft(find.text('Delete appointment')).dy;
+    expect(bookAgainY, lessThan(clientLabelY));
+    expect(soapY, lessThan(deleteY));
 
     await tester.enterText(
       find.byType(TextField),

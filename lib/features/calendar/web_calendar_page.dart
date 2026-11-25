@@ -498,6 +498,40 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
     await _loadHasNote(row.appointment.id);
   }
 
+  /// Same client / duration / practitioner; today + next whole hour; empty notes.
+  void _bookAgainFromReassign(int defaultMins) {
+    final row = _reassign;
+    if (row == null || _saving) return;
+    final appt = row.appointment;
+    final end = appointmentEffectiveEnd(
+      appt.startsAt,
+      appt.endsAt,
+      defaultMins,
+    );
+    final duration = AppDatabase.snapAppointmentDuration(
+      end.difference(appt.startsAt).inMinutes,
+    );
+    final now = DateTime.now();
+    final day = _dateOnly(now);
+    final starts = nextWholeHour(now);
+    setState(() {
+      _reassign = null;
+      _reassignUid = null;
+      _hasNote = null;
+      _panelOpen = true;
+      _selected = day;
+      _starts = starts;
+      _durationMins = duration;
+      _ends = addMinutesToTimeOfDay(starts, duration);
+      _clientId = row.client.id;
+      _createPractitionerUid =
+          appt.practitionerUid.isNotEmpty ? appt.practitionerUid : _selfUid;
+      _status = AppointmentStatus.scheduled;
+      _notesCtrl.clear();
+      if (_view == _CalView.week) _anchor = _sundayOf(_selected);
+    });
+  }
+
   Future<void> _saveEdit(AppDatabase db, int defaultMins) async {
     final row = _reassign;
     if (row == null || _saving) return;
@@ -1149,6 +1183,9 @@ class _WebCalendarPageState extends State<WebCalendarPage> {
                                                           _pickStatus,
                                                       onSoap:
                                                           _openSoapForReassign,
+                                                      onBookAgain: () =>
+                                                          _bookAgainFromReassign(
+                                                              defaultMins),
                                                       onSave: () => _saveEdit(
                                                         db,
                                                         defaultMins,
@@ -2875,6 +2912,7 @@ class _ReassignPanel extends StatelessWidget {
     required this.onPickDuration,
     required this.onPickStatus,
     required this.onSoap,
+    required this.onBookAgain,
     required this.onSave,
     required this.onDelete,
   });
@@ -2902,6 +2940,7 @@ class _ReassignPanel extends StatelessWidget {
   final VoidCallback onPickDuration;
   final VoidCallback onPickStatus;
   final VoidCallback onSoap;
+  final VoidCallback onBookAgain;
   final VoidCallback onSave;
   final VoidCallback onDelete;
 
@@ -2976,6 +3015,23 @@ class _ReassignPanel extends StatelessWidget {
                 tooltip: 'Close',
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: saving ? null : onBookAgain,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: c.pink700,
+              side: BorderSide(color: c.pink700),
+              minimumSize: const Size(0, 38),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PelviRadius.sm),
+              ),
+            ),
+            icon: const Icon(Icons.event_repeat, size: 18),
+            label: const Text(
+              'Book again',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ),
           const SizedBox(height: 16),
           Divider(height: 1, color: c.border),

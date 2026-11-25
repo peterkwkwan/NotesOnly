@@ -500,32 +500,24 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_editing ? 'Edit appointment' : 'New appointment'),
-        actions: [
-          if (_editing && _canMutate)
-            PopupMenuButton<String>(
-              tooltip: 'More',
-              icon: const Icon(Icons.more_horiz),
-              onSelected: (value) {
-                if (value == 'delete') _confirmDelete();
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'delete',
-                  enabled: !_saving,
-                  child: Text(
-                    'Delete',
-                    style: TextStyle(color: PelviColors.of(context).danger),
-                  ),
-                ),
-              ],
-            ),
-        ],
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(PelviSpace.page),
           children: [
+            if (_editing) ...[
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _bookAgain,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: PelviColors.of(context).pink700,
+                  side: BorderSide(color: PelviColors.of(context).pink700),
+                ),
+                icon: const Icon(Icons.event_repeat, size: 20),
+                label: const Text('Book again'),
+              ),
+              const SizedBox(height: PelviSpace.md),
+            ],
             Text('CLIENT', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),
             if (lockedClient)
@@ -664,16 +656,6 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                   _hasNote == true ? 'Open SOAP note' : 'Create SOAP note',
                 ),
               ),
-              const SizedBox(height: PelviSpace.sm),
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _bookAgain,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: PelviColors.of(context).pink700,
-                  side: BorderSide(color: PelviColors.of(context).pink700),
-                ),
-                icon: const Icon(Icons.event_repeat, size: 20),
-                label: const Text('Book again'),
-              ),
               if (_canMutate && _isDirty) ...[
                 const SizedBox(height: PelviSpace.sm),
                 TextButton.icon(
@@ -689,6 +671,16 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                         )
                       : const Icon(Icons.save_outlined, size: 20),
                   label: const Text('Save changes'),
+                ),
+              ],
+              if (_canMutate) ...[
+                const SizedBox(height: PelviSpace.sm),
+                TextButton(
+                  onPressed: _saving ? null : _confirmDelete,
+                  style: TextButton.styleFrom(
+                    foregroundColor: PelviColors.of(context).danger,
+                  ),
+                  child: const Text('Delete appointment'),
                 ),
               ],
             ] else
